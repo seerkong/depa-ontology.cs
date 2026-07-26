@@ -1,0 +1,6 @@
+<decisions #add_dotnet_example_server [
+  <decision #browser_contract_scope { status = "accepted" } ?>仅兼容 depa-ontology.ts/packages/example-browser；不兼容历史 Bun viz 前端。 </?>
+  <decision #application_boundary { status = "accepted" } ?>Server 是私有 ASP.NET Core 示例应用，不发布 NuGet，不将 HTTP 或 demo concerns 下沉到核心包。 </?>
+  <decision #hosting_default { status = "accepted" } ?>v1 仅提供 API；前端继续由 Vite 托管并以 VITE_API_BASE 连接。 </?>
+  <decision #execution_mode { status = "accepted" } ?>用户授权创建后立即实现；采用 manual commit、无额外人工确认或 gap-loop hook。 </?>
+]>

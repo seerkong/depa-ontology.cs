@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Depa.Datalog.Core/Depa.Datalog.Core.csproj" />
+    <Project Path="src/Depa.Datalog.Cozo/Depa.Datalog.Cozo.csproj" />
+    <Project Path="src/Depa.Ontology/Depa.Ontology.csproj" />
+    <Project Path="src/Depa.Ontology.Portability.Yaml/Depa.Ontology.Portability.Yaml.csproj" />
+    <Project Path="src/Depa.Ontology.Scripting.Jint/Depa.Ontology.Scripting.Jint.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Depa.Ontology.Tests/Depa.Ontology.Tests.csproj" />
+    <Project Path="tests/Depa.Datalog.Tests/Depa.Datalog.Tests.csproj" />
+  </Folder>
+  <Folder Name="/examples/">
+    <Project Path="examples/Depa.Ontology.ExampleServer/Depa.Ontology.ExampleServer.csproj" />
+    <Project Path="examples/Depa.Ontology.ExampleServer.Tests/Depa.Ontology.ExampleServer.Tests.csproj" />
+  </Folder>
+</Solution>

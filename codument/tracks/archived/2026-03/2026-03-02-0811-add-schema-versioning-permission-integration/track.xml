@@ -1,0 +1,5 @@
+<Track id="add-schema-versioning-permission-integration" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata><Status>completed</Status><Goal>实现 schema 版本化、迁移、回滚与本体权限集成。</Goal><Description>由旧 plan.xml 最小迁移；原计划和 Markdown spec 已保留在 legacy/ 与 codument/legacy/specs/。</Description><CreatedAt>2026-03-01T11:05:31Z</CreatedAt><UpdatedAt>2026-03-02T08:11:57Z</UpdatedAt></Metadata>
+  <TaskSpace id="legacy_schema_versioning_permission" name="add-schema-versioning-permission-integration" version="1"><Description>Legacy plan preserved for archival traceability.</Description><SubNodes><TaskGroup id="P1" name="历史计划已保留" status="DONE" order="0"><SubNodes><Task id="T1" name="迁移 legacy plan" status="DONE" order="0"/></SubNodes></TaskGroup></SubNodes></TaskSpace>
+  <Schedule><Parallel max-concurrent="1" spot-check="true"/></Schedule><Hooks/>
+</Track>

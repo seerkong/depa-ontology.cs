@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><PackageId>Depa.Ontology.Portability.Yaml</PackageId><Description>Safe YAML adapter for Depa ontology behavior manifests.</Description></PropertyGroup><ItemGroup><ProjectReference Include="../../src/Depa.Ontology/Depa.Ontology.csproj" /><PackageReference Include="YamlDotNet" Version="18.1.0" /></ItemGroup></Project>

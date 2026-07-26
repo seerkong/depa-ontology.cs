@@ -1,0 +1,20 @@
+<decision-tree #verify.om.runtime-portability-parity {
+  severity = "auto"
+  root = "Can G15-G17 be closed with one independent cross-runtime verification track?"
+}
+(
+  <decision-frontier ?>No unresolved product or semantic choice remains: D6, D7, and D8 are frozen in the active mission. The track only verifies their observable contracts.</decision-frontier>
+  <assumption ?>The user's instruction to autonomously continue the active mission authorizes planning and executing this already-candidate verification track without another approval pause.</assumption>
+  <decision { key = "scope" value = "G15-G17" }
+  (
+    <rationale ?>The mission's VERIFY2 node explicitly requires registry lifecycle, canonical behavior portability/readiness, and Bun behavior snapshot/diff/rollback evidence.</rationale>
+  )>
+  <decision { key = "change-policy" value = "verification-first" }
+  (
+    <rationale ?>The verifier may add narrowly necessary paired tests or decision-free corrections only when an executable gap is found; otherwise it changes no runtime behavior.</rationale>
+  )>
+  <decision { key = "validation" value = "attractor-and-gap-loop" }
+  (
+    <rationale ?>This is the mission completed gate, so the final phase uses an independent attractor check and a two-stage GapLoop including a lightweight verification round.</rationale>
+  )>
+)

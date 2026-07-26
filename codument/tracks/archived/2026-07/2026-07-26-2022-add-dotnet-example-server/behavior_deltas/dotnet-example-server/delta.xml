@@ -1,0 +1,43 @@
+<behavior-patch capability="dotnet-example-server" version="1">
+  <upsert selector="behavior://dotnet-example-server/requirements/browser-compatible-demo-api">
+    <requirement id="browser-compatible-demo-api">
+      <statement>系统 SHALL 提供与当前 example-browser 兼容的 GET /health、GET /api/demos 与 POST /api/run API，并返回浏览器可消费的 demo、table、tree 或 graph JSON shape。</statement>
+      <suite name="demo-api">
+        <case name="list-and-run-default-demo">
+          <given>server 已启动且 Cozo native runtime 可用</given>
+          <when>客户端获取 demos 并执行其中一个默认 query</when>
+          <then>系统 SHALL 返回 demo 列表及 status=ok 的 table、tree 或 graph result</then>
+        </case>
+        <case name="reject-unknown-demo-or-query">
+          <given>server 已启动</given>
+          <when>客户端提交未知 demoId 或 queryId</when>
+          <then>系统 SHALL 返回 status=error 且包含可读 error</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+  <upsert selector="behavior://dotnet-example-server/requirements/governance-api">
+    <requirement id="governance-api">
+      <statement>系统 SHALL 提供权限、schema 演进和存在规则治理端点，并将每个治理 state domain 隔离以避免 seed 或 reset 相互干扰。</statement>
+      <suite name="governance-api">
+        <case name="schema-and-integrity-flow">
+          <given>server 已启动且 Cozo native runtime 可用</given>
+          <when>客户端执行 schema apply/rollback 及 integrity seed/check/apply 请求</when>
+          <then>系统 SHALL 返回对应的状态、规则、违例或 chase result，且不污染其他治理域</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+  <upsert selector="behavior://dotnet-example-server/requirements/browser-cors">
+    <requirement id="browser-cors">
+      <statement>系统 SHALL 为当前 example-browser 的本地 Vite origins 提供可配置的 CORS 支持，同时不默认允许任意 origin。</statement>
+      <suite name="browser-hosting">
+        <case name="allow-configured-vite-origin">
+          <given>请求 Origin 为默认或配置的 example-browser Vite origin</given>
+          <when>浏览器发起 API CORS preflight 或 JSON 请求</when>
+          <then>系统 SHALL 返回对应的 allow-origin 响应头</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

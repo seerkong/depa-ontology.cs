@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><PackageId>Depa.Ontology.Scripting.Jint</PackageId><Description>Optional Jint adapter for Depa ontology callbacks.</Description></PropertyGroup><ItemGroup><ProjectReference Include="../../src/Depa.Ontology/Depa.Ontology.csproj" /><PackageReference Include="Jint" Version="4.13.0" /></ItemGroup></Project>

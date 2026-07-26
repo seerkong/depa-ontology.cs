@@ -1,0 +1,8 @@
+<component #example-server.dotnet_example_server { kind = "component" } [
+  <desc ?>私有示例应用：把浏览器 HTTP 请求适配为本体、Datalog、schema 与治理能力调用，不承载核心领域事实。</?>
+  <runtime ?runtime>sealed class ExampleServerState { DemoRunFactory demoRuns; StatefulDomain schema; StatefulDomain governance; StatefulDomain integrity; }</?runtime>
+  <input ?input>HTTP JSON requests from example-browser</?input>
+  <config ?config>ExampleServerOptions { string[] AllowedOrigins }</?config>
+  <output ?output>HTTP JSON DemoResponse | RunResponse | governance responses</?output>
+  <pseudo { kind = "ctrl" } ?flow>路由验证输入 → 选择隔离 state domain 或独立 demo database → 调用 Depa.Ontology → 映射浏览器 DTO → 返回 JSON。</?flow>
+]>

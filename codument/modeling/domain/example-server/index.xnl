@@ -1,0 +1,14 @@
+<policy #example-server.browser_api_contract { kind = "policy" } [
+  <desc ?01KYFRW15KZFBKA2JXBCDJDX23>
+  example-browser 只通过私有 HTTP API 使用本体能力；浏览器不拥有 Cozo、schema 或治理状态的写入权。
+  </?01KYFRW15KZFBKA2JXBCDJDX23>
+  <behavior ?01KYFRW15KZFBKA2JXBCDJDX24>
+  behavior://dotnet-example-server/requirements/browser-compatible-demo-api
+  </?01KYFRW15KZFBKA2JXBCDJDX24>
+  <behavior ?01KYFRW15KZFBKA2JXBCDJDX25>
+  behavior://dotnet-example-server/requirements/governance-api
+  </?01KYFRW15KZFBKA2JXBCDJDX25>
+  <behavior ?01KYFRW15KZFBKA2JXBCDJDX26>
+  behavior://dotnet-example-server/requirements/browser-cors
+  </?01KYFRW15KZFBKA2JXBCDJDX26>
+]>

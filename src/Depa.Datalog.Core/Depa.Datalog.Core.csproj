@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><PackageId>Depa.Datalog.Core</PackageId><Description>Portable Datalog parser, validator, normalized IR, and diagnostics.</Description></PropertyGroup></Project>

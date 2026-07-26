@@ -1,0 +1,4 @@
+<decisions #extract_ontology_dotnet_packages [
+  <decision #datalog_not_ontology { status = "accepted" } ?>Datalog 是独立可发布层，不合并进 Depa.Ontology。 </?>
+  <decision #thin_binding_dependency { status = "accepted" } ?>Depa.Ontology 以 PackageReference 依赖 Depa.Cozo@0.1.0，不携带 native asset。 </?>
+]>

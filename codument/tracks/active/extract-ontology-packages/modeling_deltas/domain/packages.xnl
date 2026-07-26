@@ -1,0 +1,7 @@
+<module #domain.depa_ontology_dotnet_packages { kind = "module" depends_on = "[ modeling://domain/depa_cozo/binding ]" } [
+  <desc ?>.NET 对象建模包边界：Datalog 编译器与 ontology runtime 独立发布，原生数据库调用仅由 Depa.Cozo 提供。</?>
+  <types ?t>Depa.Datalog.Core: package
+Depa.Datalog.Cozo: package
+Depa.Ontology: package</?t>
+  <fact-source ?>Depa.Cozo 是 native ABI 的唯一拥有者；Depa.Ontology 仅通过其公开的 CozoDb 与事务类型适配存储。</?>
+]>

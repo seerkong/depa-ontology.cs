@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><PackageId>Depa.Datalog.Cozo</PackageId><Description>CozoScript backend for Depa Datalog IR.</Description></PropertyGroup><ItemGroup><ProjectReference Include="../Depa.Datalog.Core/Depa.Datalog.Core.csproj" /></ItemGroup></Project>

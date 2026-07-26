@@ -1,0 +1,14 @@
+<behavior-patch capability="depa-ontology-dotnet" version="1">
+  <upsert selector="behavior://depa-ontology-dotnet/requirements/publishable-package-boundaries">
+    <requirement id="publishable-package-boundaries">
+      <statement>系统 SHALL 分别发布 Depa.Datalog.Core、Depa.Datalog.Cozo、Depa.Ontology 及可选 adapter 包；Depa.Ontology SHALL 依赖 Depa.Cozo@0.1.0 而不得复制 native binding。</statement>
+      <suite id="solution-build" name="解决方案构建">
+        <case id="all-packages-build-and-pack">
+          <given>本地 NuGet feed 包含 Depa.Cozo@0.1.0</given>
+          <when>构建并打包 Depa.Ontology.slnx</when>
+          <then>系统 SHALL 编译所有五个包并生成 nupkg</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

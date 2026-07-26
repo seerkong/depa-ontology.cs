@@ -1,0 +1,21 @@
+<decision-tree #track.verify_dotnet_om_bun_capability_parity {
+  severity = "auto"
+  status = "resolved"
+}
+(
+  <root-question ?>如何独立验证 G01-G14 已达到可观察语义对等，并形成 mission completed gate 所需证据？</?>
+  <decision-frontier { status = "closed" }
+  (
+    <decision ?>复用用户已冻结的 D0-D5、D3a、D3b，不重新选择语义。</?>
+    <decision ?>验证范围覆盖 Bun full suite、C# OM full suite、focused parity fixtures、linked track strict validation 和 G01-G14 证据矩阵。</?>
+    <decision ?>若验证发现真实能力或测试 gap，可在本 track 内补最小测试或实现；若涉及新语义取舍则 BLOCKED 并重新打开对应 mission 决策。</?>
+  )
+  >
+  <assumptions { }
+  (
+    <assumption ?>共享工作树包含同一 mission 的已完成实现以及其他并发工作；验证按明确路径归属，不清理或撤销现有改动。</?>
+    <assumption ?>提交模式为 manual；最终 phase 使用 AttractorCheck 与两轮首轮怀疑 GapLoop。</?>
+  )
+  >
+)
+>

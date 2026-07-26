@@ -1,0 +1,6 @@
+<Track id="add-existential-rules" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata><Status>completed</Status><Goal>为对象模型实现声明式存在规则、违例检测与 Skolem chase 物化。</Goal><Description>由旧 plan.xml 最小迁移；原计划和旧 spec delta 已保留在 legacy/，对象模型 delta 已升级为 behavior-patch。</Description><CreatedAt>2026-06-10T07:49:38Z</CreatedAt><UpdatedAt>2026-06-10T09:45:19Z</UpdatedAt></Metadata>
+  <Ports scope="track"><MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/></Ports>
+  <TaskSpace id="legacy_add_existential_rules" name="add-existential-rules" version="1"><Description>Legacy plan preserved for archival traceability.</Description><SubNodes><TaskGroup id="P1" name="历史计划已保留" status="DONE" order="0"><SubNodes><Task id="T1" name="迁移 legacy plan 与 delta" status="DONE" order="0"/></SubNodes></TaskGroup></SubNodes></TaskSpace>
+  <Schedule><Parallel max-concurrent="1" spot-check="true"/></Schedule><Hooks/>
+</Track>
