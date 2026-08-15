@@ -33,8 +33,8 @@ internal static class BehaviorReadinessLogic
         return new BehaviorUnresolvedDiagnostic(
             "OMR1001",
             kind,
-            key.OwnerType,
-            DisplayBehaviorKey(kind, key.OwnerType, key.BehaviorName, phase, seq),
+            key.OwnerClass,
+            DisplayBehaviorKey(kind, key.OwnerClass, key.BehaviorName, phase, seq),
             ToPublicSlot(key.CallbackSlot),
             binding.BindingId,
             phase,
@@ -54,8 +54,8 @@ internal static class BehaviorReadinessLogic
     private static BehaviorCatalogKind ToPublicKind(BehaviorKind kind) => kind switch
     {
         BehaviorKind.Constraint => BehaviorCatalogKind.Constraint,
-        BehaviorKind.Computed => BehaviorCatalogKind.Computed,
-        BehaviorKind.Action => BehaviorCatalogKind.Action,
+        BehaviorKind.ComputedProp => BehaviorCatalogKind.ComputedProp,
+        BehaviorKind.Operation => BehaviorCatalogKind.Operation,
         BehaviorKind.Mutation => BehaviorCatalogKind.Mutation,
         BehaviorKind.Interceptor => BehaviorCatalogKind.Interceptor,
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown behavior kind"),
@@ -75,8 +75,8 @@ internal static class BehaviorReadinessLogic
     private static string KindWire(BehaviorCatalogKind kind) => kind switch
     {
         BehaviorCatalogKind.Constraint => "constraint",
-        BehaviorCatalogKind.Computed => "computed",
-        BehaviorCatalogKind.Action => "action",
+        BehaviorCatalogKind.ComputedProp => "computedProp",
+        BehaviorCatalogKind.Operation => "operation",
         BehaviorCatalogKind.Mutation => "mutation",
         BehaviorCatalogKind.Interceptor => "interceptor",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown behavior kind"),

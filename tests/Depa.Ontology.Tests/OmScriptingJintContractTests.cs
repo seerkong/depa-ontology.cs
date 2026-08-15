@@ -168,10 +168,10 @@ public static class OmScriptingJintContractTests
             "Constraint When/Then must map to BehaviorConstraintCallbackBinding in stable binding-id order.");
         Assert(result.Bindings.Validators.Select(binding => binding.BindingId).SequenceEqual(["script:constraint:validator"]),
             "Constraint Validator must map to BehaviorValidatorCallbackBinding.");
-        Assert(result.Bindings.Computed.Select(binding => binding.BindingId).SequenceEqual(["script:computed"]),
-            "Computed Compute must map to BehaviorComputedCallbackBinding.");
-        Assert(result.Bindings.Actions.Select(binding => binding.BindingId).SequenceEqual(["script:action"]),
-            "Action Handler must map to BehaviorActionCallbackBinding.");
+        Assert(result.Bindings.ComputedProps.Select(binding => binding.BindingId).SequenceEqual(["script:computedProp"]),
+            "ComputedProp Compute must map to BehaviorComputedPropCallbackBinding.");
+        Assert(result.Bindings.Operations.Select(binding => binding.BindingId).SequenceEqual(["script:operation"]),
+            "Operation Handler must map to BehaviorOperationCallbackBinding.");
         Assert(result.Bindings.Mutations.Select(binding => binding.BindingId).SequenceEqual(["script:mutation"]),
             "Mutation Executor must map to BehaviorMutationCallbackBinding.");
         Assert(result.Bindings.Interceptors.Select(binding => binding.BindingId).SequenceEqual(["script:interceptor"]),
@@ -181,26 +181,26 @@ public static class OmScriptingJintContractTests
     private static void AssertMissingAndConflictingDefinitionsAreDeterministic()
     {
         var missing = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
-            new BehaviorCatalog([Action("DiagnosticsOwner", "missing_action", "missing:action")]),
+            new BehaviorCatalog([Operation("DiagnosticsOwner", "missing_operation", "missing:operation")]),
             []));
         Assert(!missing.Success
-               && missing.Bindings.Actions.IsEmpty
+               && missing.Bindings.Operations.IsEmpty
                && missing.Diagnostics.SequenceEqual([
                    new JintBehaviorScriptDiagnostic(
                        "OMS1001",
-                       "Script definition is missing for binding id 'missing:action'.",
-                       "missing:action",
-                       BehaviorCatalogKind.Action,
+                       "Script definition is missing for binding id 'missing:operation'.",
+                       "missing:operation",
+                       BehaviorCatalogKind.Operation,
                        "DiagnosticsOwner",
-                       "missing_action",
+                       "missing_operation",
                        BehaviorCatalogCallbackSlot.Handler),
                ]),
             "missing script definitions must yield stable diagnostics and no binding for that slot.");
 
         var incompatible = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
             new BehaviorCatalog([
-                Action("DiagnosticsOwner", "shared_action", "shared:id"),
-                Interceptor("DiagnosticsOwner", "shared_action", "before", 0, "shared:id"),
+                Operation("DiagnosticsOwner", "shared_operation", "shared:id"),
+                Interceptor("DiagnosticsOwner", "shared_operation", "before", 0, "shared:id"),
             ]),
             [new("shared:id", "() => null")]));
         AssertRejectedBeforeBindings(
@@ -210,7 +210,7 @@ public static class OmScriptingJintContractTests
             "one binding id reused across incompatible callback shapes must reject before returning bindings.");
 
         var duplicate = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
-            new BehaviorCatalog([Action("DiagnosticsOwner", "duplicate_action", "duplicate:id")]),
+            new BehaviorCatalog([Operation("DiagnosticsOwner", "duplicate_operation", "duplicate:id")]),
             [
                 new("duplicate:id", "() => []", "first.js"),
                 new("duplicate:id", "() => []", "second.js"),
@@ -251,7 +251,7 @@ public static class OmScriptingJintContractTests
                    Code: "OMS1002",
                    BindingId: sharedConstraintId,
                    Kind: BehaviorCatalogKind.Constraint,
-                   OwnerType: "SlotReuseOwner",
+                   OwnerClass: "SlotReuseOwner",
                    BehaviorName: "cross_slot_constraint",
                    Slot: BehaviorCatalogCallbackSlot.When,
                }
@@ -265,8 +265,8 @@ public static class OmScriptingJintContractTests
         using var db = new CozoDb(engine: "mem", path: "");
         var om = new CozoOm(db);
         await om.InitSchemaAsync();
-        await om.DefineTypeAsync("SlotReuseOwner", "slot reuse owner");
-        await om.CreateEntityAsync("slot-reuse:1", "SlotReuseOwner", "slot reuse entity");
+        await om.DefineClassAsync("SlotReuseOwner", "slot reuse owner");
+        await om.CreateObjectAsync("slot-reuse:1", "SlotReuseOwner", "slot reuse entity");
         var beforeCrossSlotImport = await CaptureProviderValidationStateAsync(om);
         var rejectedImport = await om.ImportBehaviorManifestJsonAsync(
             Encoding.UTF8.GetString(BehaviorManifestJsonCodec.Encode(crossSlotCatalog)),
@@ -285,10 +285,10 @@ public static class OmScriptingJintContractTests
             afterCrossSlotImport,
             "cross-slot provider rejection and strict import must publish zero OM effects.");
 
-        const string sharedActionId = "slot-reuse:action";
+        const string sharedActionId = "slot-reuse:operation";
         var sameSlotCatalog = new BehaviorCatalog([
-            Action("SlotReuseOwner", "same_slot_first", sharedActionId),
-            Action("SlotReuseOwner", "same_slot_second", sharedActionId),
+            Operation("SlotReuseOwner", "same_slot_first", sharedActionId),
+            Operation("SlotReuseOwner", "same_slot_second", sharedActionId),
         ]);
         var sameSlot = JintBehaviorScriptProvider.BuildBindings(
             new JintBehaviorScriptBindingRequest(
@@ -296,8 +296,8 @@ public static class OmScriptingJintContractTests
                 [new(sharedActionId, "() => []", "same-slot.js")]));
         Assert(sameSlot.Success
                && sameSlot.Diagnostics.IsEmpty
-               && sameSlot.Bindings.Actions.Length == 1
-               && sameSlot.Bindings.Actions[0].BindingId == sharedActionId,
+               && sameSlot.Bindings.Operations.Length == 1
+               && sameSlot.Bindings.Operations[0].BindingId == sharedActionId,
             "same-id, same-shape, same-slot reuse must generate exactly one provider-neutral callback.");
 
         var readyImport = await om.ImportBehaviorManifestJsonAsync(
@@ -305,8 +305,8 @@ public static class OmScriptingJintContractTests
             sameSlot.Bindings,
             new BehaviorImportOptions(RequireReady: true));
         var importedActions = (await om.GetBehaviorCatalogAsync()).Behaviors
-            .Where(entry => entry.Kind == BehaviorCatalogKind.Action
-                            && entry.OwnerType == "SlotReuseOwner"
+            .Where(entry => entry.Kind == BehaviorCatalogKind.Operation
+                            && entry.OwnerClass == "SlotReuseOwner"
                             && entry.Name.StartsWith("same_slot_", StringComparison.Ordinal))
             .OrderBy(entry => entry.Name, StringComparer.Ordinal)
             .ToImmutableArray();
@@ -320,35 +320,35 @@ public static class OmScriptingJintContractTests
                                     && callback.Readiness == BehaviorReadiness.Ready),
             "one same-slot callback must satisfy both canonical entries without duplicate binding collection entries.");
 
-        await om.ExecuteActionAsync("slot-reuse:1", "same_slot_first");
-        await om.ExecuteActionAsync("slot-reuse:1", "same_slot_second");
+        await om.ExecuteOperationAsync("slot-reuse:1", "same_slot_first");
+        await om.ExecuteOperationAsync("slot-reuse:1", "same_slot_second");
     }
 
     private static void AssertNativeAndScriptBindingsMergeDeterministically()
     {
-        var nativeCallbacks = new BehaviorCallbackBindingSet(actions:
+        var nativeCallbacks = new BehaviorCallbackBindingSet(operations:
         [
-            new("native:action", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([])),
+            new("native:operation", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([])),
         ]);
         var coexist = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
-            new BehaviorCatalog([Action("MergeOwner", "script_action", "script:action")]),
-            [new("script:action", "() => []")],
+            new BehaviorCatalog([Operation("MergeOwner", "script_operation", "script:operation")]),
+            [new("script:operation", "() => []")],
             nativeCallbacks: nativeCallbacks));
         Assert(coexist.Success
-               && coexist.Bindings.Actions.Select(binding => binding.BindingId).SequenceEqual(["native:action", "script:action"]),
+               && coexist.Bindings.Operations.Select(binding => binding.BindingId).SequenceEqual(["native:operation", "script:operation"]),
             "native and script callbacks with distinct ids must coexist in the returned provider-neutral binding set.");
 
         var conflict = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
-            new BehaviorCatalog([Action("MergeOwner", "script_action", "script:action")]),
-            [new("script:action", "() => []")],
-            nativeCallbacks: new BehaviorCallbackBindingSet(actions:
+            new BehaviorCatalog([Operation("MergeOwner", "script_operation", "script:operation")]),
+            [new("script:operation", "() => []")],
+            nativeCallbacks: new BehaviorCallbackBindingSet(operations:
             [
-                new("script:action", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([])),
+                new("script:operation", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([])),
             ])));
         AssertRejectedBeforeBindings(
             conflict,
             "OMS1004",
-            "script:action",
+            "script:operation",
             "same-id native/script merge conflicts must be deterministic diagnostics before any binding is returned.");
     }
 
@@ -357,12 +357,12 @@ public static class OmScriptingJintContractTests
         using var db = new CozoDb(engine: "mem", path: "");
         var om = new CozoOm(db);
         await om.InitSchemaAsync();
-        await om.DefineTypeAsync("PureOwner", "Provider validation owner");
-        await om.DefineActionAsync("PureOwner", "pure_action", "provider validation target");
+        await om.DefineClassAsync("PureOwner", "Provider validation owner");
+        await om.DefineOperationAsync("PureOwner", "pure_operation", "provider validation target");
         await BehaviorBindingLogic.PutAsync(
             om.Runtime,
             new BehaviorBindingRow(
-                new BehaviorBindingKey(BehaviorKind.Action, "PureOwner", "pure_action", BehaviorCallbackSlot.Handler, "", -1),
+                new BehaviorBindingKey(BehaviorKind.Operation, "PureOwner", "pure_operation", BehaviorCallbackSlot.Handler, "", -1),
                 "pure:missing"));
 
         var catalog = await om.GetBehaviorCatalogAsync();
@@ -383,8 +383,8 @@ public static class OmScriptingJintContractTests
         using var db = new CozoDb(engine: "mem", path: "");
         var om = new CozoOm(db);
         await om.InitSchemaAsync();
-        await om.DefineTypeAsync("ScriptOwner", "script owner");
-        await om.CreateEntityAsync("script:1", "ScriptOwner", "script entity");
+        await om.DefineClassAsync("ScriptOwner", "script owner");
+        await om.CreateObjectAsync("script:1", "ScriptOwner", "script entity");
 
         var catalog = AllCallbackShapesCatalog();
         var result = JintBehaviorScriptProvider.BuildBindings(
@@ -400,8 +400,8 @@ public static class OmScriptingJintContractTests
             "RequireReady import must accept a complete script catalog covering every callback slot.");
 
         var validationContext = new OmValidationContext(om.Runtime, "script:1", "ScriptOwner");
-        var computedContext = new OmComputedContext(om.Runtime, "script:1", "ScriptOwner");
-        var actionContext = new OmActionContext(
+        var computedContext = new OmComputedPropContext(om.Runtime, "script:1", "ScriptOwner");
+        var actionContext = new OmOperationContext(
             om.Runtime,
             "script:1",
             "ScriptOwner",
@@ -415,16 +415,16 @@ public static class OmScriptingJintContractTests
         Assert(await result.Bindings.Validators.Single().Callback(validationContext) is null,
             "constraint validator script must execute and return null|string.");
 
-        var firstComputed = await result.Bindings.Computed.Single().Callback(computedContext);
-        var secondComputed = await result.Bindings.Computed.Single().Callback(computedContext);
-        Assert(firstComputed is IReadOnlyDictionary<string, object?> firstComputedObject
-               && secondComputed is IReadOnlyDictionary<string, object?> secondComputedObject
+        var firstComputedProp = await result.Bindings.ComputedProps.Single().Callback(computedContext);
+        var secondComputedProp = await result.Bindings.ComputedProps.Single().Callback(computedContext);
+        Assert(firstComputedProp is IReadOnlyDictionary<string, object?> firstComputedObject
+               && secondComputedProp is IReadOnlyDictionary<string, object?> secondComputedObject
                && Convert.ToDouble(firstComputedObject["score"]) == 42
                && Convert.ToDouble(firstComputedObject["count"]) == 1
                && Convert.ToDouble(secondComputedObject["count"]) == 1,
-            "computed script must return a JSON-compatible value and use a fresh engine per invocation.");
+            "computedProp script must return a JSON-compatible value and use a fresh engine per invocation.");
 
-        var actionMutations = await result.Bindings.Actions.Single().Callback(
+        var actionMutations = await result.Bindings.Operations.Single().Callback(
             actionContext,
             new Dictionary<string, object?> { ["source"] = "script-test" });
         Assert(actionMutations.SequenceEqual([
@@ -432,7 +432,7 @@ public static class OmScriptingJintContractTests
                     "script_mutation",
                     new Dictionary<string, object?> { ["answer"] = 42d }),
             ], MutationSpecComparer.Instance),
-            "action script must return an ordered MutationSpec array with optional params.");
+            "operation script must return an ordered MutationSpec array with optional params.");
 
         await result.Bindings.Mutations.Single().Callback(
             new OmMutationContext(om.Runtime, "script:1", "ScriptOwner"),
@@ -445,8 +445,8 @@ public static class OmScriptingJintContractTests
         using var db = new CozoDb(engine: "mem", path: "");
         var om = new CozoOm(db);
         await om.InitSchemaAsync();
-        await om.DefineTypeAsync("PreflightOwner", "preflight owner");
-        await om.DefineActionAsync("PreflightOwner", "unchanged_action", "preflight target");
+        await om.DefineClassAsync("PreflightOwner", "preflight owner");
+        await om.DefineOperationAsync("PreflightOwner", "unchanged_operation", "preflight target");
         var before = await CaptureProviderValidationStateAsync(om);
 
         var result = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
@@ -462,7 +462,7 @@ public static class OmScriptingJintContractTests
                     null,
                     [new(BehaviorCatalogCallbackSlot.Handler, "invalid:kind", BehaviorReadiness.Unresolved)]),
                 new BehaviorCatalogEntry(
-                    BehaviorCatalogKind.Action,
+                    BehaviorCatalogKind.Operation,
                     "PreflightOwner",
                     "invalid_slot",
                     null,
@@ -471,8 +471,8 @@ public static class OmScriptingJintContractTests
                     null,
                     null,
                     [new(BehaviorCatalogCallbackSlot.Compute, "invalid:slot", BehaviorReadiness.Unresolved)]),
-                Action("PreflightOwner", "blank_binding", " "),
-                Action("PreflightOwner", "null_binding", null!),
+                Operation("PreflightOwner", "blank_binding", " "),
+                Operation("PreflightOwner", "null_binding", null!),
             ]),
             [
                 new JintBehaviorScriptDefinition(null!, "() => true"),
@@ -489,8 +489,8 @@ public static class OmScriptingJintContractTests
         Assert(!result.Success
                && result.Bindings.Constraints.IsEmpty
                && result.Bindings.Validators.IsEmpty
-               && result.Bindings.Computed.IsEmpty
-               && result.Bindings.Actions.IsEmpty
+               && result.Bindings.ComputedProps.IsEmpty
+               && result.Bindings.Operations.IsEmpty
                && result.Bindings.Mutations.IsEmpty
                && result.Bindings.Interceptors.IsEmpty
                && result.Diagnostics.Select(diagnostic => diagnostic.Code).SequenceEqual([
@@ -519,11 +519,11 @@ public static class OmScriptingJintContractTests
         using var db = new CozoDb(engine: "mem", path: "");
         var om = new CozoOm(db);
         await om.InitSchemaAsync();
-        await om.DefineTypeAsync("CallableOwner", "callable preflight owner");
-        await om.DefineActionAsync("CallableOwner", "syntax_action", "syntax target");
-        await om.DefineActionAsync("CallableOwner", "non_callable_action", "non-callable target");
+        await om.DefineClassAsync("CallableOwner", "callable preflight owner");
+        await om.DefineOperationAsync("CallableOwner", "syntax_operation", "syntax target");
+        await om.DefineOperationAsync("CallableOwner", "non_callable_operation", "non-callable target");
 
-        var syntaxCatalog = new BehaviorCatalog([Action("CallableOwner", "syntax_action", "script:syntax")]);
+        var syntaxCatalog = new BehaviorCatalog([Operation("CallableOwner", "syntax_operation", "script:syntax")]);
         var syntax = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
             syntaxCatalog,
             [new("script:syntax", "() => {", "syntax.js")]));
@@ -548,7 +548,7 @@ public static class OmScriptingJintContractTests
                && syntaxImport.Unresolved.Single().BindingId == "script:syntax",
             "RequireReady import must not mark a syntax-invalid script binding ready.");
 
-        var nonCallableCatalog = new BehaviorCatalog([Action("CallableOwner", "non_callable_action", "script:not-callable")]);
+        var nonCallableCatalog = new BehaviorCatalog([Operation("CallableOwner", "non_callable_operation", "script:not-callable")]);
         var nonCallable = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
             nonCallableCatalog,
             [new("script:not-callable", "42", "not-callable.js")]));
@@ -573,27 +573,27 @@ public static class OmScriptingJintContractTests
         using var db = new CozoDb(engine: "mem", path: "");
         var om = new CozoOm(db);
         await om.InitSchemaAsync();
-        await om.DefineTypeAsync("BodyOwner", "body preflight owner");
-        await om.CreateEntityAsync("body:1", "BodyOwner", "body entity");
+        await om.DefineClassAsync("BodyOwner", "body preflight owner");
+        await om.CreateObjectAsync("body:1", "BodyOwner", "body entity");
 
         var result = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
-            new BehaviorCatalog([Action("BodyOwner", "body_action", "script:body")]),
+            new BehaviorCatalog([Operation("BodyOwner", "body_operation", "script:body")]),
             [new("script:body", "() => { throw new Error('body executed'); }", "body.js")]));
         Assert(result.Success
-               && result.Bindings.Actions.Single().BindingId == "script:body",
+               && result.Bindings.Operations.Single().BindingId == "script:body",
             "callable preflight must accept a function whose body would throw if executed.");
 
-        var actionContext = new OmActionContext(
+        var actionContext = new OmOperationContext(
             om.Runtime,
             "body:1",
             "BodyOwner",
             "BodyOwner",
             new Dictionary<string, object?>());
         var exception = await ExpectScriptExceptionAsync(
-            () => result.Bindings.Actions.Single().Callback(actionContext, new Dictionary<string, object?>()).AsTask(),
+            () => result.Bindings.Operations.Single().Callback(actionContext, new Dictionary<string, object?>()).AsTask(),
             "OMS2002",
             "script:body",
-            BehaviorCatalogKind.Action,
+            BehaviorCatalogKind.Operation,
             BehaviorCatalogCallbackSlot.Handler,
             JintBehaviorScriptFailurePhase.Execution,
             "body.js",
@@ -608,8 +608,8 @@ public static class OmScriptingJintContractTests
         using var db = new CozoDb(engine: "mem", path: "");
         var om = new CozoOm(db);
         await om.InitSchemaAsync();
-        await om.DefineTypeAsync("BoundedPreflightOwner", "bounded preflight owner");
-        await om.DefineActionAsync("BoundedPreflightOwner", "unchanged_action", "preflight target");
+        await om.DefineClassAsync("BoundedPreflightOwner", "bounded preflight owner");
+        await om.DefineOperationAsync("BoundedPreflightOwner", "unchanged_operation", "preflight target");
         var before = await CaptureProviderValidationStateAsync(om);
 
         const string timeoutSecret = "do-not-leak-preflight-timeout-source";
@@ -667,7 +667,7 @@ public static class OmScriptingJintContractTests
                 () => Task.FromResult(JintBehaviorScriptProvider.BuildBindings(
                     new JintBehaviorScriptBindingRequest(
                         new BehaviorCatalog([
-                            Action("BoundedPreflightOwner", testCase.Name, testCase.BindingId),
+                            Operation("BoundedPreflightOwner", testCase.Name, testCase.BindingId),
                         ]),
                         [new(testCase.BindingId, testCase.Source, testCase.Name + "-preflight.js")],
                         testCase.Options))),
@@ -693,7 +693,7 @@ public static class OmScriptingJintContractTests
                 {
                     JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
                         new BehaviorCatalog([
-                            Action("BoundedPreflightOwner", "cancelled", "preflight:cancelled"),
+                            Operation("BoundedPreflightOwner", "cancelled", "preflight:cancelled"),
                         ]),
                         [new("preflight:cancelled", "() => true", "cancelled-preflight.js")],
                         new JintBehaviorScriptOptions(CancellationToken: cancelled.Token)));
@@ -712,7 +712,7 @@ public static class OmScriptingJintContractTests
     private static void AssertRecordCopyAndNullElementsReceiveDiagnosticsInsteadOfExceptions()
     {
         var validRequest = new JintBehaviorScriptBindingRequest(
-            new BehaviorCatalog([Action("GraphOwner", "valid_action", "graph:valid")]),
+            new BehaviorCatalog([Operation("GraphOwner", "valid_operation", "graph:valid")]),
             [new("graph:valid", "() => []")]);
         var nullMembers = JintBehaviorScriptProvider.BuildBindings(validRequest with
         {
@@ -721,7 +721,7 @@ public static class OmScriptingJintContractTests
             NativeCallbacks = null!,
             Definitions = default,
         });
-        Assert(nullMembers.Bindings.Actions.IsEmpty
+        Assert(nullMembers.Bindings.Operations.IsEmpty
                && nullMembers.Diagnostics.Select(diagnostic => diagnostic.Code).SequenceEqual([
                    "OMS1011",
                    "OMS1011",
@@ -734,22 +734,22 @@ public static class OmScriptingJintContractTests
         {
             Catalog = new BehaviorCatalog([]) with { Behaviors = default },
         });
-        Assert(defaultCatalog.Bindings.Actions.IsEmpty
+        Assert(defaultCatalog.Bindings.Operations.IsEmpty
                && defaultCatalog.Diagnostics.Single().Code == "OMS1011",
             "record-copy default catalog behavior collection must be diagnosed before enumeration.");
 
         var nullElements = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
             new BehaviorCatalog([
                 null!,
-                Action("GraphOwner", "default_callbacks", "graph:default") with { Callbacks = default },
-                Action("GraphOwner", "null_callback", "graph:null-callback") with
+                Operation("GraphOwner", "default_callbacks", "graph:default") with { Callbacks = default },
+                Operation("GraphOwner", "null_callback", "graph:null-callback") with
                 {
                     Callbacks = new BehaviorCallbackBinding[] { null! }.ToImmutableArray(),
                 },
             ]),
             new JintBehaviorScriptDefinition[] { null!, new("graph:default", "() => []") },
-            nativeCallbacks: new BehaviorCallbackBindingSet(actions: new BehaviorActionCallbackBinding[] { null! })));
-        Assert(nullElements.Bindings.Actions.IsEmpty
+            nativeCallbacks: new BehaviorCallbackBindingSet(operations: new BehaviorOperationCallbackBinding[] { null! })));
+        Assert(nullElements.Bindings.Operations.IsEmpty
                && nullElements.Diagnostics.Select(diagnostic => diagnostic.Code).SequenceEqual([
                    "OMS1011",
                    "OMS1012",
@@ -783,11 +783,11 @@ public static class OmScriptingJintContractTests
         var contexts = await CreateP2CallbackContextsAsync(db);
         var result = JintBehaviorScriptProvider.BuildBindings(
             new JintBehaviorScriptBindingRequest(AllCallbackShapesCatalog(), [
-                new("script:constraint:when", "ctx => ctx.entityId === 'p2:1'"),
+                new("script:constraint:when", "ctx => ctx.objectId === 'p2:1'"),
                 new("script:constraint:then", "() => false"),
                 new("script:constraint:validator", "() => 'validator says no'"),
-                new("script:computed", "ctx => ({ entityId: ctx.entityId, nested: { score: 42 }, flags: [true, false] })"),
-                new("script:action", "(ctx, params) => [{ mutation: 'set_status', params: { status: params.status, rank: 7 } }, { mutation: 'audit' }]"),
+                new("script:computedProp", "ctx => ({ objectId: ctx.objectId, nested: { score: 42 }, flags: [true, false] })"),
+                new("script:operation", "(ctx, params) => [{ mutation: 'set_status', params: { status: params.status, rank: 7 } }, { mutation: 'audit' }]"),
                 new("script:mutation", "() => ({ ignored: true })"),
                 new("script:interceptor", "() => 'ignored'"),
             ]));
@@ -800,19 +800,19 @@ public static class OmScriptingJintContractTests
         Assert(await result.Bindings.Validators.Single().Callback(contexts.Validation) == "validator says no",
             "validator must preserve exact null|string result semantics.");
 
-        var computed = await result.Bindings.Computed.Single().Callback(contexts.Computed);
-        Assert(computed is IReadOnlyDictionary<string, object?> computedObject
-               && Equals(computedObject["entityId"], "p2:1")
+        var computedProp = await result.Bindings.ComputedProps.Single().Callback(contexts.ComputedProp);
+        Assert(computedProp is IReadOnlyDictionary<string, object?> computedObject
+               && Equals(computedObject["objectId"], "p2:1")
                && computedObject["nested"] is IReadOnlyDictionary<string, object?> nested
                && Convert.ToDouble(nested["score"]) == 42
                && computedObject["flags"] is IReadOnlyList<object?> flags
                && flags.Count == 2
                && Equals(flags[0], true)
                && Equals(flags[1], false),
-            "computed callbacks must return only JSON-shaped values with nested object/array shape preserved.");
+            "computedProp callbacks must return only JSON-shaped values with nested object/array shape preserved.");
 
-        var mutations = await result.Bindings.Actions.Single().Callback(
-            contexts.Action,
+        var mutations = await result.Bindings.Operations.Single().Callback(
+            contexts.Operation,
             new Dictionary<string, object?> { ["status"] = "ready" });
         var firstMutationParameters = mutations.ElementAtOrDefault(0)?.Params;
         Assert(mutations.Count == 2
@@ -822,10 +822,10 @@ public static class OmScriptingJintContractTests
                && Convert.ToDouble(firstMutationParameters["rank"]) == 7
                && mutations[1].Mutation == "audit"
                && mutations[1].Params is null,
-            "action callbacks must preserve ordered MutationSpec arrays with optional object params.");
+            "operation callbacks must preserve ordered MutationSpec arrays with optional object params.");
 
         await result.Bindings.Mutations.Single().Callback(contexts.Mutation, new Dictionary<string, object?>());
-        await result.Bindings.Interceptors.Single().Callback(contexts.Action);
+        await result.Bindings.Interceptors.Single().Callback(contexts.Operation);
     }
 
     private static async Task AssertP2HostReadCapabilitiesAndAmbientDenialAsync()
@@ -833,22 +833,22 @@ public static class OmScriptingJintContractTests
         using var db = new CozoDb(engine: "mem", path: "");
         var om = new CozoOm(db);
         await om.InitSchemaAsync();
-        await om.DefineTypeAsync("HostReadOwner", "script host read owner");
-        await om.DefineAttributeAsync("HostReadOwner", "name", OmValueType.String);
-        await om.DefineRelationAsync("host_peer", "HostReadOwner", "HostReadOwner");
-        await om.CreateEntityAsync("host:read:1", "HostReadOwner", "first");
-        await om.CreateEntityAsync("host:read:2", "HostReadOwner", "second");
-        await om.SetPropertyAsync(
+        await om.DefineClassAsync("HostReadOwner", "script host read owner");
+        await om.DefineFieldAsync("HostReadOwner", "name", OmValueType.String);
+        await om.DefineRelationDefAsync("host_peer", "HostReadOwner", "HostReadOwner");
+        await om.CreateObjectAsync("host:read:1", "HostReadOwner", "first");
+        await om.CreateObjectAsync("host:read:2", "HostReadOwner", "second");
+        await om.SetFieldValueAsync(
             "host:read:1",
             "name",
             "historical",
             new WriteOptions(ValidTime: "2024-01-01T00:00:00Z"));
-        await om.SetPropertyAsync(
+        await om.SetFieldValueAsync(
             "host:read:1",
             "name",
             "current",
             new WriteOptions(ValidTime: "2025-01-01T00:00:00Z"));
-        await om.LinkEntitiesAsync(
+        await om.CreateRelationLinkAsync(
             "host:read:1",
             "host_peer",
             "host:read:2",
@@ -856,26 +856,26 @@ public static class OmScriptingJintContractTests
 
         const string validationSource = """
             async (identity, host) => {
-              const pending = host.getProperty('name');
+              const pending = host.getFieldValue('name');
               const current = await pending;
-              const historical = await host.getPropertyAsOf('name', '2024-06-01T00:00:00Z');
+              const historical = await host.getFieldValueAsOf('name', '2024-06-01T00:00:00Z');
               const neighbors = await host.getNeighbors('host_peer', 'outgoing');
-              identity.entityId = 'tampered';
+              identity.objectId = 'tampered';
               return pending instanceof Promise
                 && current === 'current'
                 && historical === 'historical'
                 && neighbors.outgoing.length === 1
-                && neighbors.outgoing[0].entityId === 'host:read:2'
-                && identity.entityId === 'host:read:1'
+                && neighbors.outgoing[0].objectId === 'host:read:2'
+                && identity.objectId === 'host:read:1'
                 && Object.isFrozen(identity)
                 && Object.isFrozen(host)
                 && Object.getPrototypeOf(host) === null
-                && typeof host.setProperty === 'undefined'
-                && typeof host.linkEntities === 'undefined'
-                && typeof host.callParentAction === 'undefined'
+                && typeof host.setFieldValue === 'undefined'
+                && typeof host.createRelationLink === 'undefined'
+                && typeof host.callParentOperation === 'undefined'
                 && typeof host.unknownCapability === 'undefined'
-                && typeof host.getProperty.Method === 'undefined'
-                && typeof host.getProperty.Target === 'undefined'
+                && typeof host.getFieldValue.Method === 'undefined'
+                && typeof host.getFieldValue.Target === 'undefined'
                 && typeof identity.runtime === 'undefined'
                 && typeof identity.Runtime === 'undefined'
                 && typeof clr === 'undefined'
@@ -886,25 +886,25 @@ public static class OmScriptingJintContractTests
             """;
         const string computedSource = """
             async (identity, host) => {
-              const value = await host.getProperty('name');
+              const value = await host.getFieldValue('name');
               const neighbors = await host.getNeighbors('host_peer', 'outgoing');
               return {
                 value,
                 neighborCount: neighbors.outgoing.length,
                 asOf: identity.asOf,
-                explicitAsOfDenied: typeof host.getPropertyAsOf === 'undefined',
-                writeDenied: typeof host.setProperty === 'undefined'
+                explicitAsOfDenied: typeof host.getFieldValueAsOf === 'undefined',
+                writeDenied: typeof host.setFieldValue === 'undefined'
               };
             }
             """;
         var result = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
             new BehaviorCatalog([
                 Constraint("HostReadOwner", "host_validation", BehaviorCatalogCallbackSlot.When, "p2:host:validation"),
-                Computed("HostReadOwner", "host_computed", "p2:host:computed"),
+                ComputedProp("HostReadOwner", "host_computed_prop", "p2:host:computedProp"),
             ]),
             [
                 new("p2:host:validation", validationSource, "host-validation.js"),
-                new("p2:host:computed", computedSource, "host-computed.js"),
+                new("p2:host:computedProp", computedSource, "host-computedProp.js"),
             ]));
         Assert(result.Success, "read-capability host scripts must bind cleanly.");
 
@@ -913,15 +913,15 @@ public static class OmScriptingJintContractTests
         Assert(validation,
             "validation host must expose async current/as-of/neighbor reads while denying write, CLR and ambient capabilities.");
 
-        var computed = await result.Bindings.Computed.Single().Callback(
-            new OmComputedContext(om.Runtime, "host:read:1", "HostReadOwner", "2024-06-01T00:00:00Z"));
-        Assert(computed is IReadOnlyDictionary<string, object?> computedObject
+        var computedProp = await result.Bindings.ComputedProps.Single().Callback(
+            new OmComputedPropContext(om.Runtime, "host:read:1", "HostReadOwner", "2024-06-01T00:00:00Z"));
+        Assert(computedProp is IReadOnlyDictionary<string, object?> computedObject
                && Equals(computedObject["value"], "historical")
                && Convert.ToDouble(computedObject["neighborCount"]) == 1
                && Equals(computedObject["asOf"], "2024-06-01T00:00:00Z")
                && Equals(computedObject["explicitAsOfDenied"], true)
                && Equals(computedObject["writeDenied"], true),
-            "computed host reads must honor context AsOf and expose no explicit temporal override or writes.");
+            "computedProp host reads must honor context AsOf and expose no explicit temporal override or writes.");
     }
 
     private static async Task AssertP2HostWriteCapabilitiesAndParentCompositionAsync()
@@ -929,67 +929,67 @@ public static class OmScriptingJintContractTests
         using var db = new CozoDb(engine: "mem", path: "");
         var om = new CozoOm(db);
         await om.InitSchemaAsync();
-        await om.DefineTypeAsync("HostWriteBase", "script host write base");
-        await om.DefineTypeAsync("HostWriteChild", "script host write child", parentType: "HostWriteBase");
-        await om.DefineAttributeAsync("HostWriteBase", "status", OmValueType.String);
-        await om.DefineRelationAsync("host_link", "HostWriteBase", "HostWriteBase");
-        await om.CreateEntityAsync("host:write:1", "HostWriteChild", "first");
-        await om.CreateEntityAsync("host:write:2", "HostWriteBase", "second");
-        await om.SetPropertyAsync("host:write:1", "status", "initial");
+        await om.DefineClassAsync("HostWriteBase", "script host write base");
+        await om.DefineClassAsync("HostWriteChild", "script host write child", parentClass: "HostWriteBase");
+        await om.DefineFieldAsync("HostWriteBase", "status", OmValueType.String);
+        await om.DefineRelationDefAsync("host_link", "HostWriteBase", "HostWriteBase");
+        await om.CreateObjectAsync("host:write:1", "HostWriteChild", "first");
+        await om.CreateObjectAsync("host:write:2", "HostWriteBase", "second");
+        await om.SetFieldValueAsync("host:write:1", "status", "initial");
         await om.DefineMutationAsync(
             "HostWriteBase",
             "parent_status",
-            async (context, parameters) => await context.SetPropertyAsync("status", parameters["value"]),
-            "parent mutation returned by parent action");
-        await om.DefineActionAsync(
+            async (context, parameters) => await context.SetFieldValueAsync("status", parameters["value"]),
+            "parent mutation returned by parent operation");
+        await om.DefineOperationAsync(
             "HostWriteBase",
-            "host_action",
+            "host_operation",
             (_, parameters) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([
                 new("parent_status", new Dictionary<string, object?> { ["value"] = parameters["value"] }),
             ]),
-            "parent action");
-        await om.DefineActionAsync("HostWriteChild", "host_action", "child action metadata");
+            "parent operation");
+        await om.DefineOperationAsync("HostWriteChild", "host_operation", "child operation metadata");
 
         const string mutationSource = """
             async (identity, params, host) => {
               params.status = 'tampered';
-              const before = await host.getProperty('status');
-              if (typeof host.getPropertyAsOf !== 'function' || typeof host.getNeighbors !== 'function') throw new Error('mutation read capability missing');
-              const writePending = host.setProperty('status', params.requested);
-              if (!(writePending instanceof Promise)) throw new Error('setProperty must return Promise');
+              const before = await host.getFieldValue('status');
+              if (typeof host.getFieldValueAsOf !== 'function' || typeof host.getNeighbors !== 'function') throw new Error('mutation read capability missing');
+              const writePending = host.setFieldValue('status', params.requested);
+              if (!(writePending instanceof Promise)) throw new Error('setFieldValue must return Promise');
               await writePending;
-              await host.linkEntities('host_link', params.toId, { source: 'script-mutation' });
-              if (typeof host.callParentAction !== 'undefined') throw new Error('mutation parent capability leak');
+              await host.createRelationLink('host_link', params.toId, { source: 'script-mutation' });
+              if (typeof host.callParentOperation !== 'undefined') throw new Error('mutation parent capability leak');
               return { before, frozenParams: Object.isFrozen(params), requested: params.requested };
             }
             """;
         const string actionSource = """
             async (identity, params, host) => {
-              const before = await host.getProperty('status');
-              if (typeof host.getPropertyAsOf !== 'function' || typeof host.getNeighbors !== 'function' || typeof host.linkEntities !== 'function') throw new Error('action capability missing');
-              const parent = await host.callParentAction('host_action', { value: params.parentValue });
-              const afterParent = await host.getProperty('status');
-              await host.setProperty('status', params.actionValue);
+              const before = await host.getFieldValue('status');
+              if (typeof host.getFieldValueAsOf !== 'function' || typeof host.getNeighbors !== 'function' || typeof host.createRelationLink !== 'function') throw new Error('operation capability missing');
+              const parent = await host.callParentOperation('host_operation', { value: params.parentValue });
+              const afterParent = await host.getFieldValue('status');
+              await host.setFieldValue('status', params.actionValue);
               return parent.concat([{ mutation: 'child_observation', params: { before, afterParent } }]);
             }
             """;
         const string interceptorSource = """
             async (identity, host) => {
-              if (typeof host.callParentAction !== 'undefined') throw new Error('interceptor parent capability leak');
-              if (typeof host.getPropertyAsOf !== 'function' || typeof host.getNeighbors !== 'function') throw new Error('interceptor read capability missing');
-              await host.setProperty('status', 'interceptor');
-              await host.linkEntities('host_link', 'host:write:2', { source: 'script-interceptor' });
+              if (typeof host.callParentOperation !== 'undefined') throw new Error('interceptor parent capability leak');
+              if (typeof host.getFieldValueAsOf !== 'function' || typeof host.getNeighbors !== 'function') throw new Error('interceptor read capability missing');
+              await host.setFieldValue('status', 'interceptor');
+              await host.createRelationLink('host_link', 'host:write:2', { source: 'script-interceptor' });
             }
             """;
         var result = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
             new BehaviorCatalog([
                 Mutation("HostWriteChild", "host_mutation", "p2:host:mutation"),
-                Action("HostWriteChild", "host_action", "p2:host:action"),
-                Interceptor("HostWriteChild", "host_action", "after", 0, "p2:host:interceptor"),
+                Operation("HostWriteChild", "host_operation", "p2:host:operation"),
+                Interceptor("HostWriteChild", "host_operation", "after", 0, "p2:host:interceptor"),
             ]),
             [
                 new("p2:host:mutation", mutationSource, "host-mutation.js"),
-                new("p2:host:action", actionSource, "host-action.js"),
+                new("p2:host:operation", actionSource, "host-operation.js"),
                 new("p2:host:interceptor", interceptorSource, "host-interceptor.js"),
             ]));
         Assert(result.Success, "write-capability host scripts must bind cleanly.");
@@ -1003,22 +1003,22 @@ public static class OmScriptingJintContractTests
             new OmMutationContext(om.Runtime, "host:write:1", "HostWriteChild"),
             mutationParameters);
         Assert(mutationParameters["requested"] as string == "mutation"
-               && AsJsonString(await om.GetPropertyAsync("host:write:1", "status")) == "mutation"
+               && AsJsonString(await om.GetFieldValueAsync("host:write:1", "status")) == "mutation"
                && (await om.GetNeighborsAsync("host:write:1", "host_link", OmDirection.Outgoing)).Outgoing.Count == 1,
             "mutation host writes and links must execute through the existing OmMutationContext while input params stay isolated.");
 
-        var actionContext = new OmActionContext(
+        var actionContext = new OmOperationContext(
             om.Runtime,
             "host:write:1",
             "HostWriteChild",
             "HostWriteChild",
             new Dictionary<string, object?>());
-        var actionMutations = await result.Bindings.Actions.Single().Callback(
+        var actionMutations = await result.Bindings.Operations.Single().Callback(
             actionContext,
             new Dictionary<string, object?>
             {
                 ["parentValue"] = "parent",
-                ["actionValue"] = "action",
+                ["actionValue"] = "operation",
             });
         var parentParameters = actionMutations.ElementAtOrDefault(0)?.Params;
         var observationParameters = actionMutations.ElementAtOrDefault(1)?.Params;
@@ -1030,12 +1030,12 @@ public static class OmScriptingJintContractTests
                && observationParameters is not null
                && AsJsonStringValue(observationParameters["before"]) == "mutation"
                && AsJsonStringValue(observationParameters["afterParent"]) == "mutation"
-               && AsJsonString(await om.GetPropertyAsync("host:write:1", "status")) == "action",
-            "action parent dispatch must return JSON mutation specs without pre-applying them, while direct writes use OmActionContext.");
+               && AsJsonString(await om.GetFieldValueAsync("host:write:1", "status")) == "operation",
+            "operation parent dispatch must return JSON mutation specs without pre-applying them, while direct writes use OmOperationContext.");
 
         await result.Bindings.Interceptors.Single().Callback(actionContext);
-        Assert(AsJsonString(await om.GetPropertyAsync("host:write:1", "status")) == "interceptor",
-            "interceptor host effects must execute through the existing action-derived mutation context without parent dispatch.");
+        Assert(AsJsonString(await om.GetFieldValueAsync("host:write:1", "status")) == "interceptor",
+            "interceptor host effects must execute through the existing operation-derived mutation context without parent dispatch.");
     }
 
     private static async Task AssertP2HostFailuresAreStructuredAndRedactedAsync()
@@ -1060,7 +1060,7 @@ public static class OmScriptingJintContractTests
             source);
 
         const string secretAttribute = "host-secret-attribute-do-not-leak";
-        var omFailureSource = $"async (identity, params, host) => {{ await host.setProperty('{secretAttribute}', 'value'); }}";
+        var omFailureSource = $"async (identity, params, host) => {{ await host.setFieldValue('{secretAttribute}', 'value'); }}";
         var omFailure = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
             new BehaviorCatalog([Mutation("ScriptOwner", "host_om_failure", "p2:host:om-failure")]),
             [new("p2:host:om-failure", omFailureSource, "host-om-failure.js")]));
@@ -1080,7 +1080,7 @@ public static class OmScriptingJintContractTests
                && !exception.ToString().Contains(secretAttribute, StringComparison.Ordinal),
             "host exception details must not leak OM argument or storage error secrets.");
 
-        const string bypassSource = "async (identity, params, host) => { await host.setProperty('status', 'bypass', { skipConstraints: true }); }";
+        const string bypassSource = "async (identity, params, host) => { await host.setFieldValue('status', 'bypass', { skipConstraints: true }); }";
         var bypass = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
             new BehaviorCatalog([Mutation("ScriptOwner", "host_bypass", "p2:host:bypass")]),
             [new("p2:host:bypass", bypassSource, "host-bypass.js")]));
@@ -1103,11 +1103,11 @@ public static class OmScriptingJintContractTests
         using var db = new CozoDb(engine: "mem", path: "");
         var om = new CozoOm(db);
         await om.InitSchemaAsync();
-        await om.DefineTypeAsync("HostCancelOwner", "script host cancellation owner");
-        await om.DefineAttributeAsync("HostCancelOwner", "status", OmValueType.String);
+        await om.DefineClassAsync("HostCancelOwner", "script host cancellation owner");
+        await om.DefineFieldAsync("HostCancelOwner", "status", OmValueType.String);
         await om.DefineConstraintAsync("HostCancelOwner", "pause_write", "custom", "pause writes for cancellation test");
-        await om.CreateEntityAsync("host:cancel:1", "HostCancelOwner", "cancel target");
-        await om.SetPropertyAsync(
+        await om.CreateObjectAsync("host:cancel:1", "HostCancelOwner", "cancel target");
+        await om.SetFieldValueAsync(
             "host:cancel:1",
             "status",
             "before",
@@ -1125,7 +1125,7 @@ public static class OmScriptingJintContractTests
         });
 
         using var cancellation = new CancellationTokenSource();
-        const string source = "async (identity, params, host) => { await host.setProperty('status', params.value); }";
+        const string source = "async (identity, params, host) => { await host.setFieldValue('status', params.value); }";
         var result = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
             new BehaviorCatalog([Mutation("HostCancelOwner", "cancel_write", "p2:host:cancel")]),
             [new("p2:host:cancel", source, "host-cancel.js")],
@@ -1152,7 +1152,7 @@ public static class OmScriptingJintContractTests
             () => validatorCompleted.Task,
             "cancelled host write did not unwind its in-flight validator.");
         await Task.Delay(50);
-        Assert(AsJsonString(await om.GetPropertyAsync("host:cancel:1", "status")) == "before",
+        Assert(AsJsonString(await om.GetFieldValueAsync("host:cancel:1", "status")) == "before",
             "cancellation forwarded into the OM write path must roll back and prevent a late property effect.");
     }
 
@@ -1187,61 +1187,61 @@ public static class OmScriptingJintContractTests
                 BehaviorCatalogCallbackSlot.Validator,
                 (bindings, ctx) => bindings.Bindings.Validators.Single().Callback(ctx.Validation).AsTask()),
             new(
-                "computed Date",
-                Computed("ScriptOwner", "bad_date", "p2:bad:computed:date"),
-                "p2:bad:computed:date",
+                "computedProp Date",
+                ComputedProp("ScriptOwner", "bad_date", "p2:bad:computedProp:date"),
+                "p2:bad:computedProp:date",
                 "() => new Date(0)",
-                BehaviorCatalogKind.Computed,
+                BehaviorCatalogKind.ComputedProp,
                 BehaviorCatalogCallbackSlot.Compute,
-                (bindings, ctx) => bindings.Bindings.Computed.Single().Callback(ctx.Computed).AsTask()),
+                (bindings, ctx) => bindings.Bindings.ComputedProps.Single().Callback(ctx.ComputedProp).AsTask()),
             new(
-                "computed function",
-                Computed("ScriptOwner", "bad_function", "p2:bad:computed:function"),
-                "p2:bad:computed:function",
+                "computedProp function",
+                ComputedProp("ScriptOwner", "bad_function", "p2:bad:computedProp:function"),
+                "p2:bad:computedProp:function",
                 "() => function notJson() { return 1; }",
-                BehaviorCatalogKind.Computed,
+                BehaviorCatalogKind.ComputedProp,
                 BehaviorCatalogCallbackSlot.Compute,
-                (bindings, ctx) => bindings.Bindings.Computed.Single().Callback(ctx.Computed).AsTask()),
+                (bindings, ctx) => bindings.Bindings.ComputedProps.Single().Callback(ctx.ComputedProp).AsTask()),
             new(
-                "computed Map",
-                Computed("ScriptOwner", "bad_map", "p2:bad:computed:map"),
-                "p2:bad:computed:map",
+                "computedProp Map",
+                ComputedProp("ScriptOwner", "bad_map", "p2:bad:computedProp:map"),
+                "p2:bad:computedProp:map",
                 "() => new Map([['key', 'value']])",
-                BehaviorCatalogKind.Computed,
+                BehaviorCatalogKind.ComputedProp,
                 BehaviorCatalogCallbackSlot.Compute,
-                (bindings, ctx) => bindings.Bindings.Computed.Single().Callback(ctx.Computed).AsTask()),
+                (bindings, ctx) => bindings.Bindings.ComputedProps.Single().Callback(ctx.ComputedProp).AsTask()),
             new(
-                "action non-array",
-                Action("ScriptOwner", "bad_action_non_array", "p2:bad:action:non-array"),
-                "p2:bad:action:non-array",
+                "operation non-array",
+                Operation("ScriptOwner", "bad_operation_non_array", "p2:bad:operation:non-array"),
+                "p2:bad:operation:non-array",
                 "() => ({ mutation: 'x' })",
-                BehaviorCatalogKind.Action,
+                BehaviorCatalogKind.Operation,
                 BehaviorCatalogCallbackSlot.Handler,
-                (bindings, ctx) => bindings.Bindings.Actions.Single().Callback(ctx.Action, new Dictionary<string, object?>()).AsTask()),
+                (bindings, ctx) => bindings.Bindings.Operations.Single().Callback(ctx.Operation, new Dictionary<string, object?>()).AsTask()),
             new(
-                "action non-object mutation spec",
-                Action("ScriptOwner", "bad_action_non_object", "p2:bad:action:non-object"),
-                "p2:bad:action:non-object",
+                "operation non-object mutation spec",
+                Operation("ScriptOwner", "bad_operation_non_object", "p2:bad:operation:non-object"),
+                "p2:bad:operation:non-object",
                 "() => [1]",
-                BehaviorCatalogKind.Action,
+                BehaviorCatalogKind.Operation,
                 BehaviorCatalogCallbackSlot.Handler,
-                (bindings, ctx) => bindings.Bindings.Actions.Single().Callback(ctx.Action, new Dictionary<string, object?>()).AsTask()),
+                (bindings, ctx) => bindings.Bindings.Operations.Single().Callback(ctx.Operation, new Dictionary<string, object?>()).AsTask()),
             new(
-                "action blank mutation",
-                Action("ScriptOwner", "bad_action_blank", "p2:bad:action:blank-mutation"),
-                "p2:bad:action:blank-mutation",
+                "operation blank mutation",
+                Operation("ScriptOwner", "bad_operation_blank", "p2:bad:operation:blank-mutation"),
+                "p2:bad:operation:blank-mutation",
                 "() => [{ mutation: '   ' }]",
-                BehaviorCatalogKind.Action,
+                BehaviorCatalogKind.Operation,
                 BehaviorCatalogCallbackSlot.Handler,
-                (bindings, ctx) => bindings.Bindings.Actions.Single().Callback(ctx.Action, new Dictionary<string, object?>()).AsTask()),
+                (bindings, ctx) => bindings.Bindings.Operations.Single().Callback(ctx.Operation, new Dictionary<string, object?>()).AsTask()),
             new(
-                "action bad params",
-                Action("ScriptOwner", "bad_action_params", "p2:bad:action:params"),
-                "p2:bad:action:params",
+                "operation bad params",
+                Operation("ScriptOwner", "bad_operation_params", "p2:bad:operation:params"),
+                "p2:bad:operation:params",
                 "() => [{ mutation: 'x', params: 42 }]",
-                BehaviorCatalogKind.Action,
+                BehaviorCatalogKind.Operation,
                 BehaviorCatalogCallbackSlot.Handler,
-                (bindings, ctx) => bindings.Bindings.Actions.Single().Callback(ctx.Action, new Dictionary<string, object?>()).AsTask()),
+                (bindings, ctx) => bindings.Bindings.Operations.Single().Callback(ctx.Operation, new Dictionary<string, object?>()).AsTask()),
         };
 
         foreach (var testCase in cases)
@@ -1274,14 +1274,14 @@ public static class OmScriptingJintContractTests
             }
             """;
         var runtime = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
-            new BehaviorCatalog([Computed("ScriptOwner", "runtime_error", "p2:error:runtime")]),
+            new BehaviorCatalog([ComputedProp("ScriptOwner", "runtime_error", "p2:error:runtime")]),
             [new("p2:error:runtime", runtimeSource, "runtime-error.js")]));
         Assert(runtime.Success, "runtime failure test must bind before invocation.");
         var runtimeException = await ExpectScriptExceptionAsync(
-            () => runtime.Bindings.Computed.Single().Callback(contexts.Computed).AsTask(),
+            () => runtime.Bindings.ComputedProps.Single().Callback(contexts.ComputedProp).AsTask(),
             "OMS2002",
             "p2:error:runtime",
-            BehaviorCatalogKind.Computed,
+            BehaviorCatalogKind.ComputedProp,
             BehaviorCatalogCallbackSlot.Compute,
             JintBehaviorScriptFailurePhase.Execution,
             "runtime-error.js",
@@ -1294,14 +1294,14 @@ public static class OmScriptingJintContractTests
 
         const string conversionSource = "ctx => ({ notJson: new Date(0), secret: 'do-not-leak-conversion-source' })";
         var conversion = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
-            new BehaviorCatalog([Computed("ScriptOwner", "conversion_error", "p2:error:conversion")]),
+            new BehaviorCatalog([ComputedProp("ScriptOwner", "conversion_error", "p2:error:conversion")]),
             [new("p2:error:conversion", conversionSource, "conversion-error.js")]));
         Assert(conversion.Success, "conversion failure test must bind before invocation.");
         await ExpectScriptExceptionAsync(
-            () => conversion.Bindings.Computed.Single().Callback(contexts.Computed).AsTask(),
+            () => conversion.Bindings.ComputedProps.Single().Callback(contexts.ComputedProp).AsTask(),
             "OMS2003",
             "p2:error:conversion",
-            BehaviorCatalogKind.Computed,
+            BehaviorCatalogKind.ComputedProp,
             BehaviorCatalogCallbackSlot.Compute,
             JintBehaviorScriptFailurePhase.ResultConversion,
             "conversion-error.js",
@@ -1320,16 +1320,16 @@ public static class OmScriptingJintContractTests
         var contexts = await CreateP2CallbackContextsAsync(db);
         const string source = "async () => await new Promise(() => {})";
         var result = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
-            new BehaviorCatalog([Computed("ScriptOwner", "default_timeout", "p2:limit:default-timeout")]),
+            new BehaviorCatalog([ComputedProp("ScriptOwner", "default_timeout", "p2:limit:default-timeout")]),
             [new("p2:limit:default-timeout", source, "default-timeout.js")]));
         Assert(result.Success, "unset options must normalize to finite defaults and still bind.");
 
         await WithOuterGuardAsync(
             () => ExpectScriptExceptionAsync(
-                () => result.Bindings.Computed.Single().Callback(contexts.Computed).AsTask(),
+                () => result.Bindings.ComputedProps.Single().Callback(contexts.ComputedProp).AsTask(),
                 "OMS2101",
                 "p2:limit:default-timeout",
-                BehaviorCatalogKind.Computed,
+                BehaviorCatalogKind.ComputedProp,
                 BehaviorCatalogCallbackSlot.Compute,
                 JintBehaviorScriptFailurePhase.Timeout,
                 "default-timeout.js",
@@ -1376,7 +1376,7 @@ public static class OmScriptingJintContractTests
         foreach (var testCase in cases)
         {
             var result = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
-                new BehaviorCatalog([Computed("ScriptOwner", testCase.Name, testCase.BindingId)]),
+                new BehaviorCatalog([ComputedProp("ScriptOwner", testCase.Name, testCase.BindingId)]),
                 [new(testCase.BindingId, testCase.Source, testCase.Name + ".js")],
                 testCase.Options));
             Assert(result.Success, $"{testCase.Name} limit case should bind and fail during invocation.");
@@ -1385,10 +1385,10 @@ public static class OmScriptingJintContractTests
             {
                 await WithOuterGuardAsync(
                     () => ExpectScriptExceptionAsync(
-                        () => result.Bindings.Computed.Single().Callback(contexts.Computed).AsTask(),
+                        () => result.Bindings.ComputedProps.Single().Callback(contexts.ComputedProp).AsTask(),
                         testCase.Code,
                         testCase.BindingId,
-                        BehaviorCatalogKind.Computed,
+                        BehaviorCatalogKind.ComputedProp,
                         BehaviorCatalogCallbackSlot.Compute,
                         testCase.Phase,
                         testCase.Name + ".js",
@@ -1416,7 +1416,7 @@ public static class OmScriptingJintContractTests
         foreach (var option in options)
         {
             var result = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
-                new BehaviorCatalog([Computed("ScriptOwner", "option_reject", "p2:option:reject")]),
+                new BehaviorCatalog([ComputedProp("ScriptOwner", "option_reject", "p2:option:reject")]),
                 [new("p2:option:reject", "() => { throw new Error('must not execute'); }")],
                 option));
             AssertRejectedBeforeBindings(
@@ -1434,7 +1434,7 @@ public static class OmScriptingJintContractTests
 
         using var alreadyCancelled = new CancellationTokenSource();
         var alreadyCancelledResult = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
-            new BehaviorCatalog([Computed("ScriptOwner", "already_cancelled", "p2:cancel:already")]),
+            new BehaviorCatalog([ComputedProp("ScriptOwner", "already_cancelled", "p2:cancel:already")]),
             [new("p2:cancel:already", "() => 1", "already-cancelled.js")],
             new JintBehaviorScriptOptions(
                 Timeout: TimeSpan.FromSeconds(1),
@@ -1445,12 +1445,12 @@ public static class OmScriptingJintContractTests
         Assert(alreadyCancelledResult.Success, "active cancellation options should build deterministic bindings.");
         alreadyCancelled.Cancel();
         await ExpectOperationCanceledAsync(
-            () => alreadyCancelledResult.Bindings.Computed.Single().Callback(contexts.Computed).AsTask(),
+            () => alreadyCancelledResult.Bindings.ComputedProps.Single().Callback(contexts.ComputedProp).AsTask(),
             "already-cancelled script invocation must surface OperationCanceledException semantics.");
 
         using var duringExecution = new CancellationTokenSource();
         var duringExecutionResult = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
-            new BehaviorCatalog([Computed("ScriptOwner", "during_cancelled", "p2:cancel:during")]),
+            new BehaviorCatalog([ComputedProp("ScriptOwner", "during_cancelled", "p2:cancel:during")]),
             [new("p2:cancel:during", "() => { while (true) {} }", "during-cancelled.js")],
             new JintBehaviorScriptOptions(
                 Timeout: TimeSpan.FromSeconds(5),
@@ -1462,7 +1462,7 @@ public static class OmScriptingJintContractTests
         duringExecution.CancelAfter(TimeSpan.FromMilliseconds(50));
         await WithOuterGuardAsync(
             () => ExpectOperationCanceledAsync(
-                () => duringExecutionResult.Bindings.Computed.Single().Callback(contexts.Computed).AsTask(),
+                () => duringExecutionResult.Bindings.ComputedProps.Single().Callback(contexts.ComputedProp).AsTask(),
                 "cancellation during an infinite script must surface OperationCanceledException semantics, not script failure."),
             "during-execution cancellation did not terminate within the outer guard.");
     }
@@ -1472,14 +1472,14 @@ public static class OmScriptingJintContractTests
         using var db = new CozoDb(engine: "mem", path: "");
         var contexts = await CreateP2CallbackContextsAsync(db);
         var result = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
-            new BehaviorCatalog([Computed("ScriptOwner", "concurrent_fresh", "p2:fresh:concurrent")]),
+            new BehaviorCatalog([ComputedProp("ScriptOwner", "concurrent_fresh", "p2:fresh:concurrent")]),
             [new("p2:fresh:concurrent", "() => { globalThis.counter = (globalThis.counter || 0) + 1; return { counter: globalThis.counter }; }")],
             new JintBehaviorScriptOptions(Timeout: TimeSpan.FromSeconds(1), MaxStatements: 1000, MaxRecursionDepth: 32, MemoryLimitBytes: 4 * 1024 * 1024)));
         Assert(result.Success, "fresh/concurrent isolation case should bind.");
 
         var values = await Task.WhenAll(Enumerable.Range(0, 32).Select(async _ =>
         {
-            var value = await result.Bindings.Computed.Single().Callback(contexts.Computed);
+            var value = await result.Bindings.ComputedProps.Single().Callback(contexts.ComputedProp);
             return value is IReadOnlyDictionary<string, object?> obj ? Convert.ToDouble(obj["counter"]) : -1;
         }));
         Assert(values.All(value => value == 1),
@@ -1517,9 +1517,9 @@ public static class OmScriptingJintContractTests
             P3IntegrationDefinitions(),
             nativeCallbacks: nativeCallbacks));
         Assert(provider.Success
-               && provider.Bindings.Computed.Select(binding => binding.BindingId).SequenceEqual([
-                   "p3:native:computed",
-                   "p3:script:computed",
+               && provider.Bindings.ComputedProps.Select(binding => binding.BindingId).SequenceEqual([
+                   "p3:native:computedProp",
+                   "p3:script:computedProp",
                ]),
             "canonical provider binding must merge native and script callbacks into one provider-neutral binding set.");
 
@@ -1535,7 +1535,7 @@ public static class OmScriptingJintContractTests
                    .All(callback => callback.Readiness == BehaviorReadiness.Ready),
             "every callback shape in the canonical integration catalog must be Ready after strict import.");
 
-        var validation = await om.ValidateEntityAsync("p3:canonical");
+        var validation = await om.ValidateObjectAsync("p3:canonical");
         Assert(validation.Valid,
             "strict canonical import must execute script conditional when/then and custom validator callbacks.");
         var validationContext = new OmValidationContext(om.Runtime, "p3:canonical", "P3ScriptOwner");
@@ -1544,26 +1544,26 @@ public static class OmScriptingJintContractTests
                && await provider.Bindings.Validators.Single(binding => binding.BindingId == "p3:script:constraint:validator").Callback(validationContext) is null,
             "imported provider bindings must execute all three constraint callback shapes.");
 
-        var scriptComputed = await om.GetPropertyAsync("p3:canonical", "script_computed");
-        Assert(scriptComputed is { ValueKind: JsonValueKind.Object } computed
-               && computed.GetProperty("engine").GetString() == "jint"
-               && computed.GetProperty("entityId").GetString() == "p3:canonical",
-            "canonical import must execute the script computed callback through the OM registry.");
-        Assert(AsJsonString(await om.GetPropertyAsync("p3:canonical", "native_computed")) == "native-ready",
+        var scriptComputedProp = await om.GetFieldValueAsync("p3:canonical", "script_computed_prop");
+        Assert(scriptComputedProp is { ValueKind: JsonValueKind.Object } computedProp
+               && computedProp.GetProperty("engine").GetString() == "jint"
+               && computedProp.GetProperty("objectId").GetString() == "p3:canonical",
+            "canonical import must execute the script computedProp callback through the OM registry.");
+        Assert(AsJsonString(await om.GetFieldValueAsync("p3:canonical", "native_computed_prop")) == "native-ready",
             "native typed callbacks must coexist with scripts in the same imported provider-neutral binding set.");
 
-        await om.ExecuteActionAsync(
+        await om.ExecuteOperationAsync(
             "p3:canonical",
-            "script_action",
-            new Dictionary<string, object?> { ["value"] = "from-canonical-action" });
-        Assert(AsJsonString(await om.GetPropertyAsync("p3:canonical", "effect")) == "from-canonical-action"
-               && AsJsonString(await om.GetPropertyAsync("p3:canonical", "interceptor_marker")) == "after-script-action",
-            "imported script action, returned mutation and interceptor must execute through the OM runtime.");
+            "script_operation",
+            new Dictionary<string, object?> { ["value"] = "from-canonical-operation" });
+        Assert(AsJsonString(await om.GetFieldValueAsync("p3:canonical", "effect")) == "from-canonical-operation"
+               && AsJsonString(await om.GetFieldValueAsync("p3:canonical", "interceptor_marker")) == "after-script-operation",
+            "imported script operation, returned mutation and interceptor must execute through the OM runtime.");
 
         await om.ExecuteMutationsAsync(
             "p3:canonical",
             [new MutationSpec("script_mutation", new Dictionary<string, object?> { ["value"] = "from-direct-mutation" })]);
-        Assert(AsJsonString(await om.GetPropertyAsync("p3:canonical", "effect")) == "from-direct-mutation",
+        Assert(AsJsonString(await om.GetFieldValueAsync("p3:canonical", "effect")) == "from-direct-mutation",
             "the imported script mutation callback must also execute on the representative direct mutation path.");
     }
 
@@ -1572,9 +1572,9 @@ public static class OmScriptingJintContractTests
         using var db = new CozoDb(engine: "mem", path: "");
         var om = new CozoOm(db);
         await om.InitSchemaAsync();
-        await om.DefineTypeAsync("P3AtomicOwner", "P3 strict import owner");
+        await om.DefineClassAsync("P3AtomicOwner", "P3 strict import owner");
         var catalog = new BehaviorCatalog([
-            Computed("P3AtomicOwner", "missing_computed", "p3:missing:computed"),
+            ComputedProp("P3AtomicOwner", "missing_computed_prop", "p3:missing:computedProp"),
         ]);
         var json = Encoding.UTF8.GetString(BehaviorManifestJsonCodec.Encode(catalog));
         var before = await CaptureProviderValidationStateAsync(om);
@@ -1586,8 +1586,8 @@ public static class OmScriptingJintContractTests
         Assert(!defaultImport.Applied
                && defaultImport.Unresolved.Single() is
                {
-                   BindingId: "p3:missing:computed",
-                   Kind: BehaviorCatalogKind.Computed,
+                   BindingId: "p3:missing:computedProp",
+                   Kind: BehaviorCatalogKind.ComputedProp,
                    Slot: BehaviorCatalogCallbackSlot.Compute,
                },
             "default strict import must leave a missing script callback unresolved.");
@@ -1600,9 +1600,9 @@ public static class OmScriptingJintContractTests
                && missingProvider.Diagnostics.Single() is
                {
                    Code: "OMS1001",
-                   BindingId: "p3:missing:computed",
+                   BindingId: "p3:missing:computedProp",
                }
-               && missingProvider.Bindings.Computed.IsEmpty,
+               && missingProvider.Bindings.ComputedProps.IsEmpty,
             "provider diagnostics must report missing script source without manufacturing a ready callback.");
         var providerImport = await om.ImportBehaviorManifestJsonAsync(
             json,
@@ -1610,22 +1610,22 @@ public static class OmScriptingJintContractTests
             new BehaviorImportOptions(RequireReady: true));
         var afterProvider = await CaptureProviderValidationStateAsync(om);
         Assert(!providerImport.Applied
-               && providerImport.Unresolved.Single().BindingId == "p3:missing:computed",
+               && providerImport.Unresolved.Single().BindingId == "p3:missing:computedProp",
             "provider diagnostics must not accidentally satisfy canonical import readiness.");
         AssertProviderStateUnchanged(before, afterProvider,
             "missing-script provider import must remain atomically effect-free.");
 
         var conflictProvider = JintBehaviorScriptProvider.BuildBindings(new JintBehaviorScriptBindingRequest(
             catalog,
-            [new("p3:missing:computed", "() => 'script'")],
-            nativeCallbacks: new BehaviorCallbackBindingSet(computed:
+            [new("p3:missing:computedProp", "() => 'script'")],
+            nativeCallbacks: new BehaviorCallbackBindingSet(computedProp:
             [
-                new("p3:missing:computed", _ => ValueTask.FromResult<object?>("native")),
+                new("p3:missing:computedProp", _ => ValueTask.FromResult<object?>("native")),
             ])));
         AssertRejectedBeforeBindings(
             conflictProvider,
             "OMS1004",
-            "p3:missing:computed",
+            "p3:missing:computedProp",
             "same-id native/script conflict must deterministically return zero bindings.");
         var conflictImport = await om.ImportBehaviorManifestJsonAsync(
             json,
@@ -1633,7 +1633,7 @@ public static class OmScriptingJintContractTests
             new BehaviorImportOptions(RequireReady: true));
         var afterConflict = await CaptureProviderValidationStateAsync(om);
         Assert(!conflictImport.Applied
-               && conflictImport.Unresolved.Single().BindingId == "p3:missing:computed",
+               && conflictImport.Unresolved.Single().BindingId == "p3:missing:computedProp",
             "same-id provider conflict must remain unresolved at the canonical import boundary.");
         AssertProviderStateUnchanged(before, afterConflict,
             "same-id native/script conflict must be effect-free across provider and import boundaries.");
@@ -1664,7 +1664,7 @@ public static class OmScriptingJintContractTests
                        && (await om.GetBehaviorCatalogAsync()).Behaviors
                            .SelectMany(entry => entry.Callbacks)
                            .All(callback => callback.Readiness == BehaviorReadiness.Ready)
-                       && AsJsonString(await om.GetPropertyAsync("p3:restart", "native_computed")) == "native-ready",
+                       && AsJsonString(await om.GetFieldValueAsync("p3:restart", "native_computed_prop")) == "native-ready",
                     "initial persistent import must bind and execute both script and native callbacks.");
             }
 
@@ -1681,10 +1681,10 @@ public static class OmScriptingJintContractTests
                     await reopened.ExportBehaviorManifestJsonAsync(),
                     definitions);
                 await ExpectBehaviorUnresolvedAsync(
-                    () => reopened.GetPropertyAsync("p3:restart", "script_computed"),
+                    () => reopened.GetFieldValueAsync("p3:restart", "script_computed_prop"),
                     "restarted runtime must fail closed before script source is supplied again.");
                 await ExpectBehaviorUnresolvedAsync(
-                    () => reopened.GetPropertyAsync("p3:restart", "native_computed"),
+                    () => reopened.GetFieldValueAsync("p3:restart", "native_computed_prop"),
                     "restarted runtime must fail closed before native callback is supplied again.");
 
                 var decoded = BehaviorManifestJsonCodec.Decode(
@@ -1702,8 +1702,8 @@ public static class OmScriptingJintContractTests
                            .SelectMany(entry => entry.Callbacks)
                            .All(callback => callback.Readiness == BehaviorReadiness.Ready),
                     "the same exact script/native binding ids must restore readiness after restart.");
-                Assert(AsJsonString(await reopened.GetPropertyAsync("p3:restart", "native_computed")) == "native-ready"
-                       && await reopened.GetPropertyAsync("p3:restart", "script_computed") is
+                Assert(AsJsonString(await reopened.GetFieldValueAsync("p3:restart", "native_computed_prop")) == "native-ready"
+                       && await reopened.GetFieldValueAsync("p3:restart", "script_computed_prop") is
                            { ValueKind: JsonValueKind.Object },
                     "exact rebind must make both provider kinds executable again without persisted script source.");
             }
@@ -1732,7 +1732,7 @@ public static class OmScriptingJintContractTests
                 "p3:sandbox:ambient",
                 ambientSource,
                 new JintBehaviorScriptOptions());
-            var value = await ambientOm.GetPropertyAsync("p3:ambient", "probe");
+            var value = await ambientOm.GetFieldValueAsync("p3:ambient", "probe");
             Assert(value is { ValueKind: JsonValueKind.Object } ambient
                    && ambient.EnumerateObject().All(property => property.Value.ValueKind == JsonValueKind.True),
                 "canonical ready import must keep CLR/System/require/importModule ambient capabilities absent.");
@@ -1797,10 +1797,10 @@ public static class OmScriptingJintContractTests
                 failure.Options);
             await WithOuterGuardAsync(
                 () => ExpectScriptExceptionAsync(
-                    async () => { await om.GetPropertyAsync("p3:" + failure.Name, "probe"); },
+                    async () => { await om.GetFieldValueAsync("p3:" + failure.Name, "probe"); },
                     failure.Code,
                     failure.BindingId,
-                    BehaviorCatalogKind.Computed,
+                    BehaviorCatalogKind.ComputedProp,
                     BehaviorCatalogCallbackSlot.Compute,
                     failure.Phase,
                     failure.Name + ".js",
@@ -1822,7 +1822,7 @@ public static class OmScriptingJintContractTests
         cancellation.Cancel();
         await WithOuterGuardAsync(
             () => ExpectOperationCanceledAsync(
-                async () => { await cancellationOm.GetPropertyAsync("p3:cancellation", "probe"); },
+                async () => { await cancellationOm.GetFieldValueAsync("p3:cancellation", "probe"); },
                 "caller cancellation must remain OperationCanceledException after canonical ready import."),
             "cancellation did not terminate after canonical ready import.");
         Assert((await cancellationOm.GetBehaviorCatalogAsync()).Behaviors.Single().Callbacks.Single().Readiness
@@ -1836,8 +1836,8 @@ public static class OmScriptingJintContractTests
         var om = await CreateP3TransactionOwnerAsync(new CozoDbOmStore(db), "p3:tx:composition");
         var baseMutationRan = false;
         var catalog = new BehaviorCatalog([
-            Action("P3TxBase", "compose", "p3:tx:base-action"),
-            Action("P3TxChild", "compose", "p3:tx:child-action"),
+            Operation("P3TxBase", "compose", "p3:tx:base-operation"),
+            Operation("P3TxChild", "compose", "p3:tx:child-operation"),
             Mutation("P3TxBase", "shared_mutation", "p3:tx:base-mutation"),
             Mutation("P3TxChild", "shared_mutation", "p3:tx:child-mutation"),
             Mutation("P3TxChild", "child_mutation", "p3:tx:child-only-mutation"),
@@ -1848,43 +1848,43 @@ public static class OmScriptingJintContractTests
         ]);
         var definitions = ImmutableArray.Create(
             new JintBehaviorScriptDefinition(
-                "p3:tx:base-action",
+                "p3:tx:base-operation",
                 """
                 async (identity, params, host) => {
-                  const trace = await host.getProperty('trace');
-                  await host.setProperty('trace', trace + ',base-action');
+                  const trace = await host.getFieldValue('trace');
+                  await host.setFieldValue('trace', trace + ',base-operation');
                   return [{ mutation: 'shared_mutation', params: { value: params.parentValue } }];
                 }
                 """,
-                "p3-tx-base-action.js"),
+                "p3-tx-base-operation.js"),
             new JintBehaviorScriptDefinition(
-                "p3:tx:child-action",
+                "p3:tx:child-operation",
                 """
                 async (identity, params, host) => {
-                  let trace = await host.getProperty('trace');
-                  await host.setProperty('trace', trace + ',child-action-start');
-                  const parent = await host.callParentAction('compose', { parentValue: params.parentValue });
-                  const parentEffectBeforeApply = await host.getProperty('mutation_effect');
+                  let trace = await host.getFieldValue('trace');
+                  await host.setFieldValue('trace', trace + ',child-operation-start');
+                  const parent = await host.callParentOperation('compose', { parentValue: params.parentValue });
+                  const parentEffectBeforeApply = await host.getFieldValue('mutation_effect');
                   if (parentEffectBeforeApply !== 'initial-mutation') {
                     throw new Error('parent mutation was pre-applied');
                   }
-                  trace = await host.getProperty('trace');
-                  await host.setProperty('trace', trace + ',child-action-end');
-                  await host.setProperty('direct_effect', params.directValue);
-                  await host.linkEntities('p3_tx_link', params.targetId, { source: 'child-action' });
+                  trace = await host.getFieldValue('trace');
+                  await host.setFieldValue('trace', trace + ',child-operation-end');
+                  await host.setFieldValue('direct_effect', params.directValue);
+                  await host.createRelationLink('p3_tx_link', params.targetId, { source: 'child-operation' });
                   return parent.concat([
                     { mutation: 'child_mutation', params: { value: params.childValue } }
                   ]);
                 }
                 """,
-                "p3-tx-child-action.js"),
+                "p3-tx-child-operation.js"),
             new JintBehaviorScriptDefinition(
                 "p3:tx:child-mutation",
                 """
                 async (identity, params, host) => {
-                  const trace = await host.getProperty('trace');
-                  await host.setProperty('trace', trace + ',child-nearest-mutation');
-                  await host.setProperty('mutation_effect', params.value);
+                  const trace = await host.getFieldValue('trace');
+                  await host.setFieldValue('trace', trace + ',child-nearest-mutation');
+                  await host.setFieldValue('mutation_effect', params.value);
                 }
                 """,
                 "p3-tx-child-mutation.js"),
@@ -1892,8 +1892,8 @@ public static class OmScriptingJintContractTests
                 "p3:tx:child-before",
                 """
                 async (identity, host) => {
-                  const trace = await host.getProperty('trace');
-                  await host.setProperty('trace', trace + ',child-before');
+                  const trace = await host.getFieldValue('trace');
+                  await host.setFieldValue('trace', trace + ',child-before');
                 }
                 """,
                 "p3-tx-child-before.js"),
@@ -1901,8 +1901,8 @@ public static class OmScriptingJintContractTests
                 "p3:tx:base-after",
                 """
                 async (identity, host) => {
-                  const trace = await host.getProperty('trace');
-                  await host.setProperty('trace', trace + ',base-after');
+                  const trace = await host.getFieldValue('trace');
+                  await host.setFieldValue('trace', trace + ',base-after');
                 }
                 """,
                 "p3-tx-base-after.js"));
@@ -1912,12 +1912,12 @@ public static class OmScriptingJintContractTests
                 new("p3:tx:base-mutation", async (context, parameters) =>
                 {
                     baseMutationRan = true;
-                    await context.SetPropertyAsync("mutation_effect", parameters["value"]);
+                    await context.SetFieldValueAsync("mutation_effect", parameters["value"]);
                 }),
                 new("p3:tx:child-only-mutation", async (context, parameters) =>
                 {
                     await AppendP3TraceAsync(context, "child-mutation");
-                    await context.SetPropertyAsync("child_effect", parameters["value"]);
+                    await context.SetFieldValueAsync("child_effect", parameters["value"]);
                 }),
             ],
             interceptors:
@@ -1928,7 +1928,7 @@ public static class OmScriptingJintContractTests
         await ImportReadyP3CatalogAsync(om, catalog, definitions, nativeCallbacks);
 
         await WithOuterGuardAsync(
-            () => om.ExecuteActionAsync(
+            () => om.ExecuteOperationAsync(
                 "p3:tx:composition",
                 "compose",
                 new Dictionary<string, object?>
@@ -1941,21 +1941,21 @@ public static class OmScriptingJintContractTests
             "script parent/inheritance composition did not terminate.");
 
         Assert(!baseMutationRan,
-            "a parent action's returned mutation must resolve against the child entity and select the nearest child mutation.");
-        Assert(AsJsonString(await om.GetPropertyAsync("p3:tx:composition", "mutation_effect")) == "nearest-child"
-               && AsJsonString(await om.GetPropertyAsync("p3:tx:composition", "child_effect")) == "child-applied"
-               && AsJsonString(await om.GetPropertyAsync("p3:tx:composition", "direct_effect")) == "direct-applied",
-            "direct script writes and explicitly composed parent/child mutation specs must commit in one action transaction.");
+            "a parent operation's returned mutation must resolve against the child entity and select the nearest child mutation.");
+        Assert(AsJsonString(await om.GetFieldValueAsync("p3:tx:composition", "mutation_effect")) == "nearest-child"
+               && AsJsonString(await om.GetFieldValueAsync("p3:tx:composition", "child_effect")) == "child-applied"
+               && AsJsonString(await om.GetFieldValueAsync("p3:tx:composition", "direct_effect")) == "direct-applied",
+            "direct script writes and explicitly composed parent/child mutation specs must commit in one operation transaction.");
         Assert((await om.GetNeighborsAsync(
                    "p3:tx:composition",
                    "p3_tx_link",
-                   OmDirection.Outgoing)).Outgoing.Single().EntityId == "p3:tx:target",
-            "direct script host linkEntities must commit with the action transaction.");
+                   OmDirection.Outgoing)).Outgoing.Single().ObjectId == "p3:tx:target",
+            "direct script host createRelationLink must commit with the operation transaction.");
         Assert(
-            AsJsonString(await om.GetPropertyAsync("p3:tx:composition", "trace")) ==
-            "initial,base-before,child-before,child-action-start,base-action,child-action-end,"
+            AsJsonString(await om.GetFieldValueAsync("p3:tx:composition", "trace")) ==
+            "initial,base-before,child-before,child-operation-start,base-operation,child-operation-end,"
             + "child-nearest-mutation,child-mutation,base-after,child-after",
-            "inherited interceptors, child override, parent action and nearest mutations must preserve the existing deterministic C# order.");
+            "inherited interceptors, child override, parent operation and nearest mutations must preserve the existing deterministic C# order.");
     }
 
     private static async Task AssertOuterGuardPreservesCompletionAndTimeoutSemanticsAsync()
@@ -1991,9 +1991,9 @@ public static class OmScriptingJintContractTests
                 "script-throw",
                 """
                 async (identity, params, host) => {
-                  await host.setProperty('direct_effect', 'staged-script');
-                  await host.linkEntities('p3_tx_link', params.targetId, { source: 'script-throw' });
-                  throw new Error('script action failed');
+                  await host.setFieldValue('direct_effect', 'staged-script');
+                  await host.createRelationLink('p3_tx_link', params.targetId, { source: 'script-throw' });
+                  throw new Error('script operation failed');
                 }
                 """,
                 "async () => {}"),
@@ -2001,9 +2001,9 @@ public static class OmScriptingJintContractTests
                 "host-failure",
                 """
                 async (identity, params, host) => {
-                  await host.setProperty('direct_effect', 'staged-host');
-                  await host.linkEntities('p3_tx_link', params.targetId, { source: 'host-failure' });
-                  await host.setProperty('missing_attribute', 'must-fail');
+                  await host.setFieldValue('direct_effect', 'staged-host');
+                  await host.createRelationLink('p3_tx_link', params.targetId, { source: 'host-failure' });
+                  await host.setFieldValue('missing_attribute', 'must-fail');
                   return [];
                 }
                 """,
@@ -2012,8 +2012,8 @@ public static class OmScriptingJintContractTests
                 "returned-mutation-failure",
                 """
                 async (identity, params, host) => {
-                  await host.setProperty('direct_effect', 'staged-returned');
-                  await host.linkEntities('p3_tx_link', params.targetId, { source: 'returned-failure' });
+                  await host.setFieldValue('direct_effect', 'staged-returned');
+                  await host.createRelationLink('p3_tx_link', params.targetId, { source: 'returned-failure' });
                   return [
                     { mutation: 'good_mutation', params: { value: 'staged-mutation' } },
                     { mutation: 'failing_mutation' }
@@ -2025,14 +2025,14 @@ public static class OmScriptingJintContractTests
                 "after-interceptor-failure",
                 """
                 async (identity, params, host) => {
-                  await host.setProperty('direct_effect', 'staged-after');
-                  await host.linkEntities('p3_tx_link', params.targetId, { source: 'after-failure' });
+                  await host.setFieldValue('direct_effect', 'staged-after');
+                  await host.createRelationLink('p3_tx_link', params.targetId, { source: 'after-failure' });
                   return [{ mutation: 'good_mutation', params: { value: 'staged-mutation' } }];
                 }
                 """,
                 """
                 async (identity, host) => {
-                  await host.setProperty('interceptor_effect', 'staged-after');
+                  await host.setFieldValue('interceptor_effect', 'staged-after');
                   throw new Error('after interceptor failed');
                 }
                 """),
@@ -2041,25 +2041,25 @@ public static class OmScriptingJintContractTests
         foreach (var failure in cases)
         {
             using var db = new CozoDb(engine: "mem", path: "");
-            var entityId = "p3:tx:" + failure.Name;
-            var om = await CreateP3TransactionOwnerAsync(new CozoDbOmStore(db), entityId);
+            var objectId = "p3:tx:" + failure.Name;
+            var om = await CreateP3TransactionOwnerAsync(new CozoDbOmStore(db), objectId);
             var catalog = new BehaviorCatalog([
-                Action("P3TxChild", "failure_action", "p3:tx:failure:action"),
+                Operation("P3TxChild", "failure_operation", "p3:tx:failure:operation"),
                 Mutation("P3TxChild", "good_mutation", "p3:tx:failure:good-mutation"),
                 Mutation("P3TxChild", "failing_mutation", "p3:tx:failure:failing-mutation"),
-                Interceptor("P3TxChild", "failure_action", "before", 0, "p3:tx:failure:before"),
-                Interceptor("P3TxChild", "failure_action", "after", 0, "p3:tx:failure:after"),
+                Interceptor("P3TxChild", "failure_operation", "before", 0, "p3:tx:failure:before"),
+                Interceptor("P3TxChild", "failure_operation", "after", 0, "p3:tx:failure:after"),
             ]);
             var definitions = ImmutableArray.Create(
                 new JintBehaviorScriptDefinition(
-                    "p3:tx:failure:action",
-                    failure.ActionSource,
-                    failure.Name + "-action.js"),
+                    "p3:tx:failure:operation",
+                    failure.OperationSource,
+                    failure.Name + "-operation.js"),
                 new JintBehaviorScriptDefinition(
                     "p3:tx:failure:good-mutation",
                     """
                     async (identity, params, host) => {
-                      await host.setProperty('mutation_effect', params.value);
+                      await host.setFieldValue('mutation_effect', params.value);
                     }
                     """,
                     failure.Name + "-mutation.js"),
@@ -2067,7 +2067,7 @@ public static class OmScriptingJintContractTests
                     "p3:tx:failure:before",
                     """
                     async (identity, host) => {
-                      await host.setProperty('interceptor_effect', 'staged-before');
+                      await host.setFieldValue('interceptor_effect', 'staged-before');
                     }
                     """,
                     failure.Name + "-before.js"),
@@ -2084,15 +2084,15 @@ public static class OmScriptingJintContractTests
 
             await WithOuterGuardAsync(
                 () => ExpectFailureAsync(
-                    () => om.ExecuteActionAsync(
-                        entityId,
-                        "failure_action",
+                    () => om.ExecuteOperationAsync(
+                        objectId,
+                        "failure_operation",
                         new Dictionary<string, object?> { ["targetId"] = "p3:tx:target" }),
-                    failure.Name + " must surface an action failure."),
+                    failure.Name + " must surface an operation failure."),
                 failure.Name + " did not terminate.");
             await AssertP3TransactionStateAsync(
                 om,
-                entityId,
+                objectId,
                 expectedLinkCount: 0,
                 failure.Name + " must roll back property, relation, mutation and interceptor effects.");
         }
@@ -2105,30 +2105,30 @@ public static class OmScriptingJintContractTests
         var om = await CreateP3TransactionOwnerAsync(blockingStore, "p3:tx:cancellation");
         using var cancellation = new CancellationTokenSource();
         var catalog = new BehaviorCatalog([
-            Action("P3TxChild", "cancel_action", "p3:tx:cancel:action"),
+            Operation("P3TxChild", "cancel_operation", "p3:tx:cancel:operation"),
             Mutation("P3TxChild", "good_mutation", "p3:tx:cancel:mutation"),
-            Interceptor("P3TxChild", "cancel_action", "before", 0, "p3:tx:cancel:before"),
+            Interceptor("P3TxChild", "cancel_operation", "before", 0, "p3:tx:cancel:before"),
         ]);
         var definitions = ImmutableArray.Create(
             new JintBehaviorScriptDefinition(
-                "p3:tx:cancel:action",
+                "p3:tx:cancel:operation",
                 """
                 async (identity, params, host) => {
-                  await host.setProperty('direct_effect', 'cancel-staged');
-                  await host.linkEntities('p3_tx_link', params.targetId, { source: 'cancel' });
-                  await host.getProperty('p3_cancel_probe');
-                  await host.setProperty('direct_effect', 'late-effect');
+                  await host.setFieldValue('direct_effect', 'cancel-staged');
+                  await host.createRelationLink('p3_tx_link', params.targetId, { source: 'cancel' });
+                  await host.getFieldValue('p3_cancel_probe');
+                  await host.setFieldValue('direct_effect', 'late-effect');
                   return [{ mutation: 'good_mutation', params: { value: 'late-mutation' } }];
                 }
                 """,
-                "p3-tx-cancel-action.js"),
+                "p3-tx-cancel-operation.js"),
             new JintBehaviorScriptDefinition(
                 "p3:tx:cancel:mutation",
-                "async (identity, params, host) => { await host.setProperty('mutation_effect', params.value); }",
+                "async (identity, params, host) => { await host.setFieldValue('mutation_effect', params.value); }",
                 "p3-tx-cancel-mutation.js"),
             new JintBehaviorScriptDefinition(
                 "p3:tx:cancel:before",
-                "async (identity, host) => { await host.setProperty('interceptor_effect', 'cancel-before'); }",
+                "async (identity, host) => { await host.setFieldValue('interceptor_effect', 'cancel-before'); }",
                 "p3-tx-cancel-before.js"));
         await ImportReadyP3CatalogAsync(
             om,
@@ -2139,9 +2139,9 @@ public static class OmScriptingJintContractTests
                 CancellationToken: cancellation.Token));
 
         blockingStore.Arm();
-        var execution = om.ExecuteActionAsync(
+        var execution = om.ExecuteOperationAsync(
             "p3:tx:cancellation",
-            "cancel_action",
+            "cancel_operation",
             new Dictionary<string, object?> { ["targetId"] = "p3:tx:target" });
         await WithOuterGuardAsync(
             () => blockingStore.Started,
@@ -2151,7 +2151,7 @@ public static class OmScriptingJintContractTests
             () => ExpectOperationCanceledAsync(
                 () => execution,
                 "cancellation during async host work must surface OperationCanceledException."),
-            "cancelled action did not unwind.");
+            "cancelled operation did not unwind.");
         await WithOuterGuardAsync(
             () => blockingStore.Unwound,
             "blocked host operation did not observe cancellation.");
@@ -2171,27 +2171,27 @@ public static class OmScriptingJintContractTests
 
     private static async Task<CozoOm> CreateP3TransactionOwnerAsync(
         ICozoOmStore store,
-        string entityId)
+        string objectId)
     {
         var om = new CozoOm(store);
         await om.InitSchemaAsync();
-        await om.DefineTypeAsync("P3TxBase", "P3 script transaction base");
-        await om.DefineTypeAsync("P3TxChild", "P3 script transaction child", parentType: "P3TxBase");
-        await om.DefineAttributeAsync("P3TxBase", "trace", OmValueType.String);
-        await om.DefineAttributeAsync("P3TxBase", "direct_effect", OmValueType.String);
-        await om.DefineAttributeAsync("P3TxBase", "mutation_effect", OmValueType.String);
-        await om.DefineAttributeAsync("P3TxBase", "child_effect", OmValueType.String);
-        await om.DefineAttributeAsync("P3TxBase", "interceptor_effect", OmValueType.String);
-        await om.DefineAttributeAsync("P3TxBase", "p3_cancel_probe", OmValueType.String);
-        await om.DefineRelationAsync("p3_tx_link", "P3TxBase", "P3TxBase");
-        await om.CreateEntityAsync(entityId, "P3TxChild", "P3 transaction subject");
-        await om.CreateEntityAsync("p3:tx:target", "P3TxBase", "P3 transaction target");
-        await om.SetPropertyAsync(entityId, "trace", "initial");
-        await om.SetPropertyAsync(entityId, "direct_effect", "initial-direct");
-        await om.SetPropertyAsync(entityId, "mutation_effect", "initial-mutation");
-        await om.SetPropertyAsync(entityId, "child_effect", "initial-child");
-        await om.SetPropertyAsync(entityId, "interceptor_effect", "initial-interceptor");
-        await om.SetPropertyAsync(entityId, "p3_cancel_probe", "initial-probe");
+        await om.DefineClassAsync("P3TxBase", "P3 script transaction base");
+        await om.DefineClassAsync("P3TxChild", "P3 script transaction child", parentClass: "P3TxBase");
+        await om.DefineFieldAsync("P3TxBase", "trace", OmValueType.String);
+        await om.DefineFieldAsync("P3TxBase", "direct_effect", OmValueType.String);
+        await om.DefineFieldAsync("P3TxBase", "mutation_effect", OmValueType.String);
+        await om.DefineFieldAsync("P3TxBase", "child_effect", OmValueType.String);
+        await om.DefineFieldAsync("P3TxBase", "interceptor_effect", OmValueType.String);
+        await om.DefineFieldAsync("P3TxBase", "p3_cancel_probe", OmValueType.String);
+        await om.DefineRelationDefAsync("p3_tx_link", "P3TxBase", "P3TxBase");
+        await om.CreateObjectAsync(objectId, "P3TxChild", "P3 transaction subject");
+        await om.CreateObjectAsync("p3:tx:target", "P3TxBase", "P3 transaction target");
+        await om.SetFieldValueAsync(objectId, "trace", "initial");
+        await om.SetFieldValueAsync(objectId, "direct_effect", "initial-direct");
+        await om.SetFieldValueAsync(objectId, "mutation_effect", "initial-mutation");
+        await om.SetFieldValueAsync(objectId, "child_effect", "initial-child");
+        await om.SetFieldValueAsync(objectId, "interceptor_effect", "initial-interceptor");
+        await om.SetFieldValueAsync(objectId, "p3_cancel_probe", "initial-probe");
         return om;
     }
 
@@ -2219,38 +2219,38 @@ public static class OmScriptingJintContractTests
             provider.Bindings,
             new BehaviorImportOptions(RequireReady: true));
         Assert(import is { Applied: true, Diagnostics.Length: 0, Unresolved.Length: 0 },
-            "T3.2 canonical RequireReady import must atomically publish the complete action pipeline.");
+            "T3.2 canonical RequireReady import must atomically publish the complete operation pipeline.");
     }
 
     private static async ValueTask AppendP3TraceAsync(
         OmMutationContext context,
         string entry)
     {
-        var current = AsJsonString(await context.GetPropertyAsync("trace")) ?? "";
-        await context.SetPropertyAsync("trace", current + "," + entry);
+        var current = AsJsonString(await context.GetFieldValueAsync("trace")) ?? "";
+        await context.SetFieldValueAsync("trace", current + "," + entry);
     }
 
     private static async Task AssertP3TransactionStateAsync(
         CozoOm om,
-        string entityId,
+        string objectId,
         int expectedLinkCount,
         string message)
     {
-        Assert(AsJsonString(await om.GetPropertyAsync(entityId, "direct_effect")) == "initial-direct"
-               && AsJsonString(await om.GetPropertyAsync(entityId, "mutation_effect")) == "initial-mutation"
-               && AsJsonString(await om.GetPropertyAsync(entityId, "child_effect")) == "initial-child"
-               && AsJsonString(await om.GetPropertyAsync(entityId, "interceptor_effect")) == "initial-interceptor"
-               && AsJsonString(await om.GetPropertyAsync(entityId, "trace")) == "initial"
-               && (await om.GetNeighborsAsync(entityId, "p3_tx_link", OmDirection.Outgoing)).Outgoing.Count
+        Assert(AsJsonString(await om.GetFieldValueAsync(objectId, "direct_effect")) == "initial-direct"
+               && AsJsonString(await om.GetFieldValueAsync(objectId, "mutation_effect")) == "initial-mutation"
+               && AsJsonString(await om.GetFieldValueAsync(objectId, "child_effect")) == "initial-child"
+               && AsJsonString(await om.GetFieldValueAsync(objectId, "interceptor_effect")) == "initial-interceptor"
+               && AsJsonString(await om.GetFieldValueAsync(objectId, "trace")) == "initial"
+               && (await om.GetNeighborsAsync(objectId, "p3_tx_link", OmDirection.Outgoing)).Outgoing.Count
                    == expectedLinkCount,
             message);
     }
 
-    private static async Task ExpectFailureAsync(Func<Task> action, string message)
+    private static async Task ExpectFailureAsync(Func<Task> operation, string message)
     {
         try
         {
-            await action();
+            await operation();
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -2280,13 +2280,13 @@ public static class OmScriptingJintContractTests
                 "script_validator",
                 BehaviorCatalogCallbackSlot.Validator,
                 "p3:script:constraint:validator"),
-            Computed("P3ScriptOwner", "script_computed", "p3:script:computed"),
-            Computed("P3ScriptOwner", "native_computed", "p3:native:computed"),
-            Action("P3ScriptOwner", "script_action", "p3:script:action"),
+            ComputedProp("P3ScriptOwner", "script_computed_prop", "p3:script:computedProp"),
+            ComputedProp("P3ScriptOwner", "native_computed_prop", "p3:native:computedProp"),
+            Operation("P3ScriptOwner", "script_operation", "p3:script:operation"),
             Mutation("P3ScriptOwner", "script_mutation", "p3:script:mutation"),
             Interceptor(
                 "P3ScriptOwner",
-                "script_action",
+                "script_operation",
                 "after",
                 7,
                 "p3:script:interceptor"),
@@ -2296,68 +2296,68 @@ public static class OmScriptingJintContractTests
         [
             new(
                 "p3:script:constraint:when",
-                "async (identity, host) => (await host.getProperty('validation_gate')) === 'ready'",
+                "async (identity, host) => (await host.getFieldValue('validation_gate')) === 'ready'",
                 "p3-constraint-when.js"),
             new(
                 "p3:script:constraint:then",
-                "async (identity, host) => (await host.getProperty('validation_gate')) === 'ready'",
+                "async (identity, host) => (await host.getFieldValue('validation_gate')) === 'ready'",
                 "p3-constraint-then.js"),
             new(
                 "p3:script:constraint:validator",
-                "async (identity, host) => (await host.getProperty('validation_gate')) === 'ready' ? null : 'P3 validator failed'",
+                "async (identity, host) => (await host.getFieldValue('validation_gate')) === 'ready' ? null : 'P3 validator failed'",
                 "p3-constraint-validator.js"),
             new(
-                "p3:script:computed",
-                "(identity) => ({ engine: 'jint', entityId: identity.entityId })",
-                "p3-computed.js"),
+                "p3:script:computedProp",
+                "(identity) => ({ engine: 'jint', objectId: identity.objectId })",
+                "p3-computedProp.js"),
             new(
-                "p3:script:action",
+                "p3:script:operation",
                 "(identity, params) => [{ mutation: 'script_mutation', params: { value: params.value } }]",
-                "p3-action.js"),
+                "p3-operation.js"),
             new(
                 "p3:script:mutation",
-                "async (identity, params, host) => { await host.setProperty('effect', params.value); }",
+                "async (identity, params, host) => { await host.setFieldValue('effect', params.value); }",
                 "p3-mutation.js"),
             new(
                 "p3:script:interceptor",
-                "async (identity, host) => { await host.setProperty('interceptor_marker', 'after-script-action'); }",
+                "async (identity, host) => { await host.setFieldValue('interceptor_marker', 'after-script-operation'); }",
                 "p3-interceptor.js"),
         ];
 
     private static BehaviorCallbackBindingSet P3NativeCallbacks() =>
-        new(computed:
+        new(computedProp:
         [
-            new("p3:native:computed", _ => ValueTask.FromResult<object?>("native-ready")),
+            new("p3:native:computedProp", _ => ValueTask.FromResult<object?>("native-ready")),
         ]);
 
-    private static async Task<CozoOm> CreateP3OwnerAsync(CozoDb db, string entityId)
+    private static async Task<CozoOm> CreateP3OwnerAsync(CozoDb db, string objectId)
     {
         var om = new CozoOm(db);
         await om.InitSchemaAsync();
-        await om.DefineTypeAsync("P3ScriptOwner", "P3 script integration owner");
-        await om.DefineAttributeAsync("P3ScriptOwner", "validation_gate", OmValueType.String);
-        await om.DefineAttributeAsync("P3ScriptOwner", "effect", OmValueType.String);
-        await om.DefineAttributeAsync("P3ScriptOwner", "interceptor_marker", OmValueType.String);
-        await om.CreateEntityAsync(entityId, "P3ScriptOwner", "P3 integration entity");
-        await om.SetPropertyAsync(entityId, "validation_gate", "ready");
-        await om.SetPropertyAsync(entityId, "effect", "initial");
-        await om.SetPropertyAsync(entityId, "interceptor_marker", "initial");
+        await om.DefineClassAsync("P3ScriptOwner", "P3 script integration owner");
+        await om.DefineFieldAsync("P3ScriptOwner", "validation_gate", OmValueType.String);
+        await om.DefineFieldAsync("P3ScriptOwner", "effect", OmValueType.String);
+        await om.DefineFieldAsync("P3ScriptOwner", "interceptor_marker", OmValueType.String);
+        await om.CreateObjectAsync(objectId, "P3ScriptOwner", "P3 integration entity");
+        await om.SetFieldValueAsync(objectId, "validation_gate", "ready");
+        await om.SetFieldValueAsync(objectId, "effect", "initial");
+        await om.SetFieldValueAsync(objectId, "interceptor_marker", "initial");
         return om;
     }
 
     private static async Task<CozoOm> CreateReadyComputedScriptAsync(
         CozoDb db,
-        string entityId,
+        string objectId,
         string bindingId,
         string source,
         JintBehaviorScriptOptions options)
     {
         var om = new CozoOm(db);
         await om.InitSchemaAsync();
-        await om.DefineTypeAsync("P3ProbeOwner", "P3 integrated script probe owner");
-        await om.CreateEntityAsync(entityId, "P3ProbeOwner", "P3 probe entity");
+        await om.DefineClassAsync("P3ProbeOwner", "P3 integrated script probe owner");
+        await om.CreateObjectAsync(objectId, "P3ProbeOwner", "P3 probe entity");
         var catalog = new BehaviorCatalog([
-            Computed("P3ProbeOwner", "probe", bindingId),
+            ComputedProp("P3ProbeOwner", "probe", bindingId),
         ]);
         var canonicalJson = BehaviorManifestJsonCodec.Encode(catalog);
         var decoded = BehaviorManifestJsonCodec.Decode(canonicalJson);
@@ -2394,7 +2394,7 @@ public static class OmScriptingJintContractTests
                                                  || !json.Contains(definition.SourceName, StringComparison.Ordinal))),
             "canonical manifest payload must persist behavior metadata and binding ids, never script source/sourceName.");
         Assert(json.Contains("bindingId", StringComparison.Ordinal)
-               && json.Contains("ownerType", StringComparison.Ordinal)
+               && json.Contains("ownerClass", StringComparison.Ordinal)
                && json.Contains("readiness", StringComparison.Ordinal),
             "canonical manifest must retain provider-neutral behavior metadata and exact binding ids.");
     }
@@ -2440,18 +2440,18 @@ public static class OmScriptingJintContractTests
     {
         Assert(bindings.Constraints.IsEmpty
                && bindings.Validators.IsEmpty
-               && bindings.Computed.IsEmpty
-               && bindings.Actions.IsEmpty
+               && bindings.ComputedProps.IsEmpty
+               && bindings.Operations.IsEmpty
                && bindings.Mutations.IsEmpty
                && bindings.Interceptors.IsEmpty,
             message);
     }
 
-    private static async Task ExpectBehaviorUnresolvedAsync(Func<Task> action, string message)
+    private static async Task ExpectBehaviorUnresolvedAsync(Func<Task> operation, string message)
     {
         try
         {
-            await action();
+            await operation();
         }
         catch (BehaviorUnresolvedException)
         {
@@ -2477,10 +2477,10 @@ public static class OmScriptingJintContractTests
                     new(BehaviorCatalogCallbackSlot.Then, "script:constraint:then", BehaviorReadiness.Unresolved),
                 ]),
             Constraint("ScriptOwner", "script_validator", BehaviorCatalogCallbackSlot.Validator, "script:constraint:validator"),
-            Computed("ScriptOwner", "script_computed", "script:computed"),
-            Action("ScriptOwner", "script_action", "script:action"),
+            ComputedProp("ScriptOwner", "script_computed_prop", "script:computedProp"),
+            Operation("ScriptOwner", "script_operation", "script:operation"),
             Mutation("ScriptOwner", "script_mutation", "script:mutation"),
-            Interceptor("ScriptOwner", "script_action", "after", 7, "script:interceptor"),
+            Interceptor("ScriptOwner", "script_operation", "after", 7, "script:interceptor"),
         ]);
 
     private static ImmutableArray<JintBehaviorScriptDefinition> AllCallbackShapeDefinitions() =>
@@ -2488,19 +2488,19 @@ public static class OmScriptingJintContractTests
             new("script:constraint:when", "() => true"),
             new("script:constraint:then", "() => true"),
             new("script:constraint:validator", "() => null"),
-            new("script:computed", "() => 42"),
-            new("script:action", "() => []"),
+            new("script:computedProp", "() => 42"),
+            new("script:operation", "() => []"),
             new("script:mutation", "() => null"),
             new("script:interceptor", "() => null"),
         ];
 
     private static ImmutableArray<JintBehaviorScriptDefinition> ExecutableCallbackShapeDefinitions() =>
         [
-            new("script:constraint:when", "ctx => ctx.entityId === 'script:1'"),
+            new("script:constraint:when", "ctx => ctx.objectId === 'script:1'"),
             new("script:constraint:then", "() => true"),
             new("script:constraint:validator", "() => null"),
-            new("script:computed", "() => { globalThis.count = (globalThis.count || 0) + 1; return { score: 42, count: globalThis.count, tags: ['jint'] }; }"),
-            new("script:action", "() => [{ mutation: 'script_mutation', params: { answer: 42 } }]"),
+            new("script:computedProp", "() => { globalThis.count = (globalThis.count || 0) + 1; return { score: 42, count: globalThis.count, tags: ['jint'] }; }"),
+            new("script:operation", "() => [{ mutation: 'script_mutation', params: { answer: 42 } }]"),
             new("script:mutation", "() => null"),
             new("script:interceptor", "() => null"),
         ];
@@ -2513,8 +2513,8 @@ public static class OmScriptingJintContractTests
     private static ImmutableArray<string> BindingIdSequences(JintBehaviorScriptBindingResult result) =>
         result.Bindings.Constraints.Select(binding => "constraint:" + binding.BindingId)
             .Concat(result.Bindings.Validators.Select(binding => "validator:" + binding.BindingId))
-            .Concat(result.Bindings.Computed.Select(binding => "computed:" + binding.BindingId))
-            .Concat(result.Bindings.Actions.Select(binding => "action:" + binding.BindingId))
+            .Concat(result.Bindings.ComputedProps.Select(binding => "computedProp:" + binding.BindingId))
+            .Concat(result.Bindings.Operations.Select(binding => "operation:" + binding.BindingId))
             .Concat(result.Bindings.Mutations.Select(binding => "mutation:" + binding.BindingId))
             .Concat(result.Bindings.Interceptors.Select(binding => "interceptor:" + binding.BindingId))
             .ToImmutableArray();
@@ -2535,9 +2535,9 @@ public static class OmScriptingJintContractTests
             null,
             [new(slot, bindingId, BehaviorReadiness.Unresolved)]);
 
-    private static BehaviorCatalogEntry Computed(string owner, string name, string bindingId) =>
+    private static BehaviorCatalogEntry ComputedProp(string owner, string name, string bindingId) =>
         new(
-            BehaviorCatalogKind.Computed,
+            BehaviorCatalogKind.ComputedProp,
             owner,
             name,
             null,
@@ -2547,9 +2547,9 @@ public static class OmScriptingJintContractTests
             null,
             [new(BehaviorCatalogCallbackSlot.Compute, bindingId, BehaviorReadiness.Unresolved)]);
 
-    private static BehaviorCatalogEntry Action(string owner, string name, string bindingId) =>
+    private static BehaviorCatalogEntry Operation(string owner, string name, string bindingId) =>
         new(
-            BehaviorCatalogKind.Action,
+            BehaviorCatalogKind.Operation,
             owner,
             name,
             null,
@@ -2597,7 +2597,7 @@ public static class OmScriptingJintContractTests
             catalog.Behaviors
                 .SelectMany(entry => entry.Callbacks.Select(callback => new ProviderReadinessProbe(
                     entry.Kind,
-                    entry.OwnerType,
+                    entry.OwnerClass,
                     entry.Name,
                     entry.InterceptorPhase,
                     entry.InterceptorSeq,
@@ -2605,7 +2605,7 @@ public static class OmScriptingJintContractTests
                     callback.BindingId,
                     callback.Readiness)))
                 .OrderBy(entry => entry.Kind)
-                .ThenBy(entry => entry.OwnerType, StringComparer.Ordinal)
+                .ThenBy(entry => entry.OwnerClass, StringComparer.Ordinal)
                 .ThenBy(entry => entry.Name, StringComparer.Ordinal)
                 .ThenBy(entry => entry.InterceptorPhase ?? "", StringComparer.Ordinal)
                 .ThenBy(entry => entry.InterceptorSeq ?? -1)
@@ -2619,12 +2619,12 @@ public static class OmScriptingJintContractTests
     {
         var om = new CozoOm(db);
         await om.InitSchemaAsync();
-        await om.DefineTypeAsync("ScriptOwner", "P2 script owner");
-        await om.CreateEntityAsync("p2:1", "ScriptOwner", "P2 entity");
+        await om.DefineClassAsync("ScriptOwner", "P2 script owner");
+        await om.CreateObjectAsync("p2:1", "ScriptOwner", "P2 entity");
         return new P2CallbackContexts(
             new OmValidationContext(om.Runtime, "p2:1", "ScriptOwner"),
-            new OmComputedContext(om.Runtime, "p2:1", "ScriptOwner"),
-            new OmActionContext(
+            new OmComputedPropContext(om.Runtime, "p2:1", "ScriptOwner"),
+            new OmOperationContext(
                 om.Runtime,
                 "p2:1",
                 "ScriptOwner",
@@ -2634,7 +2634,7 @@ public static class OmScriptingJintContractTests
     }
 
     private static async Task<JintBehaviorScriptException> ExpectScriptExceptionAsync(
-        Func<Task> action,
+        Func<Task> operation,
         string code,
         string bindingId,
         BehaviorCatalogKind kind,
@@ -2645,7 +2645,7 @@ public static class OmScriptingJintContractTests
     {
         try
         {
-            await action();
+            await operation();
         }
         catch (JintBehaviorScriptException ex)
         {
@@ -2668,11 +2668,11 @@ public static class OmScriptingJintContractTests
         throw new InvalidOperationException($"expected JintBehaviorScriptException code {code} for {bindingId}");
     }
 
-    private static async Task ExpectOperationCanceledAsync(Func<Task> action, string message)
+    private static async Task ExpectOperationCanceledAsync(Func<Task> operation, string message)
     {
         try
         {
-            await action();
+            await operation();
         }
         catch (JintBehaviorScriptException ex)
         {
@@ -2687,11 +2687,11 @@ public static class OmScriptingJintContractTests
     }
 
     private static async Task<T> WithOuterGuardAsync<T>(
-        Func<Task<T>> action,
+        Func<Task<T>> operation,
         string message,
         TimeSpan? timeout = null)
     {
-        var task = action();
+        var task = operation();
         try
         {
             return await task.WaitAsync(timeout ?? OuterGuardTimeout);
@@ -2703,13 +2703,13 @@ public static class OmScriptingJintContractTests
     }
 
     private static async Task WithOuterGuardAsync(
-        Func<Task> action,
+        Func<Task> operation,
         string message,
         TimeSpan? timeout = null)
     {
         await WithOuterGuardAsync(async () =>
         {
-            await action();
+            await operation();
             return true;
         }, message, timeout);
     }
@@ -2723,8 +2723,8 @@ public static class OmScriptingJintContractTests
         Assert(!result.Success
                && result.Bindings.Constraints.IsEmpty
                && result.Bindings.Validators.IsEmpty
-               && result.Bindings.Computed.IsEmpty
-               && result.Bindings.Actions.IsEmpty
+               && result.Bindings.ComputedProps.IsEmpty
+               && result.Bindings.Operations.IsEmpty
                && result.Bindings.Mutations.IsEmpty
                && result.Bindings.Interceptors.IsEmpty
                && result.Diagnostics.Any(diagnostic => diagnostic.Code == code && diagnostic.BindingId == bindingId),
@@ -2797,8 +2797,8 @@ public static class OmScriptingJintContractTests
 
     private sealed record P2CallbackContexts(
         OmValidationContext Validation,
-        OmComputedContext Computed,
-        OmActionContext Action,
+        OmComputedPropContext ComputedProp,
+        OmOperationContext Operation,
         OmMutationContext Mutation);
 
     private sealed record InvalidResultCase(
@@ -2828,12 +2828,12 @@ public static class OmScriptingJintContractTests
 
     private sealed record P3ActionFailureCase(
         string Name,
-        string ActionSource,
+        string OperationSource,
         string AfterSource);
 
     private sealed record ProviderReadinessProbe(
         BehaviorCatalogKind Kind,
-        string OwnerType,
+        string OwnerClass,
         string Name,
         string? InterceptorPhase,
         int? InterceptorSeq,

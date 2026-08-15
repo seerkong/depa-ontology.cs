@@ -13,13 +13,13 @@ public sealed record BehaviorValidatorCallbackBinding(
     string BindingId,
     Func<OmValidationContext, ValueTask<string?>> Callback);
 
-public sealed record BehaviorComputedCallbackBinding(
+public sealed record BehaviorComputedPropCallbackBinding(
     string BindingId,
-    Func<OmComputedContext, ValueTask<object?>> Callback);
+    Func<OmComputedPropContext, ValueTask<object?>> Callback);
 
-public sealed record BehaviorActionCallbackBinding(
+public sealed record BehaviorOperationCallbackBinding(
     string BindingId,
-    Func<OmActionContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>> Callback);
+    Func<OmOperationContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>> Callback);
 
 public sealed record BehaviorMutationCallbackBinding(
     string BindingId,
@@ -27,30 +27,30 @@ public sealed record BehaviorMutationCallbackBinding(
 
 public sealed record BehaviorInterceptorCallbackBinding(
     string BindingId,
-    Func<OmActionContext, ValueTask> Callback);
+    Func<OmOperationContext, ValueTask> Callback);
 
 public sealed record BehaviorCallbackBindingSet
 {
     public BehaviorCallbackBindingSet(
         IEnumerable<BehaviorConstraintCallbackBinding>? constraints = null,
         IEnumerable<BehaviorValidatorCallbackBinding>? validators = null,
-        IEnumerable<BehaviorComputedCallbackBinding>? computed = null,
-        IEnumerable<BehaviorActionCallbackBinding>? actions = null,
+        IEnumerable<BehaviorComputedPropCallbackBinding>? computedProp = null,
+        IEnumerable<BehaviorOperationCallbackBinding>? operations = null,
         IEnumerable<BehaviorMutationCallbackBinding>? mutations = null,
         IEnumerable<BehaviorInterceptorCallbackBinding>? interceptors = null)
     {
         Constraints = Copy(constraints);
         Validators = Copy(validators);
-        Computed = Copy(computed);
-        Actions = Copy(actions);
+        ComputedProps = Copy(computedProp);
+        Operations = Copy(operations);
         Mutations = Copy(mutations);
         Interceptors = Copy(interceptors);
     }
 
     public ImmutableArray<BehaviorConstraintCallbackBinding> Constraints { get; }
     public ImmutableArray<BehaviorValidatorCallbackBinding> Validators { get; }
-    public ImmutableArray<BehaviorComputedCallbackBinding> Computed { get; }
-    public ImmutableArray<BehaviorActionCallbackBinding> Actions { get; }
+    public ImmutableArray<BehaviorComputedPropCallbackBinding> ComputedProps { get; }
+    public ImmutableArray<BehaviorOperationCallbackBinding> Operations { get; }
     public ImmutableArray<BehaviorMutationCallbackBinding> Mutations { get; }
     public ImmutableArray<BehaviorInterceptorCallbackBinding> Interceptors { get; }
 
@@ -63,7 +63,7 @@ public sealed record BehaviorImportDiagnostic(
     string Path,
     string Message,
     BehaviorCatalogKind? Kind = null,
-    string? OwnerType = null,
+    string? OwnerClass = null,
     string? BehaviorName = null,
     BehaviorCatalogCallbackSlot? Slot = null,
     string? BindingId = null,

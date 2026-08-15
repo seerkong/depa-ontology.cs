@@ -1,0 +1,23 @@
+domain "ontology-om" {
+  context "operation-computed-relation-rename" {
+    concept "RelationDef" {
+      description = "定义 Class 之间允许存在的关系类型。"
+      replaces = "RelDef"
+    }
+
+    concept "RelationLink" {
+      description = "Object 与 Object 之间显式持久化的关系连线，不表示推演出的关系结果。"
+      replaces = "Edge"
+    }
+
+    concept "ComputedProp" {
+      description = "Class 上定义的计算属性，读取时由逻辑计算，不是 Object 上持久化的 FieldValue。"
+      replaces = "ComputedDef"
+    }
+
+    concept "Operation" {
+      description = "Class 对外暴露的上层操作，可由 mutation 或 query 组合实现。"
+      replaces = "Action"
+    }
+  }
+}

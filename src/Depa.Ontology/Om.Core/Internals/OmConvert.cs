@@ -139,9 +139,9 @@ internal static class OmConvert
         return dto.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
     }
 
-    internal static string SkolemId(string ruleName, string entityId)
+    internal static string SkolemId(string ruleName, string objectId)
     {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes($"{ruleName}|{entityId}"));
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes($"{ruleName}|{objectId}"));
         var hex = Convert.ToHexString(bytes).ToLowerInvariant();
         return $"skolem:{hex[..16]}";
     }

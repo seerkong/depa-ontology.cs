@@ -133,9 +133,9 @@ public sealed class OmQueryEngine
         var edges = new List<OmQueryGraphEdge>();
         foreach (var row in table.Rows)
         {
-            var source = StringValue(row, "source") ?? StringValue(row, "from_id") ?? StringValue(row, "from");
-            var target = StringValue(row, "target") ?? StringValue(row, "to_id") ?? StringValue(row, "to");
-            var kind = StringValue(row, "kind") ?? StringValue(row, "rel_name") ?? StringValue(row, "relation") ?? "edge";
+            var source = StringValue(row, "source") ?? StringValue(row, "from_object_id") ?? StringValue(row, "from");
+            var target = StringValue(row, "target") ?? StringValue(row, "to_object_id") ?? StringValue(row, "to");
+            var kind = StringValue(row, "kind") ?? StringValue(row, "relation_name") ?? StringValue(row, "relation") ?? "relation_link";
             if (source is null || target is null) continue;
             nodes.TryAdd(source, new OmQueryGraphNode(source, source, "node", new Dictionary<string, JsonElement>()));
             nodes.TryAdd(target, new OmQueryGraphNode(target, target, "node", new Dictionary<string, JsonElement>()));

@@ -31,18 +31,18 @@ public sealed class CozoOmRegistry
 
     internal void Clear() => Update(static _ => CozoOmRegistrySnapshot.Empty);
 
-    public void RegisterValidator(string typeName, string constraintName, Func<OmValidationContext, ValueTask<string?>> validator)
-        => RegisterValidatorCore(typeName, constraintName, validator, null);
+    public void RegisterValidator(string className, string constraintName, Func<OmValidationContext, ValueTask<string?>> validator)
+        => RegisterValidatorCore(className, constraintName, validator, null);
 
     public void RegisterValidator(
-        string typeName,
+        string className,
         string constraintName,
         string bindingId,
         Func<OmValidationContext, ValueTask<string?>> validator)
-        => RegisterValidatorCore(typeName, constraintName, validator, RequireBindingId(bindingId));
+        => RegisterValidatorCore(className, constraintName, validator, RequireBindingId(bindingId));
 
     private void RegisterValidatorCore(
-        string typeName,
+        string className,
         string constraintName,
         Func<OmValidationContext, ValueTask<string?>> validator,
         string? bindingId)
@@ -51,14 +51,14 @@ public sealed class CozoOmRegistry
         Update(snapshot => snapshot with
         {
             Validators = snapshot.Validators.SetItem(
-                (typeName, constraintName),
+                (className, constraintName),
                 new OmCallbackRegistration<Func<OmValidationContext, ValueTask<string?>>>(validator, bindingId)),
         });
     }
 
-    public bool TryGetValidator(string typeName, string constraintName, out Func<OmValidationContext, ValueTask<string?>> validator)
+    public bool TryGetValidator(string className, string constraintName, out Func<OmValidationContext, ValueTask<string?>> validator)
     {
-        if (CaptureSnapshot().Validators.TryGetValue((typeName, constraintName), out var registration))
+        if (CaptureSnapshot().Validators.TryGetValue((className, constraintName), out var registration))
         {
             validator = registration.Callback;
             return true;
@@ -69,21 +69,21 @@ public sealed class CozoOmRegistry
     }
 
     public void RegisterConstraint(
-        string typeName,
+        string className,
         string constraintName,
         Func<OmValidationContext, ValueTask<bool>> when,
         Func<OmValidationContext, ValueTask<bool>> then)
-        => RegisterConstraintCore(typeName, constraintName, when, null, then, null);
+        => RegisterConstraintCore(className, constraintName, when, null, then, null);
 
     public void RegisterConstraint(
-        string typeName,
+        string className,
         string constraintName,
         string whenBindingId,
         Func<OmValidationContext, ValueTask<bool>> when,
         string thenBindingId,
         Func<OmValidationContext, ValueTask<bool>> then)
         => RegisterConstraintCore(
-            typeName,
+            className,
             constraintName,
             when,
             RequireBindingId(whenBindingId),
@@ -91,7 +91,7 @@ public sealed class CozoOmRegistry
             RequireBindingId(thenBindingId));
 
     private void RegisterConstraintCore(
-        string typeName,
+        string className,
         string constraintName,
         Func<OmValidationContext, ValueTask<bool>> when,
         string? whenBindingId,
@@ -105,63 +105,63 @@ public sealed class CozoOmRegistry
             thenBindingId);
         Update(snapshot => snapshot with
         {
-            Constraints = snapshot.Constraints.SetItem((typeName, constraintName), registration),
+            Constraints = snapshot.Constraints.SetItem((className, constraintName), registration),
         });
     }
 
-    public bool TryGetConstraint(string typeName, string constraintName, out OmConstraintRegistration constraint)
+    public bool TryGetConstraint(string className, string constraintName, out OmConstraintRegistration constraint)
     {
-        return CaptureSnapshot().Constraints.TryGetValue((typeName, constraintName), out constraint!);
+        return CaptureSnapshot().Constraints.TryGetValue((className, constraintName), out constraint!);
     }
 
     internal void RestoreConstraintRegistration(
-        string typeName,
+        string className,
         string constraintName,
         OmConstraintRegistration registration) =>
         RegisterConstraintCore(
-            typeName,
+            className,
             constraintName,
             registration.When,
             registration.WhenBindingId,
             registration.Then,
             registration.ThenBindingId);
 
-    internal void UnregisterConstraint(string typeName, string constraintName)
+    internal void UnregisterConstraint(string className, string constraintName)
     {
         Update(snapshot => snapshot with
         {
-            Constraints = snapshot.Constraints.Remove((typeName, constraintName)),
+            Constraints = snapshot.Constraints.Remove((className, constraintName)),
         });
     }
 
-    public void RegisterComputed(string typeName, string attrName, Func<OmComputedContext, ValueTask<object?>> compute)
-        => RegisterComputedCore(typeName, attrName, compute, null);
+    public void RegisterComputedProp(string className, string computedPropName, Func<OmComputedPropContext, ValueTask<object?>> compute)
+        => RegisterComputedPropCore(className, computedPropName, compute, null);
 
-    public void RegisterComputed(
-        string typeName,
-        string attrName,
+    public void RegisterComputedProp(
+        string className,
+        string computedPropName,
         string bindingId,
-        Func<OmComputedContext, ValueTask<object?>> compute)
-        => RegisterComputedCore(typeName, attrName, compute, RequireBindingId(bindingId));
+        Func<OmComputedPropContext, ValueTask<object?>> compute)
+        => RegisterComputedPropCore(className, computedPropName, compute, RequireBindingId(bindingId));
 
-    private void RegisterComputedCore(
-        string typeName,
-        string attrName,
-        Func<OmComputedContext, ValueTask<object?>> compute,
+    private void RegisterComputedPropCore(
+        string className,
+        string computedPropName,
+        Func<OmComputedPropContext, ValueTask<object?>> compute,
         string? bindingId)
     {
         ArgumentNullException.ThrowIfNull(compute);
         Update(snapshot => snapshot with
         {
-            Computed = snapshot.Computed.SetItem(
-                (typeName, attrName),
-                new OmCallbackRegistration<Func<OmComputedContext, ValueTask<object?>>>(compute, bindingId)),
+            ComputedProps = snapshot.ComputedProps.SetItem(
+                (className, computedPropName),
+                new OmCallbackRegistration<Func<OmComputedPropContext, ValueTask<object?>>>(compute, bindingId)),
         });
     }
 
-    public bool TryGetComputed(string typeName, string attrName, out Func<OmComputedContext, ValueTask<object?>> compute)
+    public bool TryGetComputedProp(string className, string computedPropName, out Func<OmComputedPropContext, ValueTask<object?>> compute)
     {
-        if (CaptureSnapshot().Computed.TryGetValue((typeName, attrName), out var registration))
+        if (CaptureSnapshot().ComputedProps.TryGetValue((className, computedPropName), out var registration))
         {
             compute = registration.Callback;
             return true;
@@ -171,18 +171,18 @@ public sealed class CozoOmRegistry
         return false;
     }
 
-    public void RegisterMutation(string typeName, string mutationName, Func<OmMutationContext, IReadOnlyDictionary<string, object?>, ValueTask> executor)
-        => RegisterMutationCore(typeName, mutationName, executor, null);
+    public void RegisterMutation(string className, string mutationName, Func<OmMutationContext, IReadOnlyDictionary<string, object?>, ValueTask> executor)
+        => RegisterMutationCore(className, mutationName, executor, null);
 
     public void RegisterMutation(
-        string typeName,
+        string className,
         string mutationName,
         string bindingId,
         Func<OmMutationContext, IReadOnlyDictionary<string, object?>, ValueTask> executor)
-        => RegisterMutationCore(typeName, mutationName, executor, RequireBindingId(bindingId));
+        => RegisterMutationCore(className, mutationName, executor, RequireBindingId(bindingId));
 
     private void RegisterMutationCore(
-        string typeName,
+        string className,
         string mutationName,
         Func<OmMutationContext, IReadOnlyDictionary<string, object?>, ValueTask> executor,
         string? bindingId)
@@ -191,14 +191,14 @@ public sealed class CozoOmRegistry
         Update(snapshot => snapshot with
         {
             Mutations = snapshot.Mutations.SetItem(
-                (typeName, mutationName),
+                (className, mutationName),
                 new OmCallbackRegistration<Func<OmMutationContext, IReadOnlyDictionary<string, object?>, ValueTask>>(executor, bindingId)),
         });
     }
 
-    public bool TryGetMutation(string typeName, string mutationName, out Func<OmMutationContext, IReadOnlyDictionary<string, object?>, ValueTask> executor)
+    public bool TryGetMutation(string className, string mutationName, out Func<OmMutationContext, IReadOnlyDictionary<string, object?>, ValueTask> executor)
     {
-        if (CaptureSnapshot().Mutations.TryGetValue((typeName, mutationName), out var registration))
+        if (CaptureSnapshot().Mutations.TryGetValue((className, mutationName), out var registration))
         {
             executor = registration.Callback;
             return true;
@@ -209,59 +209,59 @@ public sealed class CozoOmRegistry
     }
 
     internal bool TryGetMutationRegistration(
-        string typeName,
+        string className,
         string mutationName,
         out OmCallbackRegistration<Func<OmMutationContext, IReadOnlyDictionary<string, object?>, ValueTask>> registration) =>
-        CaptureSnapshot().Mutations.TryGetValue((typeName, mutationName), out registration!);
+        CaptureSnapshot().Mutations.TryGetValue((className, mutationName), out registration!);
 
     internal void RestoreMutationRegistration(
-        string typeName,
+        string className,
         string mutationName,
         OmCallbackRegistration<Func<OmMutationContext, IReadOnlyDictionary<string, object?>, ValueTask>> registration) =>
-        RegisterMutationCore(typeName, mutationName, registration.Callback, registration.BindingId);
+        RegisterMutationCore(className, mutationName, registration.Callback, registration.BindingId);
 
-    internal void UnregisterMutation(string typeName, string mutationName)
+    internal void UnregisterMutation(string className, string mutationName)
     {
         Update(snapshot => snapshot with
         {
-            Mutations = snapshot.Mutations.Remove((typeName, mutationName)),
+            Mutations = snapshot.Mutations.Remove((className, mutationName)),
         });
     }
 
-    public void RegisterAction(
-        string typeName,
-        string actionName,
-        Func<OmActionContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>> handler)
-        => RegisterActionCore(typeName, actionName, handler, null);
+    public void RegisterOperation(
+        string className,
+        string operationName,
+        Func<OmOperationContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>> handler)
+        => RegisterOperationCore(className, operationName, handler, null);
 
-    public void RegisterAction(
-        string typeName,
-        string actionName,
+    public void RegisterOperation(
+        string className,
+        string operationName,
         string bindingId,
-        Func<OmActionContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>> handler)
-        => RegisterActionCore(typeName, actionName, handler, RequireBindingId(bindingId));
+        Func<OmOperationContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>> handler)
+        => RegisterOperationCore(className, operationName, handler, RequireBindingId(bindingId));
 
-    private void RegisterActionCore(
-        string typeName,
-        string actionName,
-        Func<OmActionContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>> handler,
+    private void RegisterOperationCore(
+        string className,
+        string operationName,
+        Func<OmOperationContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>> handler,
         string? bindingId)
     {
         ArgumentNullException.ThrowIfNull(handler);
         Update(snapshot => snapshot with
         {
-            Actions = snapshot.Actions.SetItem(
-                (typeName, actionName),
-                new OmCallbackRegistration<Func<OmActionContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>>>(handler, bindingId)),
+            Operations = snapshot.Operations.SetItem(
+                (className, operationName),
+                new OmCallbackRegistration<Func<OmOperationContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>>>(handler, bindingId)),
         });
     }
 
-    public bool TryGetAction(
-        string typeName,
-        string actionName,
-        out Func<OmActionContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>> handler)
+    public bool TryGetOperation(
+        string className,
+        string operationName,
+        out Func<OmOperationContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>> handler)
     {
-        if (CaptureSnapshot().Actions.TryGetValue((typeName, actionName), out var registration))
+        if (CaptureSnapshot().Operations.TryGetValue((className, operationName), out var registration))
         {
             handler = registration.Callback;
             return true;
@@ -271,31 +271,31 @@ public sealed class CozoOmRegistry
         return false;
     }
 
-    internal bool TryGetActionRegistration(
-        string typeName,
-        string actionName,
-        out OmCallbackRegistration<Func<OmActionContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>>> registration) =>
-        CaptureSnapshot().Actions.TryGetValue((typeName, actionName), out registration!);
+    internal bool TryGetOperationRegistration(
+        string className,
+        string operationName,
+        out OmCallbackRegistration<Func<OmOperationContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>>> registration) =>
+        CaptureSnapshot().Operations.TryGetValue((className, operationName), out registration!);
 
-    internal void RestoreActionRegistration(
-        string typeName,
-        string actionName,
-        OmCallbackRegistration<Func<OmActionContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>>> registration) =>
-        RegisterActionCore(typeName, actionName, registration.Callback, registration.BindingId);
+    internal void RestoreOperationRegistration(
+        string className,
+        string operationName,
+        OmCallbackRegistration<Func<OmOperationContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>>> registration) =>
+        RegisterOperationCore(className, operationName, registration.Callback, registration.BindingId);
 
-    internal void UnregisterAction(string typeName, string actionName)
+    internal void UnregisterOperation(string className, string operationName)
     {
         Update(snapshot => snapshot with
         {
-            Actions = snapshot.Actions.Remove((typeName, actionName)),
+            Operations = snapshot.Operations.Remove((className, operationName)),
         });
     }
 
     public int RegisterInterceptor(
-        string typeName,
-        string actionName,
+        string className,
+        string operationName,
         string phase,
-        Func<OmActionContext, ValueTask> handler,
+        Func<OmOperationContext, ValueTask> handler,
         string description = "")
     {
         var normalizedPhase = NormalizePhase(phase);
@@ -304,55 +304,55 @@ public sealed class CozoOmRegistry
         {
             var snapshot = _snapshot;
             var target = InterceptorTarget(snapshot, normalizedPhase);
-            var key = (typeName, actionName);
+            var key = (className, operationName);
             var list = target.TryGetValue(key, out var existing) ? existing : [];
             var seq = list.IsDefaultOrEmpty ? 0 : list.Max(item => item.Seq) + 1;
-            var next = list.Add(new OmInterceptorRegistration(handler, seq, description, typeName));
+            var next = list.Add(new OmInterceptorRegistration(handler, seq, description, className));
             Publish(SetInterceptorTarget(snapshot, normalizedPhase, target.SetItem(key, next)));
             return seq;
         }
     }
 
     public void RegisterInterceptor(
-        string typeName,
-        string actionName,
+        string className,
+        string operationName,
         string phase,
         int seq,
         string bindingId,
-        Func<OmActionContext, ValueTask> handler,
+        Func<OmOperationContext, ValueTask> handler,
         string description = "")
         => RegisterInterceptorCore(
-            typeName,
-            actionName,
+            className,
+            operationName,
             phase,
             seq,
             handler,
             description,
             RequireBindingId(bindingId));
 
-    internal int NextInterceptorSeq(string typeName, string actionName, string phase)
+    internal int NextInterceptorSeq(string className, string operationName, string phase)
     {
         var target = InterceptorTarget(CaptureSnapshot(), NormalizePhase(phase));
-        return target.TryGetValue((typeName, actionName), out var list) && !list.IsDefaultOrEmpty
+        return target.TryGetValue((className, operationName), out var list) && !list.IsDefaultOrEmpty
             ? list.Max(item => item.Seq) + 1
             : 0;
     }
 
     internal void RegisterInterceptor(
-        string typeName,
-        string actionName,
+        string className,
+        string operationName,
         string phase,
         int seq,
-        Func<OmActionContext, ValueTask> handler,
+        Func<OmOperationContext, ValueTask> handler,
         string description = "")
-        => RegisterInterceptorCore(typeName, actionName, phase, seq, handler, description, null);
+        => RegisterInterceptorCore(className, operationName, phase, seq, handler, description, null);
 
     private void RegisterInterceptorCore(
-        string typeName,
-        string actionName,
+        string className,
+        string operationName,
         string phase,
         int seq,
-        Func<OmActionContext, ValueTask> handler,
+        Func<OmOperationContext, ValueTask> handler,
         string description,
         string? bindingId)
     {
@@ -362,9 +362,9 @@ public sealed class CozoOmRegistry
         {
             var snapshot = _snapshot;
             var target = InterceptorTarget(snapshot, normalizedPhase);
-            var key = (typeName, actionName);
+            var key = (className, operationName);
             var list = target.TryGetValue(key, out var existing) ? existing : [];
-            var registration = new OmInterceptorRegistration(handler, seq, description, typeName, bindingId);
+            var registration = new OmInterceptorRegistration(handler, seq, description, className, bindingId);
             var existingIndex = -1;
             for (var index = 0; index < list.Length; index++)
             {
@@ -379,10 +379,10 @@ public sealed class CozoOmRegistry
         }
     }
 
-    internal bool TryGetInterceptor(string typeName, string actionName, string phase, int seq, out OmInterceptorRegistration registration)
+    internal bool TryGetInterceptor(string className, string operationName, string phase, int seq, out OmInterceptorRegistration registration)
     {
         var target = InterceptorTarget(CaptureSnapshot(), NormalizePhase(phase));
-        if (target.TryGetValue((typeName, actionName), out var list))
+        if (target.TryGetValue((className, operationName), out var list))
         {
             foreach (var item in list)
             {
@@ -399,27 +399,27 @@ public sealed class CozoOmRegistry
     }
 
     internal void RestoreInterceptorRegistration(
-        string typeName,
-        string actionName,
+        string className,
+        string operationName,
         string phase,
         OmInterceptorRegistration registration) =>
         RegisterInterceptorCore(
-            typeName,
-            actionName,
+            className,
+            operationName,
             phase,
             registration.Seq,
             registration.Handler,
             registration.Description,
             registration.BindingId);
 
-    internal void UnregisterInterceptor(string typeName, string actionName, string phase, int seq)
+    internal void UnregisterInterceptor(string className, string operationName, string phase, int seq)
     {
         var normalizedPhase = NormalizePhase(phase);
         lock (_writeLock)
         {
             var snapshot = _snapshot;
             var target = InterceptorTarget(snapshot, normalizedPhase);
-            var key = (typeName, actionName);
+            var key = (className, operationName);
             if (!target.TryGetValue(key, out var list)) return;
             var next = list.RemoveAll(item => item.Seq == seq);
             target = next.IsEmpty ? target.Remove(key) : target.SetItem(key, next);
@@ -427,10 +427,10 @@ public sealed class CozoOmRegistry
         }
     }
 
-    public IReadOnlyList<OmInterceptorRegistration> GetInterceptors(string typeName, string actionName, string phase)
+    public IReadOnlyList<OmInterceptorRegistration> GetInterceptors(string className, string operationName, string phase)
     {
         var target = InterceptorTarget(CaptureSnapshot(), NormalizePhase(phase));
-        return target.TryGetValue((typeName, actionName), out var list)
+        return target.TryGetValue((className, operationName), out var list)
             ? list.OrderBy(item => item.Seq).ToImmutableArray()
             : ImmutableArray<OmInterceptorRegistration>.Empty;
     }
@@ -475,14 +475,14 @@ public sealed class CozoOmRegistry
         _ => throw new ArgumentException("Interceptor phase must be 'before' or 'after'", nameof(phase)),
     };
 
-    private static ImmutableDictionary<(string TypeName, string ActionName), ImmutableArray<OmInterceptorRegistration>> InterceptorTarget(
+    private static ImmutableDictionary<(string ClassName, string OperationName), ImmutableArray<OmInterceptorRegistration>> InterceptorTarget(
         CozoOmRegistrySnapshot snapshot,
         string phase) => phase == "before" ? snapshot.BeforeInterceptors : snapshot.AfterInterceptors;
 
     private static CozoOmRegistrySnapshot SetInterceptorTarget(
         CozoOmRegistrySnapshot snapshot,
         string phase,
-        ImmutableDictionary<(string TypeName, string ActionName), ImmutableArray<OmInterceptorRegistration>> target) =>
+        ImmutableDictionary<(string ClassName, string OperationName), ImmutableArray<OmInterceptorRegistration>> target) =>
         phase == "before"
             ? snapshot with { BeforeInterceptors = target }
             : snapshot with { AfterInterceptors = target };
@@ -591,20 +591,20 @@ internal sealed record OmCallbackRegistration<TDelegate>(TDelegate Callback, str
     where TDelegate : Delegate;
 
 internal sealed record CozoOmRegistrySnapshot(
-    ImmutableDictionary<(string TypeName, string ConstraintName), OmCallbackRegistration<Func<OmValidationContext, ValueTask<string?>>>> Validators,
-    ImmutableDictionary<(string TypeName, string ConstraintName), OmConstraintRegistration> Constraints,
-    ImmutableDictionary<(string TypeName, string AttrName), OmCallbackRegistration<Func<OmComputedContext, ValueTask<object?>>>> Computed,
-    ImmutableDictionary<(string TypeName, string MutationName), OmCallbackRegistration<Func<OmMutationContext, IReadOnlyDictionary<string, object?>, ValueTask>>> Mutations,
-    ImmutableDictionary<(string TypeName, string ActionName), OmCallbackRegistration<Func<OmActionContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>>>> Actions,
-    ImmutableDictionary<(string TypeName, string ActionName), ImmutableArray<OmInterceptorRegistration>> BeforeInterceptors,
-    ImmutableDictionary<(string TypeName, string ActionName), ImmutableArray<OmInterceptorRegistration>> AfterInterceptors)
+    ImmutableDictionary<(string ClassName, string ConstraintName), OmCallbackRegistration<Func<OmValidationContext, ValueTask<string?>>>> Validators,
+    ImmutableDictionary<(string ClassName, string ConstraintName), OmConstraintRegistration> Constraints,
+    ImmutableDictionary<(string ClassName, string ComputedPropName), OmCallbackRegistration<Func<OmComputedPropContext, ValueTask<object?>>>> ComputedProps,
+    ImmutableDictionary<(string ClassName, string MutationName), OmCallbackRegistration<Func<OmMutationContext, IReadOnlyDictionary<string, object?>, ValueTask>>> Mutations,
+    ImmutableDictionary<(string ClassName, string OperationName), OmCallbackRegistration<Func<OmOperationContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>>>> Operations,
+    ImmutableDictionary<(string ClassName, string OperationName), ImmutableArray<OmInterceptorRegistration>> BeforeInterceptors,
+    ImmutableDictionary<(string ClassName, string OperationName), ImmutableArray<OmInterceptorRegistration>> AfterInterceptors)
 {
     internal static CozoOmRegistrySnapshot Empty { get; } = new(
         ImmutableDictionary<(string, string), OmCallbackRegistration<Func<OmValidationContext, ValueTask<string?>>>>.Empty,
         ImmutableDictionary<(string, string), OmConstraintRegistration>.Empty,
-        ImmutableDictionary<(string, string), OmCallbackRegistration<Func<OmComputedContext, ValueTask<object?>>>>.Empty,
+        ImmutableDictionary<(string, string), OmCallbackRegistration<Func<OmComputedPropContext, ValueTask<object?>>>>.Empty,
         ImmutableDictionary<(string, string), OmCallbackRegistration<Func<OmMutationContext, IReadOnlyDictionary<string, object?>, ValueTask>>>.Empty,
-        ImmutableDictionary<(string, string), OmCallbackRegistration<Func<OmActionContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>>>>.Empty,
+        ImmutableDictionary<(string, string), OmCallbackRegistration<Func<OmOperationContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>>>>.Empty,
         ImmutableDictionary<(string, string), ImmutableArray<OmInterceptorRegistration>>.Empty,
         ImmutableDictionary<(string, string), ImmutableArray<OmInterceptorRegistration>>.Empty);
 
@@ -613,14 +613,14 @@ internal sealed record CozoOmRegistrySnapshot(
         bindingId = key.BehaviorKind switch
         {
             BehaviorKind.Constraint when key.CallbackSlot == BehaviorCallbackSlot.Validator &&
-                                             Validators.TryGetValue((key.OwnerType, key.BehaviorName), out var validator) => validator.BindingId,
+                                             Validators.TryGetValue((key.OwnerClass, key.BehaviorName), out var validator) => validator.BindingId,
             BehaviorKind.Constraint when key.CallbackSlot == BehaviorCallbackSlot.When &&
-                                             Constraints.TryGetValue((key.OwnerType, key.BehaviorName), out var constraint) => constraint.WhenBindingId,
+                                             Constraints.TryGetValue((key.OwnerClass, key.BehaviorName), out var constraint) => constraint.WhenBindingId,
             BehaviorKind.Constraint when key.CallbackSlot == BehaviorCallbackSlot.Then &&
-                                             Constraints.TryGetValue((key.OwnerType, key.BehaviorName), out var constraint) => constraint.ThenBindingId,
-            BehaviorKind.Computed when Computed.TryGetValue((key.OwnerType, key.BehaviorName), out var computed) => computed.BindingId,
-            BehaviorKind.Action when Actions.TryGetValue((key.OwnerType, key.BehaviorName), out var action) => action.BindingId,
-            BehaviorKind.Mutation when Mutations.TryGetValue((key.OwnerType, key.BehaviorName), out var mutation) => mutation.BindingId,
+                                             Constraints.TryGetValue((key.OwnerClass, key.BehaviorName), out var constraint) => constraint.ThenBindingId,
+            BehaviorKind.ComputedProp when ComputedProps.TryGetValue((key.OwnerClass, key.BehaviorName), out var computedProp) => computedProp.BindingId,
+            BehaviorKind.Operation when Operations.TryGetValue((key.OwnerClass, key.BehaviorName), out var operation) => operation.BindingId,
+            BehaviorKind.Mutation when Mutations.TryGetValue((key.OwnerClass, key.BehaviorName), out var mutation) => mutation.BindingId,
             BehaviorKind.Interceptor => GetInterceptorBindingId(key),
             _ => null,
         };
@@ -630,7 +630,7 @@ internal sealed record CozoOmRegistrySnapshot(
     private string? GetInterceptorBindingId(BehaviorBindingKey key)
     {
         var source = key.Phase == "before" ? BeforeInterceptors : AfterInterceptors;
-        if (!source.TryGetValue((key.OwnerType, key.BehaviorName), out var registrations)) return null;
+        if (!source.TryGetValue((key.OwnerClass, key.BehaviorName), out var registrations)) return null;
         foreach (var registration in registrations)
         {
             if (registration.Seq == key.Seq) return registration.BindingId;
@@ -646,78 +646,78 @@ public sealed record OmConstraintRegistration(
     string? WhenBindingId = null,
     string? ThenBindingId = null);
 
-public sealed record OmValidationContext(CozoOmRuntime Runtime, string EntityId, string TypeName)
+public sealed record OmValidationContext(CozoOmRuntime Runtime, string ObjectId, string ClassName)
 {
-    public Task<JsonElement?> GetPropertyAsync(string attrName, CancellationToken cancellationToken = default) =>
-        Logic.EntityLogic.GetPropertyAsync(Runtime, EntityId, attrName, cancellationToken);
+    public Task<JsonElement?> GetFieldValueAsync(string fieldName, CancellationToken cancellationToken = default) =>
+        Logic.ObjectLogic.GetFieldValueAsync(Runtime, ObjectId, fieldName, cancellationToken);
 
-    public Task<JsonElement?> GetPropertyAsOfAsync(string attrName, string asOf, CancellationToken cancellationToken = default) =>
-        Logic.EntityLogic.GetPropertyAsOfAsync(Runtime, EntityId, attrName, asOf, cancellationToken);
+    public Task<JsonElement?> GetFieldValueAsOfAsync(string fieldName, string asOf, CancellationToken cancellationToken = default) =>
+        Logic.ObjectLogic.GetFieldValueAsOfAsync(Runtime, ObjectId, fieldName, asOf, cancellationToken);
 
-    public Task<NeighborResult> GetNeighborsAsync(string? relName = null, OmDirection direction = OmDirection.Both, CancellationToken cancellationToken = default) =>
-        Logic.RelationLogic.GetNeighborsAsync(Runtime, EntityId, relName, direction, cancellationToken);
+    public Task<NeighborResult> GetNeighborsAsync(string? relationName = null, OmDirection direction = OmDirection.Both, CancellationToken cancellationToken = default) =>
+        Logic.RelationLogic.GetNeighborsAsync(Runtime, ObjectId, relationName, direction, cancellationToken);
 }
 
-public sealed record OmComputedContext(CozoOmRuntime Runtime, string EntityId, string TypeName, string? AsOf = null)
+public sealed record OmComputedPropContext(CozoOmRuntime Runtime, string ObjectId, string ClassName, string? AsOf = null)
 {
-    public Task<JsonElement?> GetPropertyAsync(string attrName, CancellationToken cancellationToken = default) =>
+    public Task<JsonElement?> GetFieldValueAsync(string fieldName, CancellationToken cancellationToken = default) =>
         AsOf is null
-            ? Logic.EntityLogic.GetPropertyAsync(Runtime, EntityId, attrName, cancellationToken)
-            : Logic.EntityLogic.GetPropertyAsOfAsync(Runtime, EntityId, attrName, AsOf, cancellationToken);
+            ? Logic.ObjectLogic.GetFieldValueAsync(Runtime, ObjectId, fieldName, cancellationToken)
+            : Logic.ObjectLogic.GetFieldValueAsOfAsync(Runtime, ObjectId, fieldName, AsOf, cancellationToken);
 
-    public Task<NeighborResult> GetNeighborsAsync(string? relName = null, OmDirection direction = OmDirection.Both, CancellationToken cancellationToken = default) =>
+    public Task<NeighborResult> GetNeighborsAsync(string? relationName = null, OmDirection direction = OmDirection.Both, CancellationToken cancellationToken = default) =>
         AsOf is null
-            ? Logic.RelationLogic.GetNeighborsAsync(Runtime, EntityId, relName, direction, cancellationToken)
-            : Logic.RelationLogic.GetNeighborsAsOfAsync(Runtime, EntityId, relName, AsOf, direction, cancellationToken);
+            ? Logic.RelationLogic.GetNeighborsAsync(Runtime, ObjectId, relationName, direction, cancellationToken)
+            : Logic.RelationLogic.GetNeighborsAsOfAsync(Runtime, ObjectId, relationName, AsOf, direction, cancellationToken);
 }
 
 public sealed record MutationSpec(string Mutation, IReadOnlyDictionary<string, object?>? Params = null);
 
 public sealed record OmInterceptorRegistration(
-    Func<OmActionContext, ValueTask> Handler,
+    Func<OmOperationContext, ValueTask> Handler,
     int Seq,
     string Description,
-    string OwnerType,
+    string OwnerClass,
     string? BindingId = null);
 
-public record OmMutationContext(CozoOmRuntime Runtime, string EntityId, string TypeName)
+public record OmMutationContext(CozoOmRuntime Runtime, string ObjectId, string ClassName)
 {
-    public Task<JsonElement?> GetPropertyAsync(string attrName, CancellationToken cancellationToken = default) =>
-        Logic.EntityLogic.GetPropertyAsync(Runtime, EntityId, attrName, cancellationToken);
+    public Task<JsonElement?> GetFieldValueAsync(string fieldName, CancellationToken cancellationToken = default) =>
+        Logic.ObjectLogic.GetFieldValueAsync(Runtime, ObjectId, fieldName, cancellationToken);
 
-    public Task<JsonElement?> GetPropertyAsOfAsync(string attrName, string asOf, CancellationToken cancellationToken = default) =>
-        Logic.EntityLogic.GetPropertyAsOfAsync(Runtime, EntityId, attrName, asOf, cancellationToken);
+    public Task<JsonElement?> GetFieldValueAsOfAsync(string fieldName, string asOf, CancellationToken cancellationToken = default) =>
+        Logic.ObjectLogic.GetFieldValueAsOfAsync(Runtime, ObjectId, fieldName, asOf, cancellationToken);
 
-    public Task SetPropertyAsync(string attrName, object? value, WriteOptions? options = null, CancellationToken cancellationToken = default) =>
-        Logic.EntityLogic.SetPropertyAsync(Runtime, new SetPropertyInput(EntityId, attrName, value, options), cancellationToken);
+    public Task SetFieldValueAsync(string fieldName, object? value, WriteOptions? options = null, CancellationToken cancellationToken = default) =>
+        Logic.ObjectLogic.SetFieldValueAsync(Runtime, new SetFieldValueInput(ObjectId, fieldName, value, options), cancellationToken);
 
-    public Task LinkEntitiesAsync(string relName, string toId, object? props = null, WriteOptions? options = null, CancellationToken cancellationToken = default) =>
-        Logic.RelationLogic.LinkEntitiesAsync(Runtime, new LinkEntitiesInput(EntityId, relName, toId, props, options), cancellationToken);
+    public Task CreateRelationLinkAsync(string relationName, string toObjectId, object? payload = null, WriteOptions? options = null, CancellationToken cancellationToken = default) =>
+        Logic.RelationLogic.CreateRelationLinkAsync(Runtime, new CreateRelationLinkInput(ObjectId, relationName, toObjectId, payload, options), cancellationToken);
 
-    public Task<NeighborResult> GetNeighborsAsync(string? relName = null, OmDirection direction = OmDirection.Both, CancellationToken cancellationToken = default) =>
-        Logic.RelationLogic.GetNeighborsAsync(Runtime, EntityId, relName, direction, cancellationToken);
+    public Task<NeighborResult> GetNeighborsAsync(string? relationName = null, OmDirection direction = OmDirection.Both, CancellationToken cancellationToken = default) =>
+        Logic.RelationLogic.GetNeighborsAsync(Runtime, ObjectId, relationName, direction, cancellationToken);
 }
 
-public sealed record OmActionContext(
+public sealed record OmOperationContext(
     CozoOmRuntime Runtime,
-    string EntityId,
-    string TypeName,
-    string ActionOwnerType,
+    string ObjectId,
+    string ClassName,
+    string OperationOwnerClass,
     IReadOnlyDictionary<string, object?> Params)
-    : OmMutationContext(Runtime, EntityId, TypeName)
+    : OmMutationContext(Runtime, ObjectId, ClassName)
 {
     internal BehaviorResolutionScope? BehaviorResolution { get; init; }
 
-    public Task<IReadOnlyList<MutationSpec>> CallParentActionAsync(
-        string actionName,
+    public Task<IReadOnlyList<MutationSpec>> CallParentOperationAsync(
+        string operationName,
         IReadOnlyDictionary<string, object?>? parameters = null,
         CancellationToken cancellationToken = default) =>
-        Logic.ConstraintLogic.CallParentActionAsync(
+        Logic.ConstraintLogic.CallParentOperationAsync(
             Runtime,
-            EntityId,
-            TypeName,
-            ActionOwnerType,
-            actionName,
+            ObjectId,
+            ClassName,
+            OperationOwnerClass,
+            operationName,
             parameters,
             BehaviorResolution,
             cancellationToken);

@@ -69,165 +69,180 @@ public sealed class CozoOm
         CancellationToken cancellationToken = default) =>
         SchemaLogic.RollbackSchemaV2Async(Runtime, input, cancellationToken);
 
-    public Task DefineTypeAsync(string name, string description = "", string? parentType = null, IReadOnlyList<string>? mixins = null, CancellationToken cancellationToken = default) =>
-        TypeLogic.DefineTypeAsync(Runtime, new DefineTypeInput(name, description, parentType, mixins), cancellationToken);
+    public Task DefineClassAsync(string name, string description = "", string? parentClass = null, IReadOnlyList<string>? mixins = null, CancellationToken cancellationToken = default) =>
+        ClassLogic.DefineClassAsync(Runtime, new DefineClassInput(name, description, parentClass, mixins), cancellationToken);
 
-    public Task DefineTypeAsync(DefineTypePatchInput input, CancellationToken cancellationToken = default) =>
-        TypeLogic.DefineTypeAsync(Runtime, input, cancellationToken);
+    public Task DefineClassAsync(DefineClassPatchInput input, CancellationToken cancellationToken = default) =>
+        ClassLogic.DefineClassAsync(Runtime, input, cancellationToken);
 
     public Task DefineMixinAsync(string name, string description = "", CancellationToken cancellationToken = default) =>
-        TypeLogic.DefineMixinAsync(Runtime, new DefineMixinInput(name, description), cancellationToken);
+        ClassLogic.DefineMixinAsync(Runtime, new DefineMixinInput(name, description), cancellationToken);
 
-    public Task DefineAttributeAsync(
-        string typeName,
-        string attrName,
-        OmValueType valueType,
+    public Task DefineFieldAsync(
+        string className,
+        string fieldName,
+        OmValueType valueKind,
         bool required = false,
         string? description = null,
         CancellationToken cancellationToken = default) =>
-        TypeLogic.DefineAttributeAsync(Runtime, new DefineAttributeInput(typeName, attrName, valueType, required, description), cancellationToken);
+        ClassLogic.DefineFieldAsync(Runtime, new DefineFieldInput(className, fieldName, valueKind, required, description), cancellationToken);
 
-    public Task DefineRelationAsync(
-        string relName,
-        string fromType,
-        string toType,
+    public Task DefineRelationDefAsync(
+        string relationName,
+        string fromClass,
+        string toClass,
         bool directed = true,
         string? description = null,
         CancellationToken cancellationToken = default) =>
-        TypeLogic.DefineRelationAsync(Runtime, new DefineRelationInput(relName, fromType, toType, directed, description), cancellationToken);
+        ClassLogic.DefineRelationDefAsync(Runtime, new DefineRelationDefInput(relationName, fromClass, toClass, directed, description), cancellationToken);
 
-    public Task DefineTypeAliasAsync(string alias, string canonical, CancellationToken cancellationToken = default) =>
-        TypeLogic.DefineTypeAliasAsync(Runtime, alias, canonical, cancellationToken);
+    public Task DefineClassAliasAsync(string alias, string canonical, CancellationToken cancellationToken = default) =>
+        ClassLogic.DefineClassAliasAsync(Runtime, alias, canonical, cancellationToken);
 
-    public Task DefineRelationAliasAsync(string alias, string canonical, CancellationToken cancellationToken = default) =>
-        TypeLogic.DefineRelationAliasAsync(Runtime, alias, canonical, cancellationToken);
+    public Task DefineRelationDefAliasAsync(string alias, string canonical, CancellationToken cancellationToken = default) =>
+        ClassLogic.DefineRelationDefAliasAsync(Runtime, alias, canonical, cancellationToken);
 
-    public Task DefineAttributeAliasAsync(string typeName, string aliasAttr, string canonicalAttr, CancellationToken cancellationToken = default) =>
-        TypeLogic.DefineAttributeAliasAsync(Runtime, typeName, aliasAttr, canonicalAttr, cancellationToken);
+    public Task DefineFieldAliasAsync(string className, string aliasField, string canonicalField, CancellationToken cancellationToken = default) =>
+        ClassLogic.DefineFieldAliasAsync(Runtime, className, aliasField, canonicalField, cancellationToken);
 
-    public Task CreateEntityAsync(string id, string typeName, string label = "", CancellationToken cancellationToken = default) =>
-        EntityLogic.CreateEntityAsync(Runtime, new EntityInput(id, typeName, label), cancellationToken);
+    public Task CreateObjectAsync(string id, string className, string label = "", CancellationToken cancellationToken = default) =>
+        ObjectLogic.CreateObjectAsync(Runtime, new ObjectInput(id, className, label), cancellationToken);
 
-    public Task UpsertEntityAsync(string id, string typeName, string label = "", CancellationToken cancellationToken = default) =>
-        EntityLogic.UpsertEntityAsync(Runtime, new EntityInput(id, typeName, label), cancellationToken);
+    public Task UpsertObjectAsync(string id, string className, string label = "", CancellationToken cancellationToken = default) =>
+        ObjectLogic.UpsertObjectAsync(Runtime, new ObjectInput(id, className, label), cancellationToken);
 
-    public Task<string> GetEntityTypeAsync(string entityId, CancellationToken cancellationToken = default) =>
-        EntityLogic.GetEntityTypeAsync(Runtime, entityId, cancellationToken);
+    public Task<string> GetObjectClassAsync(string objectId, CancellationToken cancellationToken = default) =>
+        ObjectLogic.GetObjectClassAsync(Runtime, objectId, cancellationToken);
 
     /// <summary>
-    /// Physically deletes an entity in a single transaction, cascading to all of its property
-    /// rows (every temporal version) and every relation edge touching it. Deleting a
-    /// non-existent entity is a harmless no-op.
+    /// Physically deletes an object in a single transaction, cascading to all of its field-value
+    /// rows (every temporal version) and every relation link touching it. Deleting a
+    /// non-existent object is a harmless no-op.
     /// </summary>
-    public Task DeleteEntityAsync(string entityId, CancellationToken cancellationToken = default) =>
-        EntityLogic.DeleteEntityAsync(Runtime, entityId, cancellationToken);
+    public Task DeleteObjectAsync(string objectId, CancellationToken cancellationToken = default) =>
+        ObjectLogic.DeleteObjectAsync(Runtime, objectId, cancellationToken);
 
-    public Task SetPropertyAsync(string entityId, string attrName, object? value, WriteOptions? options = null, CancellationToken cancellationToken = default) =>
-        EntityLogic.SetPropertyAsync(Runtime, new SetPropertyInput(entityId, attrName, value, options), cancellationToken);
+    public Task SetFieldValueAsync(string objectId, string fieldName, object? value, WriteOptions? options = null, CancellationToken cancellationToken = default) =>
+        ObjectLogic.SetFieldValueAsync(Runtime, new SetFieldValueInput(objectId, fieldName, value, options), cancellationToken);
 
-    public Task<JsonElement?> GetPropertyAsync(string entityId, string attrName, CancellationToken cancellationToken = default) =>
-        EntityLogic.GetPropertyAsync(Runtime, entityId, attrName, cancellationToken);
+    public Task<JsonElement?> GetFieldValueAsync(string objectId, string fieldName, CancellationToken cancellationToken = default) =>
+        ObjectLogic.GetFieldValueAsync(Runtime, objectId, fieldName, cancellationToken);
 
-    public Task<JsonElement?> GetPropertyAsOfAsync(string entityId, string attrName, string asOf, CancellationToken cancellationToken = default) =>
-        EntityLogic.GetPropertyAsOfAsync(Runtime, entityId, attrName, asOf, cancellationToken);
+    public Task<JsonElement?> GetFieldValueAsOfAsync(string objectId, string fieldName, string asOf, CancellationToken cancellationToken = default) =>
+        ObjectLogic.GetFieldValueAsOfAsync(Runtime, objectId, fieldName, asOf, cancellationToken);
 
-    public Task<IReadOnlyList<PropertyHistoryEntry>> GetPropertyHistoryAsync(string entityId, string attrName, HistoryRangeOptions? options = null, CancellationToken cancellationToken = default) =>
-        EntityLogic.GetPropertyHistoryAsync(Runtime, entityId, attrName, options, cancellationToken);
+    public async Task<IReadOnlyList<FieldValueHistoryEntry>> GetFieldValueHistoryAsync(string objectId, string fieldName, HistoryRangeOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        var entries = await ObjectLogic.GetFieldValueHistoryAsync(Runtime, objectId, fieldName, options, cancellationToken);
+        return entries.Select(ToFieldValueHistoryEntry).ToArray();
+    }
 
-    public Task LinkEntitiesAsync(string fromId, string relName, string toId, object? props = null, WriteOptions? options = null, CancellationToken cancellationToken = default) =>
-        RelationLogic.LinkEntitiesAsync(Runtime, new LinkEntitiesInput(fromId, relName, toId, props, options), cancellationToken);
+    public Task CreateRelationLinkAsync(string fromObjectId, string relationName, string toObjectId, object? payload = null, WriteOptions? options = null, CancellationToken cancellationToken = default) =>
+        RelationLogic.CreateRelationLinkAsync(Runtime, new CreateRelationLinkInput(fromObjectId, relationName, toObjectId, payload, options), cancellationToken);
 
-    public Task UnlinkEntitiesAsync(string fromId, string relName, string toId, WriteOptions? options = null, CancellationToken cancellationToken = default) =>
-        RelationLogic.UnlinkEntitiesAsync(Runtime, fromId, relName, toId, options, cancellationToken);
+    public Task RetractRelationLinkAsync(string fromObjectId, string relationName, string toObjectId, WriteOptions? options = null, CancellationToken cancellationToken = default) =>
+        RelationLogic.RetractRelationLinkAsync(Runtime, fromObjectId, relationName, toObjectId, options, cancellationToken);
 
-    public Task<NeighborResult> GetNeighborsAsync(string entityId, string? relName = null, OmDirection direction = OmDirection.Both, CancellationToken cancellationToken = default) =>
-        RelationLogic.GetNeighborsAsync(Runtime, entityId, relName, direction, cancellationToken);
+    public Task<NeighborResult> GetNeighborsAsync(string objectId, string? relationName = null, OmDirection direction = OmDirection.Both, CancellationToken cancellationToken = default) =>
+        RelationLogic.GetNeighborsAsync(Runtime, objectId, relationName, direction, cancellationToken);
 
-    public Task<NeighborResult> GetNeighborsAsOfAsync(string entityId, string? relName, string asOf, OmDirection direction = OmDirection.Both, CancellationToken cancellationToken = default) =>
-        RelationLogic.GetNeighborsAsOfAsync(Runtime, entityId, relName, asOf, direction, cancellationToken);
+    public Task<NeighborResult> GetNeighborsAsOfAsync(string objectId, string? relationName, string asOf, OmDirection direction = OmDirection.Both, CancellationToken cancellationToken = default) =>
+        RelationLogic.GetNeighborsAsOfAsync(Runtime, objectId, relationName, asOf, direction, cancellationToken);
 
-    public Task<IReadOnlyList<OmEntity>> TraverseAsync(
-        string startEntityId,
+    public async Task<IReadOnlyList<OmObject>> TraverseAsync(
+        string startObjectId,
         IReadOnlyList<string>? relationPath,
-        CancellationToken cancellationToken = default) =>
-        RelationLogic.TraverseAsync(Runtime, startEntityId, relationPath, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        var objects = await RelationLogic.TraverseAsync(Runtime, startObjectId, relationPath, cancellationToken);
+        return objects.Select(ToObject).ToArray();
+    }
 
-    public Task<IReadOnlyList<EdgeHistoryEntry>> GetEdgeHistoryAsync(string fromId, string relName, string? toId = null, HistoryRangeOptions? options = null, CancellationToken cancellationToken = default) =>
-        RelationLogic.GetEdgeHistoryAsync(Runtime, fromId, relName, toId, options, cancellationToken);
+    public Task<IReadOnlyList<RelationLinkHistoryEntry>> GetRelationLinkHistoryAsync(string fromObjectId, string relationName, string? toObjectId = null, HistoryRangeOptions? options = null, CancellationToken cancellationToken = default) =>
+        RelationLogic.GetRelationLinkHistoryAsync(Runtime, fromObjectId, relationName, toObjectId, options, cancellationToken);
 
-    public Task<EntityView?> GetEntityViewAsync(string entityId, CancellationToken cancellationToken = default) =>
-        EntityLogic.GetEntityViewAsync(Runtime, entityId, cancellationToken);
+    public async Task<ObjectView?> GetObjectViewAsync(string objectId, CancellationToken cancellationToken = default) =>
+        ToObjectView(await ObjectLogic.GetObjectViewRowAsync(Runtime, objectId, cancellationToken));
 
-    public Task<EntityView?> GetEntityViewAsOfAsync(string entityId, string asOf, CancellationToken cancellationToken = default) =>
-        EntityLogic.GetEntityViewAsOfAsync(Runtime, entityId, asOf, cancellationToken);
+    public async Task<ObjectView?> GetObjectViewAsOfAsync(string objectId, string asOf, CancellationToken cancellationToken = default) =>
+        ToObjectView(await ObjectLogic.GetObjectViewRowAsOfAsync(Runtime, objectId, asOf, cancellationToken));
 
-    public Task<IReadOnlyList<OmEntity>> FindByTypeAsync(string typeName, FindByTypeOptions? options = null, CancellationToken cancellationToken = default) =>
-        EntityLogic.FindByTypeAsync(Runtime, typeName, options, cancellationToken);
+    public async Task<IReadOnlyList<OmObject>> FindByClassAsync(string className, FindByClassOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        var objects = await ObjectLogic.FindByClassAsync(Runtime, className, ToFindByClassCoreOptions(options), cancellationToken);
+        return objects.Select(ToObject).ToArray();
+    }
 
-    public Task<IReadOnlyList<FindByTypeEntry>> FindByTypeWithPropertiesAsync(
-        string typeName,
+    public async Task<IReadOnlyList<FindByClassEntry>> FindByClassWithFieldValuesAsync(
+        string className,
         IReadOnlyDictionary<string, object?>? filter = null,
-        FindByTypeOptions? options = null,
-        CancellationToken cancellationToken = default) =>
-        EntityLogic.FindByTypeWithPropertiesAsync(Runtime, typeName, filter, options, cancellationToken);
+        FindByClassOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        var entries = await ObjectLogic.FindByClassWithFieldValuesAsync(Runtime, className, filter, ToFindByClassCoreOptions(options), cancellationToken);
+        return entries.Select(ToFindByClassEntry).ToArray();
+    }
 
-    public Task<double> AggregateByTypeAsync(string typeName, string attrName, string op, FindByTypeOptions? options = null, CancellationToken cancellationToken = default) =>
-        EntityLogic.AggregateByTypeAsync(Runtime, typeName, attrName, op, options, cancellationToken);
+    public Task<double> AggregateByClassAsync(string className, string fieldName, string op, FindByClassOptions? options = null, CancellationToken cancellationToken = default) =>
+        ObjectLogic.AggregateByClassAsync(Runtime, className, fieldName, op, ToFindByClassCoreOptions(options), cancellationToken);
 
-    public Task<IReadOnlyList<string>> GetAncestorsAsync(string typeName, CancellationToken cancellationToken = default) =>
-        TypeLogic.GetAncestorsAsync(Runtime, typeName, cancellationToken);
+    public Task<IReadOnlyList<string>> GetAncestorsAsync(string className, CancellationToken cancellationToken = default) =>
+        ClassLogic.GetAncestorsAsync(Runtime, className, cancellationToken);
 
-    public Task<IReadOnlyList<string>> GetDescendantsAsync(string typeName, CancellationToken cancellationToken = default) =>
-        TypeLogic.GetDescendantsAsync(Runtime, typeName, cancellationToken);
+    public Task<IReadOnlyList<string>> GetDescendantsAsync(string className, CancellationToken cancellationToken = default) =>
+        ClassLogic.GetDescendantsAsync(Runtime, className, cancellationToken);
 
-    public Task<bool> IsSubtypeOfAsync(string childType, string parentType, CancellationToken cancellationToken = default) =>
-        TypeLogic.IsSubtypeOfAsync(Runtime, childType, parentType, cancellationToken);
+    public Task<bool> IsSubclassOfAsync(string childClass, string parentClass, CancellationToken cancellationToken = default) =>
+        ClassLogic.IsSubclassOfAsync(Runtime, childClass, parentClass, cancellationToken);
 
-    public Task<TypeHierarchy> GetTypeHierarchyAsync(CancellationToken cancellationToken = default) =>
-        TypeLogic.GetTypeHierarchyAsync(Runtime, cancellationToken);
+    public async Task<ClassHierarchy> GetClassHierarchyAsync(CancellationToken cancellationToken = default) =>
+        ToClassHierarchy(await ClassLogic.GetClassHierarchyRowAsync(Runtime, cancellationToken));
 
-    public Task<string> ResolveTypeAsync(string typeName, CancellationToken cancellationToken = default) =>
-        TypeLogic.ResolveTypeAsync(Runtime, typeName, cancellationToken);
+    public Task<string> ResolveClassAsync(string className, CancellationToken cancellationToken = default) =>
+        ClassLogic.ResolveClassAsync(Runtime, className, cancellationToken);
 
-    public Task<string> ResolveRelationAsync(string relName, CancellationToken cancellationToken = default) =>
-        TypeLogic.ResolveRelAsync(Runtime, relName, cancellationToken);
+    public Task<string> ResolveRelationAsync(string relationName, CancellationToken cancellationToken = default) =>
+        ClassLogic.ResolveRelationAsync(Runtime, relationName, cancellationToken);
 
-    public Task<string> ResolveAttributeAsync(string typeName, string attrName, CancellationToken cancellationToken = default) =>
-        TypeLogic.ResolveAttrAsync(Runtime, typeName, attrName, cancellationToken);
+    public Task<string> ResolveFieldAsync(string className, string fieldName, CancellationToken cancellationToken = default) =>
+        ClassLogic.ResolveFieldAsync(Runtime, className, fieldName, cancellationToken);
 
-    public Task<IReadOnlyDictionary<string, OmAttribute>> GetAttributeDefinitionsAsync(string typeName, CancellationToken cancellationToken = default) =>
-        TypeLogic.GetAttributeDefinitionsAsync(Runtime, typeName, cancellationToken);
+    public async Task<IReadOnlyDictionary<string, OmField>> GetFieldDefinitionsAsync(string className, CancellationToken cancellationToken = default)
+    {
+        var definitions = await ClassLogic.GetFieldDefinitionsAsync(Runtime, className, cancellationToken);
+        return definitions.ToDictionary(pair => pair.Key, pair => ToField(pair.Value), StringComparer.Ordinal);
+    }
 
-    public Task<ValidationResult> ValidateEntityAsync(string entityId, CancellationToken cancellationToken = default) =>
-        ConstraintLogic.ValidateEntityAsync(Runtime, entityId, cancellationToken);
+    public Task<ValidationResult> ValidateObjectAsync(string objectId, CancellationToken cancellationToken = default) =>
+        ConstraintLogic.ValidateObjectAsync(Runtime, objectId, cancellationToken);
 
     public Task<ValidationResult> ValidateConstraintsAsync(
-        string entityId,
+        string objectId,
         IReadOnlyList<string>? types = null,
         CancellationToken cancellationToken = default) =>
-        ConstraintLogic.ValidateConstraintsAsync(Runtime, entityId, types, cancellationToken);
+        ConstraintLogic.ValidateConstraintsAsync(Runtime, objectId, types, cancellationToken);
 
     public OmValueType InferValueType(object? value) => OmConvert.InferValueType(value);
 
-    public Task ValidatePropertyTypeAsync(string entityId, string attrName, object? value, CancellationToken cancellationToken = default) =>
-        EntityLogic.ValidatePropertyTypeAsync(Runtime, entityId, attrName, value, cancellationToken);
+    public Task ValidateFieldValueTypeAsync(string objectId, string fieldName, object? value, CancellationToken cancellationToken = default) =>
+        ObjectLogic.ValidateFieldValueTypeAsync(Runtime, objectId, fieldName, value, cancellationToken);
 
-    public Task ValidateRelationAsync(string fromId, string relName, string toId, CancellationToken cancellationToken = default) =>
-        RelationLogic.ValidateRelationAsync(Runtime, fromId, relName, toId, cancellationToken);
+    public Task ValidateRelationAsync(string fromId, string relationName, string toId, CancellationToken cancellationToken = default) =>
+        RelationLogic.ValidateRelationAsync(Runtime, fromId, relationName, toId, cancellationToken);
 
-    public Task<IReadOnlyList<string>> ValidateRequiredPropertiesAsync(string entityId, CancellationToken cancellationToken = default) =>
-        ConstraintLogic.ValidateRequiredPropertiesAsync(Runtime, entityId, cancellationToken);
+    public Task<IReadOnlyList<string>> ValidateRequiredFieldValuesAsync(string objectId, CancellationToken cancellationToken = default) =>
+        ConstraintLogic.ValidateRequiredFieldValuesAsync(Runtime, objectId, cancellationToken);
 
-    public Task FinalizeEntityAsync(string entityId, CancellationToken cancellationToken = default) =>
-        ConstraintLogic.FinalizeEntityAsync(Runtime, entityId, cancellationToken);
+    public Task FinalizeObjectAsync(string objectId, CancellationToken cancellationToken = default) =>
+        ConstraintLogic.FinalizeObjectAsync(Runtime, objectId, cancellationToken);
 
-    public Task DefineConstraintAsync(string typeName, string constraintName, string constraintType, string message = "", CancellationToken cancellationToken = default) =>
-        ConstraintLogic.DefineConstraintAsync(Runtime, new DefineConstraintInput(typeName, constraintName, constraintType, message), cancellationToken);
+    public Task DefineConstraintAsync(string className, string constraintName, string constraintKind, string message = "", CancellationToken cancellationToken = default) =>
+        ConstraintLogic.DefineConstraintAsync(Runtime, new DefineConstraintInput(className, constraintName, constraintKind, message), cancellationToken);
 
     public async Task DefineConstraintAsync(
-        string typeName,
+        string className,
         string constraintName,
-        string constraintType,
+        string constraintKind,
         Func<OmValidationContext, ValueTask<bool>> when,
         Func<OmValidationContext, ValueTask<bool>> then,
         string message = "",
@@ -235,53 +250,53 @@ public sealed class CozoOm
     {
         await ConstraintLogic.DefineConstraintCallbackAsync(
             Runtime,
-            new DefineConstraintInput(typeName, constraintName, constraintType, message),
+            new DefineConstraintInput(className, constraintName, constraintKind, message),
             when,
             then,
             cancellationToken: cancellationToken);
     }
 
-    public void RegisterValidator(string typeName, string constraintName, Func<OmValidationContext, ValueTask<string?>> validator) =>
-        Runtime.Registry.RegisterValidator(typeName, constraintName, validator);
+    public void RegisterValidator(string className, string constraintName, Func<OmValidationContext, ValueTask<string?>> validator) =>
+        Runtime.Registry.RegisterValidator(className, constraintName, validator);
 
     public void RegisterConstraint(
-        string typeName,
+        string className,
         string constraintName,
         Func<OmValidationContext, ValueTask<bool>> when,
         Func<OmValidationContext, ValueTask<bool>> then) =>
-        Runtime.Registry.RegisterConstraint(typeName, constraintName, when, then);
+        Runtime.Registry.RegisterConstraint(className, constraintName, when, then);
 
-    public Task DefineComputedAsync(string typeName, string attrName, string description = "", CancellationToken cancellationToken = default) =>
-        ConstraintLogic.DefineComputedAsync(Runtime, new DefineComputedInput(typeName, attrName, description), cancellationToken);
+    public Task DefineComputedPropAsync(string className, string computedPropName, string description = "", CancellationToken cancellationToken = default) =>
+        ConstraintLogic.DefineComputedPropAsync(Runtime, new DefineComputedPropInput(className, computedPropName, description), cancellationToken);
 
-    public void RegisterComputed(string typeName, string attrName, Func<OmComputedContext, ValueTask<object?>> compute) =>
-        Runtime.Registry.RegisterComputed(typeName, attrName, compute);
+    public void RegisterComputedProp(string className, string computedPropName, Func<OmComputedPropContext, ValueTask<object?>> compute) =>
+        Runtime.Registry.RegisterComputedProp(className, computedPropName, compute);
 
-    public Task DefineActionAsync(string typeName, string actionName, string description = "", CancellationToken cancellationToken = default) =>
-        ConstraintLogic.DefineActionAsync(Runtime, new DefineActionInput(typeName, actionName, description), cancellationToken);
+    public Task DefineOperationAsync(string className, string operationName, string description = "", CancellationToken cancellationToken = default) =>
+        ConstraintLogic.DefineOperationAsync(Runtime, new DefineOperationInput(className, operationName, description), cancellationToken);
 
-    public Task DefineMutationAsync(string typeName, string mutationName, string description = "", CancellationToken cancellationToken = default) =>
-        ConstraintLogic.DefineMutationAsync(Runtime, new DefineMutationInput(typeName, mutationName, description), cancellationToken);
+    public Task DefineMutationAsync(string className, string mutationName, string description = "", CancellationToken cancellationToken = default) =>
+        ConstraintLogic.DefineMutationAsync(Runtime, new DefineMutationInput(className, mutationName, description), cancellationToken);
 
-    public Task AddInterceptorAsync(string typeName, string actionName, string phase, int seq, string description = "", CancellationToken cancellationToken = default) =>
-        ConstraintLogic.AddInterceptorAsync(Runtime, new AddInterceptorInput(typeName, actionName, phase, seq, description), cancellationToken);
+    public Task AddInterceptorAsync(string className, string operationName, string phase, int seq, string description = "", CancellationToken cancellationToken = default) =>
+        ConstraintLogic.AddInterceptorAsync(Runtime, new AddInterceptorInput(className, operationName, phase, seq, description), cancellationToken);
 
-    public async Task DefineActionAsync(
-        string typeName,
-        string actionName,
-        Func<OmActionContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>> handler,
+    public async Task DefineOperationAsync(
+        string className,
+        string operationName,
+        Func<OmOperationContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>> handler,
         string description = "",
         CancellationToken cancellationToken = default)
     {
-        await ConstraintLogic.DefineActionCallbackAsync(
+        await ConstraintLogic.DefineOperationCallbackAsync(
             Runtime,
-            new DefineActionInput(typeName, actionName, description),
+            new DefineOperationInput(className, operationName, description),
             handler,
             cancellationToken: cancellationToken);
     }
 
     public async Task DefineMutationAsync(
-        string typeName,
+        string className,
         string mutationName,
         Func<OmMutationContext, IReadOnlyDictionary<string, object?>, ValueTask> executor,
         string description = "",
@@ -289,38 +304,38 @@ public sealed class CozoOm
     {
         await ConstraintLogic.DefineMutationCallbackAsync(
             Runtime,
-            new DefineMutationInput(typeName, mutationName, description),
+            new DefineMutationInput(className, mutationName, description),
             executor,
             cancellationToken: cancellationToken);
     }
 
     public async Task AddInterceptorAsync(
-        string typeName,
-        string actionName,
+        string className,
+        string operationName,
         string phase,
-        Func<OmActionContext, ValueTask> handler,
+        Func<OmOperationContext, ValueTask> handler,
         string description = "",
         CancellationToken cancellationToken = default)
     {
         await ConstraintLogic.AddInterceptorCallbackAsync(
             Runtime,
-            new AddInterceptorInput(typeName, actionName, phase, Seq: 0, description),
+            new AddInterceptorInput(className, operationName, phase, Seq: 0, description),
             handler,
             cancellationToken: cancellationToken);
     }
 
-    public Task ExecuteActionAsync(
-        string entityId,
-        string actionName,
+    public Task ExecuteOperationAsync(
+        string objectId,
+        string operationName,
         IReadOnlyDictionary<string, object?>? parameters = null,
         CancellationToken cancellationToken = default) =>
-        ConstraintLogic.ExecuteActionAsync(Runtime, entityId, actionName, parameters, cancellationToken);
+        ConstraintLogic.ExecuteOperationAsync(Runtime, objectId, operationName, parameters, cancellationToken);
 
     public Task ExecuteMutationsAsync(
-        string entityId,
+        string objectId,
         IReadOnlyList<MutationSpec>? mutations,
         CancellationToken cancellationToken = default) =>
-        ConstraintLogic.ExecuteMutationsAsync(Runtime, entityId, mutations, cancellationToken);
+        ConstraintLogic.ExecuteMutationsAsync(Runtime, objectId, mutations, cancellationToken);
 
     public Task<SchemaState> GetSchemaStateAsync(CancellationToken cancellationToken = default) =>
         SchemaLogic.GetSchemaStateAsync(Runtime, cancellationToken);
@@ -385,12 +400,12 @@ public sealed class CozoOm
     public Task DefinePermissionPolicyAsync(
         string policyId,
         string effect,
-        string action,
-        string resourceType,
+        string operation,
+        string resourceClass,
         bool enabled = true,
         string description = "",
         CancellationToken cancellationToken = default) =>
-        ConstraintLogic.DefinePermissionPolicyAsync(Runtime, new DefinePermissionPolicyInput(policyId, effect, action, resourceType, enabled, description), cancellationToken);
+        ConstraintLogic.DefinePermissionPolicyAsync(Runtime, new DefinePermissionPolicyInput(policyId, effect, operation, resourceClass, enabled, description), cancellationToken);
 
     public Task AddPermissionAbacRuleAsync(
         string policyId,
@@ -405,4 +420,42 @@ public sealed class CozoOm
 
     public Task<CheckAccessResult> CheckAccessAsync(CheckAccessInput input, CancellationToken cancellationToken = default) =>
         ConstraintLogic.CheckAccessAsync(Runtime, input, cancellationToken);
+
+    private static FindByClassCoreOptions? ToFindByClassCoreOptions(FindByClassOptions? options) =>
+        options is null ? null : new FindByClassCoreOptions(options.Exact);
+
+    private static OmObject ToObject(OmObjectRow entity) =>
+        new(entity.Id, entity.ClassName, entity.Label);
+
+    private static OmField ToField(OmFieldDefinition field) =>
+        new(field.ClassName, field.FieldName, field.ValueType, field.Required, field.Description);
+
+    private static FieldValueHistoryEntry ToFieldValueHistoryEntry(FieldValueHistoryRow entry) =>
+        new(entry.Value, entry.ValidTime, entry.TxTime);
+
+    private static ObjectView? ToObjectView(ObjectViewRow? view) =>
+        view is null
+            ? null
+            : new ObjectView(
+                view.Id,
+                view.ClassName,
+                view.Label,
+                view.FieldValues,
+                view.Outgoing.Select(link => new ObjectViewEdge(link.RelationName, link.ToObjectId, link.ToClass, link.ToLabel)).ToArray());
+
+    private static FindByClassEntry ToFindByClassEntry(FindByClassEntryRow entry) =>
+        new(entry.Id, entry.ClassName, entry.Label, entry.FieldValues);
+
+    private static ClassHierarchy ToClassHierarchy(ClassHierarchyRow hierarchy) =>
+        new(
+            hierarchy.Types.ToDictionary(
+                pair => pair.Key,
+                pair => new ClassHierarchyNode(
+                    pair.Value.Name,
+                    pair.Value.Description,
+                    pair.Value.ParentClass,
+                    pair.Value.Mixins,
+                    pair.Value.Children),
+                StringComparer.Ordinal),
+            hierarchy.Roots);
 }

@@ -137,7 +137,7 @@ public sealed record JintBehaviorScriptBindingResult
 /// <param name="Message">The source-redacted public message.</param>
 /// <param name="BindingId">The exact binding ID associated with the failure, when available.</param>
 /// <param name="Kind">The canonical behavior kind.</param>
-/// <param name="OwnerType">The behavior owner type.</param>
+/// <param name="OwnerClass">The behavior owner class.</param>
 /// <param name="BehaviorName">The canonical behavior name.</param>
 /// <param name="Slot">The canonical callback slot.</param>
 /// <param name="SourceName">The optional programmatic source name.</param>
@@ -149,7 +149,7 @@ public sealed record JintBehaviorScriptDiagnostic(
     string Message,
     string BindingId,
     BehaviorCatalogKind Kind,
-    string OwnerType,
+    string OwnerClass,
     string BehaviorName,
     BehaviorCatalogCallbackSlot Slot,
     string? SourceName = null,
@@ -209,7 +209,7 @@ public static class JintBehaviorScriptProvider
                 $"Script definition is missing for binding id '{reference.BindingId}'.",
                 reference.BindingId,
                 reference.Kind,
-                reference.OwnerType,
+                reference.OwnerClass,
                 reference.BehaviorName,
                 reference.Slot));
         }
@@ -221,8 +221,8 @@ public static class JintBehaviorScriptProvider
                 "OMS1003",
                 $"Script definition is duplicated for binding id '{duplicateId}'.",
                 duplicateId,
-                reference?.Kind ?? BehaviorCatalogKind.Action,
-                reference?.OwnerType ?? "",
+                reference?.Kind ?? BehaviorCatalogKind.Operation,
+                reference?.OwnerClass ?? "",
                 reference?.BehaviorName ?? "",
                 reference?.Slot ?? BehaviorCatalogCallbackSlot.Handler));
         }
@@ -238,7 +238,7 @@ public static class JintBehaviorScriptProvider
                     $"Binding id '{group.Key}' is reused across incompatible callback shapes.",
                     group.Key,
                     reference.Kind,
-                    reference.OwnerType,
+                    reference.OwnerClass,
                     reference.BehaviorName,
                     reference.Slot));
                 continue;
@@ -252,7 +252,7 @@ public static class JintBehaviorScriptProvider
                     $"Binding id '{group.Key}' is reused across distinct callback slots, so per-slot failure identity cannot be preserved.",
                     group.Key,
                     reference.Kind,
-                    reference.OwnerType,
+                    reference.OwnerClass,
                     reference.BehaviorName,
                     reference.Slot));
             }
@@ -265,7 +265,7 @@ public static class JintBehaviorScriptProvider
                 $"Native and script callbacks both define binding id '{conflict.BindingId}'.",
                 conflict.BindingId,
                 conflict.Kind,
-                conflict.OwnerType,
+                conflict.OwnerClass,
                 conflict.BehaviorName,
                 conflict.Slot));
         }
@@ -285,10 +285,10 @@ public static class JintBehaviorScriptProvider
         constraints.AddRange(normalized.NativeCallbacks.Constraints);
         var validators = ImmutableArray.CreateBuilder<BehaviorValidatorCallbackBinding>();
         validators.AddRange(normalized.NativeCallbacks.Validators);
-        var computed = ImmutableArray.CreateBuilder<BehaviorComputedCallbackBinding>();
-        computed.AddRange(normalized.NativeCallbacks.Computed);
-        var actions = ImmutableArray.CreateBuilder<BehaviorActionCallbackBinding>();
-        actions.AddRange(normalized.NativeCallbacks.Actions);
+        var computedProps = ImmutableArray.CreateBuilder<BehaviorComputedPropCallbackBinding>();
+        computedProps.AddRange(normalized.NativeCallbacks.ComputedProps);
+        var operations = ImmutableArray.CreateBuilder<BehaviorOperationCallbackBinding>();
+        operations.AddRange(normalized.NativeCallbacks.Operations);
         var mutations = ImmutableArray.CreateBuilder<BehaviorMutationCallbackBinding>();
         mutations.AddRange(normalized.NativeCallbacks.Mutations);
         var interceptors = ImmutableArray.CreateBuilder<BehaviorInterceptorCallbackBinding>();
@@ -318,16 +318,16 @@ public static class JintBehaviorScriptProvider
                             definition,
                             reference)));
                     break;
-                case CallbackShape.Computed:
-                    computed.Add(new BehaviorComputedCallbackBinding(
+                case CallbackShape.ComputedProp:
+                    computedProps.Add(new BehaviorComputedPropCallbackBinding(
                         reference.BindingId,
                         async ctx => NormalizeJsonValue(
                             await InvokeScriptAsync(definition, normalized.Options, reference, ctx).ConfigureAwait(false),
                             definition,
                             reference)));
                     break;
-                case CallbackShape.Action:
-                    actions.Add(new BehaviorActionCallbackBinding(
+                case CallbackShape.Operation:
+                    operations.Add(new BehaviorOperationCallbackBinding(
                         reference.BindingId,
                         async (ctx, parameters) => ToMutationSpecs(
                             await InvokeScriptAsync(definition, normalized.Options, reference, ctx, parameters).ConfigureAwait(false),
@@ -357,8 +357,8 @@ public static class JintBehaviorScriptProvider
             new BehaviorCallbackBindingSet(
                 constraints.OrderBy(binding => binding.BindingId, StringComparer.Ordinal),
                 validators.OrderBy(binding => binding.BindingId, StringComparer.Ordinal),
-                computed.OrderBy(binding => binding.BindingId, StringComparer.Ordinal),
-                actions.OrderBy(binding => binding.BindingId, StringComparer.Ordinal),
+                computedProps.OrderBy(binding => binding.BindingId, StringComparer.Ordinal),
+                operations.OrderBy(binding => binding.BindingId, StringComparer.Ordinal),
                 mutations.OrderBy(binding => binding.BindingId, StringComparer.Ordinal),
                 interceptors.OrderBy(binding => binding.BindingId, StringComparer.Ordinal)),
             SortDiagnostics(diagnostics));
@@ -468,7 +468,7 @@ public static class JintBehaviorScriptProvider
                     $"Catalog callbacks for behavior at index {behaviorIndex} must be initialized.",
                     "",
                     entry.Kind,
-                    entry.OwnerType ?? "",
+                    entry.OwnerClass ?? "",
                     entry.Name ?? "",
                     BehaviorCatalogCallbackSlot.Handler));
                 valid = false;
@@ -484,7 +484,7 @@ public static class JintBehaviorScriptProvider
                     $"Catalog callback at behavior index {behaviorIndex}, callback index {callbackIndex} must be non-null.",
                     "",
                     entry.Kind,
-                    entry.OwnerType ?? "",
+                    entry.OwnerClass ?? "",
                     entry.Name ?? "",
                     BehaviorCatalogCallbackSlot.Handler));
                 valid = false;
@@ -499,8 +499,8 @@ public static class JintBehaviorScriptProvider
     {
         ValidateNativeCallbackCollection(nativeCallbacks.Constraints, "Constraints", diagnostics, ref valid);
         ValidateNativeCallbackCollection(nativeCallbacks.Validators, "Validators", diagnostics, ref valid);
-        ValidateNativeCallbackCollection(nativeCallbacks.Computed, "Computed", diagnostics, ref valid);
-        ValidateNativeCallbackCollection(nativeCallbacks.Actions, "Actions", diagnostics, ref valid);
+        ValidateNativeCallbackCollection(nativeCallbacks.ComputedProps, "ComputedProps", diagnostics, ref valid);
+        ValidateNativeCallbackCollection(nativeCallbacks.Operations, "Operations", diagnostics, ref valid);
         ValidateNativeCallbackCollection(nativeCallbacks.Mutations, "Mutations", diagnostics, ref valid);
         ValidateNativeCallbackCollection(nativeCallbacks.Interceptors, "Interceptors", diagnostics, ref valid);
     }
@@ -542,7 +542,7 @@ public static class JintBehaviorScriptProvider
                     $"Behavior kind '{entry.Kind}' is invalid.",
                     "",
                     entry.Kind,
-                    entry.OwnerType,
+                    entry.OwnerClass,
                     entry.Name,
                     BehaviorCatalogCallbackSlot.Handler));
                 continue;
@@ -557,7 +557,7 @@ public static class JintBehaviorScriptProvider
                         "Catalog callback binding id must be non-blank.",
                         callback.BindingId ?? "",
                         entry.Kind,
-                        entry.OwnerType,
+                        entry.OwnerClass,
                         entry.Name,
                         callback.Slot));
                     continue;
@@ -570,7 +570,7 @@ public static class JintBehaviorScriptProvider
                         $"Callback slot '{callback.Slot}' is invalid for behavior kind '{entry.Kind}'.",
                         callback.BindingId,
                         entry.Kind,
-                        entry.OwnerType,
+                        entry.OwnerClass,
                         entry.Name,
                         callback.Slot));
                     continue;
@@ -579,7 +579,7 @@ public static class JintBehaviorScriptProvider
                 references.Add(new ScriptReference(
                     callback.BindingId,
                     entry.Kind,
-                    entry.OwnerType,
+                    entry.OwnerClass,
                     entry.Name,
                     callback.Slot,
                     shape));
@@ -601,7 +601,7 @@ public static class JintBehaviorScriptProvider
                     "OMS1005",
                     "Script definition binding id must be non-blank.",
                     definition.BindingId ?? "",
-                    BehaviorCatalogKind.Action,
+                    BehaviorCatalogKind.Operation,
                     "",
                     "",
                     BehaviorCatalogCallbackSlot.Handler));
@@ -613,7 +613,7 @@ public static class JintBehaviorScriptProvider
                     "OMS1006",
                     $"Script definition source must be non-blank for binding id '{definition.BindingId}'.",
                     definition.BindingId ?? "",
-                    BehaviorCatalogKind.Action,
+                    BehaviorCatalogKind.Operation,
                     "",
                     "",
                     BehaviorCatalogCallbackSlot.Handler));
@@ -662,7 +662,7 @@ public static class JintBehaviorScriptProvider
             "OMS1010",
             message,
             "",
-            BehaviorCatalogKind.Action,
+            BehaviorCatalogKind.Operation,
             "",
             "",
             BehaviorCatalogCallbackSlot.Handler);
@@ -672,7 +672,7 @@ public static class JintBehaviorScriptProvider
             "OMS1011",
             message,
             "",
-            BehaviorCatalogKind.Action,
+            BehaviorCatalogKind.Operation,
             "",
             "",
             BehaviorCatalogCallbackSlot.Handler);
@@ -682,7 +682,7 @@ public static class JintBehaviorScriptProvider
             "OMS1012",
             message,
             "",
-            BehaviorCatalogKind.Action,
+            BehaviorCatalogKind.Operation,
             "",
             "",
             BehaviorCatalogCallbackSlot.Handler);
@@ -733,7 +733,7 @@ public static class JintBehaviorScriptProvider
                 $"Script definition source must evaluate to a callable function for binding id '{definition.BindingId}'.",
                 definition.BindingId,
                 reference.Kind,
-                reference.OwnerType,
+                reference.OwnerClass,
                 reference.BehaviorName,
                 reference.Slot);
         }
@@ -752,7 +752,7 @@ public static class JintBehaviorScriptProvider
                 $"Script definition source failed callable preflight for binding id '{definition.BindingId}'.",
                 definition.BindingId,
                 reference.Kind,
-                reference.OwnerType,
+                reference.OwnerClass,
                 reference.BehaviorName,
                 reference.Slot,
                 definition.SourceName,
@@ -779,9 +779,9 @@ public static class JintBehaviorScriptProvider
                 callback => string.Equals(callback.BindingId, reference.BindingId, StringComparison.Ordinal)),
             CallbackShape.Validator => nativeCallbacks.Validators.Any(
                 callback => string.Equals(callback.BindingId, reference.BindingId, StringComparison.Ordinal)),
-            CallbackShape.Computed => nativeCallbacks.Computed.Any(
+            CallbackShape.ComputedProp => nativeCallbacks.ComputedProps.Any(
                 callback => string.Equals(callback.BindingId, reference.BindingId, StringComparison.Ordinal)),
-            CallbackShape.Action => nativeCallbacks.Actions.Any(
+            CallbackShape.Operation => nativeCallbacks.Operations.Any(
                 callback => string.Equals(callback.BindingId, reference.BindingId, StringComparison.Ordinal)),
             CallbackShape.Mutation => nativeCallbacks.Mutations.Any(
                 callback => string.Equals(callback.BindingId, reference.BindingId, StringComparison.Ordinal)),
@@ -798,8 +798,8 @@ public static class JintBehaviorScriptProvider
         var scriptIds = definitionIds.ToHashSet(StringComparer.Ordinal);
         var nativeIds = nativeCallbacks.Constraints.Select(item => item.BindingId)
             .Concat(nativeCallbacks.Validators.Select(item => item.BindingId))
-            .Concat(nativeCallbacks.Computed.Select(item => item.BindingId))
-            .Concat(nativeCallbacks.Actions.Select(item => item.BindingId))
+            .Concat(nativeCallbacks.ComputedProps.Select(item => item.BindingId))
+            .Concat(nativeCallbacks.Operations.Select(item => item.BindingId))
             .Concat(nativeCallbacks.Mutations.Select(item => item.BindingId))
             .Concat(nativeCallbacks.Interceptors.Select(item => item.BindingId))
             .ToHashSet(StringComparer.Ordinal);
@@ -826,11 +826,11 @@ public static class JintBehaviorScriptProvider
             case (BehaviorCatalogKind.Constraint, BehaviorCatalogCallbackSlot.Validator):
                 shape = CallbackShape.Validator;
                 return true;
-            case (BehaviorCatalogKind.Computed, BehaviorCatalogCallbackSlot.Compute):
-                shape = CallbackShape.Computed;
+            case (BehaviorCatalogKind.ComputedProp, BehaviorCatalogCallbackSlot.Compute):
+                shape = CallbackShape.ComputedProp;
                 return true;
-            case (BehaviorCatalogKind.Action, BehaviorCatalogCallbackSlot.Handler):
-                shape = CallbackShape.Action;
+            case (BehaviorCatalogKind.Operation, BehaviorCatalogCallbackSlot.Handler):
+                shape = CallbackShape.Operation;
                 return true;
             case (BehaviorCatalogKind.Mutation, BehaviorCatalogCallbackSlot.Executor):
                 shape = CallbackShape.Mutation;
@@ -867,7 +867,7 @@ public static class JintBehaviorScriptProvider
             var callable = engine.Evaluate($"({definition.Source})", definition.SourceName ?? definition.BindingId);
             var identity = CreateFrozenJsonValue(engine, ProjectIdentity(callbackContext));
             var host = CreateHost(engine, callbackContext, reference, hostCancellation.Token);
-            var value = reference.Shape is CallbackShape.Action or CallbackShape.Mutation
+            var value = reference.Shape is CallbackShape.Operation or CallbackShape.Mutation
                 ? engine.Invoke(callable, identity, CreateFrozenJsonValue(engine, parameters), host)
                 : engine.Invoke(callable, identity, host);
             var unwrapped = await value.UnwrapIfPromiseAsync(hostCancellation.Token).ConfigureAwait(false);
@@ -934,37 +934,37 @@ public static class JintBehaviorScriptProvider
         ScriptReference reference,
         CancellationToken cancellationToken)
     {
-        Func<JsValue, Task<string>>? getProperty = callbackContext switch
+        Func<JsValue, Task<string>>? getFieldValue = callbackContext switch
         {
-            OmValidationContext context => attr => InvokeHostAsync(
-                "getProperty",
+            OmValidationContext context => field => InvokeHostAsync(
+                "getFieldValue",
                 cancellationToken,
-                token => context.GetPropertyAsync(RequireString(attr, "attrName"), token)),
-            OmComputedContext context => attr => InvokeHostAsync(
-                "getProperty",
+                token => context.GetFieldValueAsync(RequireString(field, "fieldName"), token)),
+            OmComputedPropContext context => field => InvokeHostAsync(
+                "getFieldValue",
                 cancellationToken,
-                token => context.GetPropertyAsync(RequireString(attr, "attrName"), token)),
-            OmMutationContext context => attr => InvokeHostAsync(
-                "getProperty",
+                token => context.GetFieldValueAsync(RequireString(field, "fieldName"), token)),
+            OmMutationContext context => field => InvokeHostAsync(
+                "getFieldValue",
                 cancellationToken,
-                token => context.GetPropertyAsync(RequireString(attr, "attrName"), token)),
+                token => context.GetFieldValueAsync(RequireString(field, "fieldName"), token)),
             _ => null,
         };
 
-        Func<JsValue, JsValue, Task<string>>? getPropertyAsOf = callbackContext switch
+        Func<JsValue, JsValue, Task<string>>? getFieldValueAsOf = callbackContext switch
         {
-            OmValidationContext context => (attr, asOf) => InvokeHostAsync(
-                "getPropertyAsOf",
+            OmValidationContext context => (field, asOf) => InvokeHostAsync(
+                "getFieldValueAsOf",
                 cancellationToken,
-                token => context.GetPropertyAsOfAsync(
-                    RequireString(attr, "attrName"),
+                token => context.GetFieldValueAsOfAsync(
+                    RequireString(field, "fieldName"),
                     RequireString(asOf, "asOf"),
                     token)),
-            OmMutationContext context when callbackContext is not OmComputedContext => (attr, asOf) => InvokeHostAsync(
-                "getPropertyAsOf",
+            OmMutationContext context when callbackContext is not OmComputedPropContext => (field, asOf) => InvokeHostAsync(
+                "getFieldValueAsOf",
                 cancellationToken,
-                token => context.GetPropertyAsOfAsync(
-                    RequireString(attr, "attrName"),
+                token => context.GetFieldValueAsOfAsync(
+                    RequireString(field, "fieldName"),
                     RequireString(asOf, "asOf"),
                     token)),
             _ => null,
@@ -976,83 +976,83 @@ public static class JintBehaviorScriptProvider
                 "getNeighbors",
                 cancellationToken,
                 token => context.GetNeighborsAsync(
-                    OptionalString(relation, "relName"),
+                    OptionalString(relation, "relationName"),
                     ParseDirection(direction),
                     token)),
-            OmComputedContext context => (relation, direction) => InvokeHostAsync(
+            OmComputedPropContext context => (relation, direction) => InvokeHostAsync(
                 "getNeighbors",
                 cancellationToken,
                 token => context.GetNeighborsAsync(
-                    OptionalString(relation, "relName"),
+                    OptionalString(relation, "relationName"),
                     ParseDirection(direction),
                     token)),
             OmMutationContext context => (relation, direction) => InvokeHostAsync(
                 "getNeighbors",
                 cancellationToken,
                 token => context.GetNeighborsAsync(
-                    OptionalString(relation, "relName"),
+                    OptionalString(relation, "relationName"),
                     ParseDirection(direction),
                     token)),
             _ => null,
         };
 
         var writeContext = reference.Kind is BehaviorCatalogKind.Mutation
-            or BehaviorCatalogKind.Action
+            or BehaviorCatalogKind.Operation
             or BehaviorCatalogKind.Interceptor
             ? callbackContext as OmMutationContext
             : null;
-        Func<JsValue, JsValue, JsValue, Task<string>>? setProperty = writeContext is null
+        Func<JsValue, JsValue, JsValue, Task<string>>? setFieldValue = writeContext is null
             ? null
-            : (attr, value, writeOptions) => InvokeHostAsync<object?>(
-                "setProperty",
+            : (field, value, writeOptions) => InvokeHostAsync<object?>(
+                "setFieldValue",
                 cancellationToken,
                 async token =>
                 {
-                    await writeContext.SetPropertyAsync(
-                        RequireString(attr, "attrName"),
+                    await writeContext.SetFieldValueAsync(
+                        RequireString(field, "fieldName"),
                         ReadJsonArgument(engine, value, "value"),
                         ReadWriteOptions(engine, writeOptions),
                         token).ConfigureAwait(false);
                     return null;
                 });
-        Func<JsValue, JsValue, JsValue, JsValue, Task<string>>? linkEntities = writeContext is null
+        Func<JsValue, JsValue, JsValue, JsValue, Task<string>>? createRelationLink = writeContext is null
             ? null
-            : (relation, toId, props, writeOptions) => InvokeHostAsync<object?>(
-                "linkEntities",
+            : (relation, toId, payload, writeOptions) => InvokeHostAsync<object?>(
+                "createRelationLink",
                 cancellationToken,
                 async token =>
                 {
-                    await writeContext.LinkEntitiesAsync(
-                        RequireString(relation, "relName"),
-                        RequireString(toId, "toId"),
-                        ReadOptionalJsonArgument(engine, props, "props"),
+                    await writeContext.CreateRelationLinkAsync(
+                        RequireString(relation, "relationName"),
+                        RequireString(toId, "toObjectId"),
+                        ReadOptionalJsonArgument(engine, payload, "payload"),
                         ReadWriteOptions(engine, writeOptions),
                         token).ConfigureAwait(false);
                     return null;
                 });
 
-        var actionContext = reference.Kind == BehaviorCatalogKind.Action
-            ? callbackContext as OmActionContext
+        var operationContext = reference.Kind == BehaviorCatalogKind.Operation
+            ? callbackContext as OmOperationContext
             : null;
-        Func<JsValue, JsValue, Task<string>>? callParentAction = actionContext is null
+        Func<JsValue, JsValue, Task<string>>? callParentOperation = operationContext is null
             ? null
-            : (actionName, actionParameters) => InvokeHostAsync(
-                "callParentAction",
+            : (operationName, operationParameters) => InvokeHostAsync(
+                "callParentOperation",
                 cancellationToken,
-                token => actionContext.CallParentActionAsync(
-                    RequireString(actionName, "actionName"),
-                    ReadOptionalDictionary(engine, actionParameters, "params"),
+                token => operationContext.CallParentOperationAsync(
+                    RequireString(operationName, "operationName"),
+                    ReadOptionalDictionary(engine, operationParameters, "params"),
                     token));
 
         var factory = engine.Evaluate($"({HostFactorySource})");
         return engine.Invoke(
             factory,
-            getProperty,
-            getPropertyAsOf,
+            getFieldValue,
+            getFieldValueAsOf,
             getNeighbors,
-            setProperty,
-            linkEntities,
-            callParentAction);
+            setFieldValue,
+            createRelationLink,
+            callParentOperation);
     }
 
     private static async Task<string> InvokeHostAsync<T>(
@@ -1463,28 +1463,28 @@ public static class JintBehaviorScriptProvider
 
     private static object ProjectIdentity(object context) => context switch
     {
-        OmActionContext action => new
+        OmOperationContext operation => new
         {
-            entityId = action.EntityId,
-            typeName = action.TypeName,
-            actionOwnerType = action.ActionOwnerType,
-            parameters = action.Params,
+            objectId = operation.ObjectId,
+            className = operation.ClassName,
+            operationOwnerClass = operation.OperationOwnerClass,
+            parameters = operation.Params,
         },
-        OmComputedContext computed => new
+        OmComputedPropContext computedProp => new
         {
-            entityId = computed.EntityId,
-            typeName = computed.TypeName,
-            asOf = computed.AsOf,
+            objectId = computedProp.ObjectId,
+            className = computedProp.ClassName,
+            asOf = computedProp.AsOf,
         },
         OmValidationContext validation => new
         {
-            entityId = validation.EntityId,
-            typeName = validation.TypeName,
+            objectId = validation.ObjectId,
+            className = validation.ClassName,
         },
         OmMutationContext mutation => new
         {
-            entityId = mutation.EntityId,
-            typeName = mutation.TypeName,
+            objectId = mutation.ObjectId,
+            className = mutation.ClassName,
         },
         _ => throw new ArgumentException("Unsupported OM callback context.", nameof(context)),
     };
@@ -1501,7 +1501,7 @@ public static class JintBehaviorScriptProvider
             .OrderBy(diagnostic => diagnostic.Code, StringComparer.Ordinal)
             .ThenBy(diagnostic => diagnostic.BindingId, StringComparer.Ordinal)
             .ThenBy(diagnostic => diagnostic.Kind)
-            .ThenBy(diagnostic => diagnostic.OwnerType, StringComparer.Ordinal)
+            .ThenBy(diagnostic => diagnostic.OwnerClass, StringComparer.Ordinal)
             .ThenBy(diagnostic => diagnostic.BehaviorName, StringComparer.Ordinal)
             .ThenBy(diagnostic => diagnostic.Slot)
             .ThenBy(diagnostic => diagnostic.Message, StringComparer.Ordinal)
@@ -1513,7 +1513,7 @@ public static class JintBehaviorScriptProvider
             reference.BindingId,
             ((int)reference.Shape).ToString("D2"),
             ((int)reference.Kind).ToString("D2"),
-            reference.OwnerType,
+            reference.OwnerClass,
             reference.BehaviorName,
             ((int)reference.Slot).ToString("D2"));
 
@@ -1564,7 +1564,7 @@ public static class JintBehaviorScriptProvider
         """;
 
     private const string HostFactorySource = """
-        (getProperty, getPropertyAsOf, getNeighbors, setProperty, linkEntities, callParentAction) => {
+        (getFieldValue, getFieldValueAsOf, getNeighbors, setFieldValue, createRelationLink, callParentOperation) => {
           const deepFreeze = value => {
             if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
               Object.values(value).forEach(deepFreeze);
@@ -1579,12 +1579,12 @@ public static class JintBehaviorScriptProvider
               return deepFreeze(JSON.parse(payload));
             });
           const host = Object.create(null);
-          if (typeof getProperty === 'function') host.getProperty = wrap(getProperty);
-          if (typeof getPropertyAsOf === 'function') host.getPropertyAsOf = wrap(getPropertyAsOf);
+          if (typeof getFieldValue === 'function') host.getFieldValue = wrap(getFieldValue);
+          if (typeof getFieldValueAsOf === 'function') host.getFieldValueAsOf = wrap(getFieldValueAsOf);
           if (typeof getNeighbors === 'function') host.getNeighbors = wrap(getNeighbors);
-          if (typeof setProperty === 'function') host.setProperty = wrap(setProperty);
-          if (typeof linkEntities === 'function') host.linkEntities = wrap(linkEntities);
-          if (typeof callParentAction === 'function') host.callParentAction = wrap(callParentAction);
+          if (typeof setFieldValue === 'function') host.setFieldValue = wrap(setFieldValue);
+          if (typeof createRelationLink === 'function') host.createRelationLink = wrap(createRelationLink);
+          if (typeof callParentOperation === 'function') host.callParentOperation = wrap(callParentOperation);
           return Object.freeze(host);
         }
         """;
@@ -1596,7 +1596,7 @@ public static class JintBehaviorScriptProvider
     private sealed record ScriptReference(
         string BindingId,
         BehaviorCatalogKind Kind,
-        string OwnerType,
+        string OwnerClass,
         string BehaviorName,
         BehaviorCatalogCallbackSlot Slot,
         CallbackShape Shape);
@@ -1616,8 +1616,8 @@ public static class JintBehaviorScriptProvider
     {
         Constraint,
         Validator,
-        Computed,
-        Action,
+        ComputedProp,
+        Operation,
         Mutation,
         Interceptor,
     }

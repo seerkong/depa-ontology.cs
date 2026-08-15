@@ -32,114 +32,155 @@ public enum ExistentialRuleMode
     Materialize,
 }
 
-public sealed record OmType(string Name, string Description, string? ParentType = null);
+public sealed record OmClass(string Name, string Description, string? ParentClass = null);
+
+internal sealed record OmClassRow(string Name, string Description, string? ParentClass = null);
 
 /// <summary>
-/// Expresses parent changes without overloading null. The legacy nullable
-/// DefineTypeAsync overload continues to use null as "preserve".
+/// Expresses parent changes without overloading null. The nullable
+/// DefineClassAsync overload continues to use null as "preserve".
 /// </summary>
-public enum TypeParentPatchKind
+public enum ClassParentPatchKind
 {
     Keep,
     Set,
     Clear,
 }
 
-public sealed record TypeParentPatch
+public sealed record ClassParentPatch
 {
-    private TypeParentPatch(TypeParentPatchKind kind, string? parentType = null)
+    private ClassParentPatch(ClassParentPatchKind kind, string? parentClass = null)
     {
-        if (kind == TypeParentPatchKind.Set && string.IsNullOrWhiteSpace(parentType))
+        if (kind == ClassParentPatchKind.Set && string.IsNullOrWhiteSpace(parentClass))
         {
-            throw new ArgumentException("A Set parent patch requires a parent type", nameof(parentType));
+            throw new ArgumentException("A Set parent patch requires a parent class", nameof(parentClass));
         }
 
-        if (kind != TypeParentPatchKind.Set && parentType is not null)
+        if (kind != ClassParentPatchKind.Set && parentClass is not null)
         {
-            throw new ArgumentException("Only a Set parent patch may carry a parent type", nameof(parentType));
+            throw new ArgumentException("Only a Set parent patch may carry a parent class", nameof(parentClass));
         }
 
         Kind = kind;
-        ParentType = parentType;
+        ParentClass = parentClass;
     }
 
-    public TypeParentPatchKind Kind { get; }
-    public string? ParentType { get; }
+    public ClassParentPatchKind Kind { get; }
+    public string? ParentClass { get; }
 
-    public static TypeParentPatch Keep { get; } = new(TypeParentPatchKind.Keep);
-    public static TypeParentPatch Clear { get; } = new(TypeParentPatchKind.Clear);
-    public static TypeParentPatch Set(string parentType) => new(TypeParentPatchKind.Set, parentType);
+    public static ClassParentPatch Keep { get; } = new(ClassParentPatchKind.Keep);
+    public static ClassParentPatch Clear { get; } = new(ClassParentPatchKind.Clear);
+    public static ClassParentPatch Set(string parentClass) => new(ClassParentPatchKind.Set, parentClass);
 }
 
-public sealed record DefineTypePatchInput(
+public sealed record DefineClassPatchInput(
     string Name,
     string Description,
-    TypeParentPatch Parent,
+    ClassParentPatch Parent,
     IReadOnlyList<string>? Mixins = null);
 
 public sealed record OmMixin(string Name, string Description);
 
-public sealed record OmAttribute(
-    string TypeName,
-    string AttrName,
+public sealed record OmField(
+    string ClassName,
+    string FieldName,
+    OmValueType ValueKind,
+    bool Required,
+    string? Description = null);
+
+internal sealed record OmFieldDefinition(
+    string ClassName,
+    string FieldName,
     OmValueType ValueType,
     bool Required,
     string? Description = null);
 
-public sealed record OmRelation(
-    string RelName,
-    string FromType,
-    string ToType,
+public sealed record OmRelationDef(
+    string RelationName,
+    string FromClass,
+    string ToClass,
     bool Directed,
     string? Description = null);
 
-public sealed record OmEntity(string Id, string TypeName, string Label);
+public sealed record OmObject(string Id, string ClassName, string Label);
 
-public sealed record OmProperty(string EntityId, string AttrName, JsonElement Value);
+internal sealed record OmObjectRow(string Id, string ClassName, string Label);
 
-public sealed record OmEdge(string FromId, string RelName, string ToId, JsonElement Props);
+public sealed record OmFieldValue(string ObjectId, string FieldName, JsonElement Value);
 
-public sealed record NeighborEntry(string RelName, string EntityId, string TypeName, string Label);
+internal sealed record OmFieldValueRecord(string ObjectId, string FieldName, JsonElement Value);
+
+public sealed record OmRelationLink(string FromObjectId, string RelationName, string ToObjectId, JsonElement Payload);
+
+public sealed record NeighborEntry(string RelationName, string ObjectId, string ClassName, string Label);
 
 public sealed record NeighborResult(IReadOnlyList<NeighborEntry> Outgoing, IReadOnlyList<NeighborEntry> Incoming);
 
-public sealed record EntityView(
+public sealed record ObjectView(
     string Id,
-    string TypeName,
+    string ClassName,
     string Label,
-    IReadOnlyDictionary<string, JsonElement> Properties,
-    IReadOnlyList<EntityViewEdge> Outgoing);
+    IReadOnlyDictionary<string, JsonElement> FieldValues,
+    IReadOnlyList<ObjectViewEdge> Outgoing);
 
-public sealed record EntityViewEdge(string RelName, string ToId, string ToType, string ToLabel);
+public sealed record ObjectViewEdge(string RelationName, string ToObjectId, string ToClass, string ToLabel);
 
-public sealed record FindByTypeEntry(
+public sealed record FindByClassEntry(
     string Id,
-    string TypeName,
+    string ClassName,
     string Label,
-    IReadOnlyDictionary<string, JsonElement> Properties);
+    IReadOnlyDictionary<string, JsonElement> FieldValues);
+
+internal sealed record ObjectViewRow(
+    string Id,
+    string ClassName,
+    string Label,
+    IReadOnlyDictionary<string, JsonElement> FieldValues,
+    IReadOnlyList<ObjectViewEdgeRow> Outgoing);
+
+internal sealed record ObjectViewEdgeRow(string RelationName, string ToObjectId, string ToClass, string ToLabel);
+
+internal sealed record FindByClassEntryRow(
+    string Id,
+    string ClassName,
+    string Label,
+    IReadOnlyDictionary<string, JsonElement> FieldValues);
 
 public sealed record ValidationResult(bool Valid, IReadOnlyList<string> Errors);
 
-public sealed record PropertyHistoryEntry(JsonElement Value, string ValidTime, string TxTime);
+public sealed record FieldValueHistoryEntry(JsonElement Value, string ValidTime, string TxTime);
 
-public sealed record EdgeHistoryEntry(
-    string FromId,
-    string RelName,
-    string ToId,
-    JsonElement Props,
+internal sealed record FieldValueHistoryRow(JsonElement Value, string ValidTime, string TxTime);
+
+public sealed record RelationLinkHistoryEntry(
+    string FromObjectId,
+    string RelationName,
+    string ToObjectId,
+    JsonElement Payload,
     string ValidTime,
     string TxTime,
     bool IsAssert);
 
-public sealed record TypeHierarchyNode(
+public sealed record ClassHierarchyNode(
     string Name,
     string Description,
-    string? ParentType,
+    string? ParentClass,
     IReadOnlyList<string> Mixins,
     IReadOnlyList<string> Children);
 
-public sealed record TypeHierarchy(
-    IReadOnlyDictionary<string, TypeHierarchyNode> Types,
+public sealed record ClassHierarchy(
+    IReadOnlyDictionary<string, ClassHierarchyNode> Classes,
+    IReadOnlyList<string> Roots);
+
+internal sealed record ClassHierarchyNodeRow(
+    string Name,
+    string Description,
+    string? ParentClass,
+    IReadOnlyList<string> Mixins,
+    IReadOnlyList<string> Children);
+
+internal sealed record ClassHierarchyRow(
+    IReadOnlyDictionary<string, ClassHierarchyNodeRow> Types,
     IReadOnlyList<string> Roots);
 
 public sealed record SchemaState(int CurrentVersion, string? Checksum);
@@ -194,7 +235,7 @@ public sealed record SchemaDiagnostic(
     string Message,
     string? DefinitionKind = null,
     string? DefinitionKey = null,
-    string? EntityId = null);
+    string? ObjectId = null);
 
 public sealed record SchemaDefinitionChange(JsonElement Before, JsonElement After);
 
@@ -327,9 +368,9 @@ public sealed record ExistentialWhereCondition(string Attr, string Op, JsonEleme
 
 public sealed record ExistentialForEachSpec(string Type, IReadOnlyList<ExistentialWhereCondition>? Where = null);
 
-public sealed record ExistentialExistsSpec(string Rel, ExistentialDirection Direction, string ToType);
+public sealed record ExistentialExistsSpec(string Rel, ExistentialDirection Direction, string ToClass);
 
-public sealed record ExistentialMaterializeSpec(string? LabelTemplate = null, IReadOnlyDictionary<string, JsonElement>? Props = null);
+public sealed record ExistentialMaterializeSpec(string? LabelTemplate = null, IReadOnlyDictionary<string, JsonElement>? Payload = null);
 
 public sealed record ExistentialRuleSpec(
     ExistentialForEachSpec ForEach,
@@ -348,14 +389,14 @@ public sealed record ExistentialRule(
     string Message,
     bool Enabled);
 
-public sealed record ExistentialViolation(string Rule, string EntityId, string Message);
+public sealed record ExistentialViolation(string Rule, string ObjectId, string Message);
 
 public sealed record ExistentialCreated(
     string Rule,
-    string TriggerEntityId,
+    string TriggerObjectId,
     string SkolemId,
     string Rel,
-    string ToType);
+    string ToClass);
 
 public sealed record ExistentialDiagnostic(string RuleName, int RemainingViolations);
 
@@ -365,7 +406,7 @@ public sealed record ExistentialChaseResult(
     bool ReachedFixpoint,
     IReadOnlyList<ExistentialDiagnostic> Diagnostics);
 
-public sealed record CheckAccessInput(string SubjectId, string Action, string ResourceId, string? AsOf = null, string? FieldName = null);
+public sealed record CheckAccessInput(string SubjectId, string Operation, string ResourceId, string? AsOf = null, string? FieldName = null);
 
 public enum PermissionFieldVisibility
 {
@@ -381,7 +422,7 @@ public enum PermissionEvaluationStatus
     NotEvaluated,
 }
 
-public sealed record PermissionWitnessHop(string FromId, string RelName, string ToId);
+public sealed record PermissionWitnessHop(string FromObjectId, string RelationName, string ToObjectId);
 
 public sealed record PermissionWitnessDiagnostic(
     PermissionEvaluationStatus Status,
@@ -399,8 +440,8 @@ public sealed record PermissionAbacDiagnostic(
 public sealed record PermissionPolicyEvaluation(
     string PolicyId,
     string Effect,
-    string Action,
-    string ResourceType,
+    string Operation,
+    string ResourceClass,
     PermissionEvaluationStatus Status,
     PermissionWitnessDiagnostic Witness,
     ImmutableArray<PermissionAbacDiagnostic> AbacDiagnostics,
@@ -426,18 +467,18 @@ public sealed record SchemaMigrationResult(
     string Checksum);
 
 public sealed record PermissionSeedInput(
-    IReadOnlyList<PermissionActionSeed>? Actions = null,
+    IReadOnlyList<PermissionOperationSeed>? Operations = null,
     IReadOnlyList<PermissionPolicySeed>? Policies = null,
     IReadOnlyList<PermissionAbacRuleSeed>? AbacRules = null,
     IReadOnlyList<PermissionPathRuleSeed>? PathRules = null);
 
-public sealed record PermissionActionSeed(string Action, string Description = "");
+public sealed record PermissionOperationSeed(string Operation, string Description = "");
 
 public sealed record PermissionPolicySeed(
     string PolicyId,
     string Effect,
-    string Action,
-    string ResourceType,
+    string Operation,
+    string ResourceClass,
     bool Enabled = true,
     string Description = "");
 

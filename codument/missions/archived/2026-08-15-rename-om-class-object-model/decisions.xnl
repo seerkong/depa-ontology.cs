@@ -1,0 +1,34 @@
+<decisions #rename_om_class_object_model [
+  <decision #core_glossary { status = "accepted" date = "2026-08-14" }
+    ?>The OM modeling vocabulary is Class, Object, Field, FieldValue, ComputedProp, RelationDef, RelationLink, Operation, Mutation, and Query. Instance is reserved for relationship/documentation wording only.</?>
+
+  <decision #breaking_no_compat { status = "accepted" date = "2026-08-14" }
+    ?>The redesign is intentionally breaking. Do not keep Type, Entity, Attribute, Property, Edge, or Action compatibility aliases, adapters, old API entry points, or legacy table read/write support.</?>
+
+  <decision #field_not_attribute { status = "accepted" date = "2026-08-14" }
+    ?>Use Field for Class-defined storable members because it pairs more clearly with Object-held FieldValue and avoids the broader Attribute wording.</?>
+
+  <decision #field_value_not_property { status = "accepted" date = "2026-08-14" }
+    ?>Use FieldValue for Object-held durable values because Property is overloaded in C# as a getter/setter member and does not clearly mean persisted object data.</?>
+
+  <decision #computed_prop { status = "accepted" date = "2026-08-14" }
+    ?>Keep the name ComputedProp for computed getter-like class members. The storage table should be om_computed_prop_def, not om_computed_field_def.</?>
+
+  <decision #relation_link { status = "accepted" date = "2026-08-14" }
+    ?>Rename om_edge to om_relation_link for explicit persisted object-to-object connections. Avoid relation fact as the table name.</?>
+
+  <decision #operation_not_action { status = "accepted" date = "2026-08-14" }
+    ?>Rename action concepts to operation because Operation better covers the intended class-exposed upper-level operation, which may compose lower-level Mutation and Query behavior.</?>
+
+  <decision #table_rename_matrix { status = "accepted" date = "2026-08-14" }
+    ?>The durable table rename matrix includes om_type to om_class_def, om_mixin to om_mixin_def, om_type_mixin to om_class_mixin, om_attr_def to om_field_def, om_attr_desc to om_field_desc, om_property to om_field_value, om_computed_def to om_computed_prop_def, om_entity to om_object, om_rel_def to om_relation_def, om_rel_desc to om_relation_desc, om_edge to om_relation_link, om_alias_type to om_alias_class, om_alias_attr to om_alias_field, om_alias_rel to om_alias_relation, om_action_def to om_operation_def, and om_perm_action to om_perm_operation.</?>
+
+  <decision #scalar_kind_columns { status = "accepted" date = "2026-08-14" }
+    ?>Where a persisted column describes a scalar/category discriminator rather than an OM Class, use kind naming, such as value_kind and constraint_kind.</?>
+
+  <decision #knowledge_base_follows { status = "accepted" date = "2026-08-14" }
+    ?>The dependent knowledge-base project must follow the ontology core rename completely, including ontology API calls and direct Cozo OM table/query references.</?>
+
+  <decision #knowledge_base_skills_follow { status = "accepted" date = "2026-08-14" }
+    ?>The dependent knowledge-base project's skills, skill references, prompt contracts, scripts, tests, examples, and any versioned agent-skill copies that repeat OM concepts must also migrate to the new Class/Object/Field/ComputedProp/Relation/Operation vocabulary.</?>
+]>

@@ -7,8 +7,8 @@ namespace Depa.Ontology.Logic;
 internal enum BehaviorKind
 {
     Constraint,
-    Computed,
-    Action,
+    ComputedProp,
+    Operation,
     Mutation,
     Interceptor,
 }
@@ -25,7 +25,7 @@ internal enum BehaviorCallbackSlot
 
 internal sealed record BehaviorBindingKey(
     BehaviorKind BehaviorKind,
-    string OwnerType,
+    string OwnerClass,
     string BehaviorName,
     BehaviorCallbackSlot CallbackSlot,
     string Phase,
@@ -50,11 +50,11 @@ internal static class BehaviorBindingLogic
         await runtime.Store.RunAsync(
             CozoScriptBuilder.InputPut(
                 "om_behavior_binding",
-                ["behavior_kind", "owner_type", "behavior_name", "callback_slot", "phase", "seq"],
+                ["behavior_kind", "owner_class", "behavior_name", "callback_slot", "phase", "seq"],
                 ["binding_id"]),
             LogicSupport.Params(
                 ("behavior_kind", ToStored(normalized.Key.BehaviorKind)),
-                ("owner_type", normalized.Key.OwnerType),
+                ("owner_class", normalized.Key.OwnerClass),
                 ("behavior_name", normalized.Key.BehaviorName),
                 ("callback_slot", ToStored(normalized.Key.CallbackSlot)),
                 ("phase", normalized.Key.Phase),
@@ -70,15 +70,15 @@ internal static class BehaviorBindingLogic
         ArgumentNullException.ThrowIfNull(runtime);
         var result = await runtime.Store.RunAsync(
             """
-            ?[behavior_kind, owner_type, behavior_name, callback_slot, phase, seq, binding_id] :=
-              *om_behavior_binding{behavior_kind, owner_type, behavior_name, callback_slot, phase, seq, binding_id}
+            ?[behavior_kind, owner_class, behavior_name, callback_slot, phase, seq, binding_id] :=
+              *om_behavior_binding{behavior_kind, owner_class, behavior_name, callback_slot, phase, seq, binding_id}
             """,
             cancellationToken: cancellationToken);
 
         return result.Rows
             .Select(ReadRow)
             .OrderBy(row => row.Key.BehaviorKind)
-            .ThenBy(row => row.Key.OwnerType, StringComparer.Ordinal)
+            .ThenBy(row => row.Key.OwnerClass, StringComparer.Ordinal)
             .ThenBy(row => row.Key.BehaviorName, StringComparer.Ordinal)
             .ThenBy(row => row.Key.CallbackSlot)
             .ThenBy(row => row.Key.Phase, StringComparer.Ordinal)
@@ -98,7 +98,7 @@ internal static class BehaviorBindingLogic
             ?[binding_id] :=
               *om_behavior_binding{
                 behavior_kind: $behavior_kind,
-                owner_type: $owner_type,
+                owner_class: $owner_class,
                 behavior_name: $behavior_name,
                 callback_slot: $callback_slot,
                 phase: $phase,
@@ -109,7 +109,7 @@ internal static class BehaviorBindingLogic
             """,
             LogicSupport.Params(
                 ("behavior_kind", ToStored(normalized.BehaviorKind)),
-                ("owner_type", normalized.OwnerType),
+                ("owner_class", normalized.OwnerClass),
                 ("behavior_name", normalized.BehaviorName),
                 ("callback_slot", ToStored(normalized.CallbackSlot)),
                 ("phase", normalized.Phase),
@@ -130,13 +130,13 @@ internal static class BehaviorBindingLogic
         var normalized = NormalizeKey(key);
         return runtime.Store.RunAsync(
             """
-            ?[behavior_kind, owner_type, behavior_name, callback_slot, phase, seq] <-
-              [[$behavior_kind, $owner_type, $behavior_name, $callback_slot, $phase, $seq]]
-            :rm om_behavior_binding {behavior_kind, owner_type, behavior_name, callback_slot, phase, seq}
+            ?[behavior_kind, owner_class, behavior_name, callback_slot, phase, seq] <-
+              [[$behavior_kind, $owner_class, $behavior_name, $callback_slot, $phase, $seq]]
+            :rm om_behavior_binding {behavior_kind, owner_class, behavior_name, callback_slot, phase, seq}
             """,
             LogicSupport.Params(
                 ("behavior_kind", ToStored(normalized.BehaviorKind)),
-                ("owner_type", normalized.OwnerType),
+                ("owner_class", normalized.OwnerClass),
                 ("behavior_name", normalized.BehaviorName),
                 ("callback_slot", ToStored(normalized.CallbackSlot)),
                 ("phase", normalized.Phase),
@@ -150,7 +150,7 @@ internal static class BehaviorBindingLogic
     private static BehaviorBindingKey NormalizeKey(BehaviorBindingKey key)
     {
         ArgumentNullException.ThrowIfNull(key);
-        var ownerType = OmConvert.RequireName(key.OwnerType, nameof(key.OwnerType));
+        var ownerClass = OmConvert.RequireName(key.OwnerClass, nameof(key.OwnerClass));
         var behaviorName = OmConvert.RequireName(key.BehaviorName, nameof(key.BehaviorName));
         ValidateSlot(key.BehaviorKind, key.CallbackSlot);
 
@@ -171,7 +171,7 @@ internal static class BehaviorBindingLogic
             throw new ArgumentException("Non-interceptor bindings require empty phase and sequence -1", nameof(key));
         }
 
-        return key with { OwnerType = ownerType, BehaviorName = behaviorName };
+        return key with { OwnerClass = ownerClass, BehaviorName = behaviorName };
     }
 
     private static void ValidateSlot(BehaviorKind kind, BehaviorCallbackSlot slot)
@@ -179,8 +179,8 @@ internal static class BehaviorBindingLogic
         var valid = kind switch
         {
             BehaviorKind.Constraint => slot is BehaviorCallbackSlot.When or BehaviorCallbackSlot.Then or BehaviorCallbackSlot.Validator,
-            BehaviorKind.Computed => slot == BehaviorCallbackSlot.Compute,
-            BehaviorKind.Action => slot == BehaviorCallbackSlot.Handler,
+            BehaviorKind.ComputedProp => slot == BehaviorCallbackSlot.Compute,
+            BehaviorKind.Operation => slot == BehaviorCallbackSlot.Handler,
             BehaviorKind.Mutation => slot == BehaviorCallbackSlot.Executor,
             BehaviorKind.Interceptor => slot == BehaviorCallbackSlot.Handler,
             _ => false,
@@ -195,7 +195,7 @@ internal static class BehaviorBindingLogic
     {
         var key = new BehaviorBindingKey(
             ParseKind(RequireStoredName(JsonRows.StringAt(row, 0), "behavior_kind")),
-            RequireStoredName(JsonRows.StringAt(row, 1), "owner_type"),
+            RequireStoredName(JsonRows.StringAt(row, 1), "owner_class"),
             RequireStoredName(JsonRows.StringAt(row, 2), "behavior_name"),
             ParseSlot(RequireStoredName(JsonRows.StringAt(row, 3), "callback_slot")),
             JsonRows.StringAt(row, 4) ?? "",
@@ -209,8 +209,8 @@ internal static class BehaviorBindingLogic
     private static string ToStored(BehaviorKind kind) => kind switch
     {
         BehaviorKind.Constraint => "constraint",
-        BehaviorKind.Computed => "computed",
-        BehaviorKind.Action => "action",
+        BehaviorKind.ComputedProp => "computedProp",
+        BehaviorKind.Operation => "operation",
         BehaviorKind.Mutation => "mutation",
         BehaviorKind.Interceptor => "interceptor",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown behavior kind"),
@@ -219,8 +219,8 @@ internal static class BehaviorBindingLogic
     private static BehaviorKind ParseKind(string value) => value switch
     {
         "constraint" => BehaviorKind.Constraint,
-        "computed" => BehaviorKind.Computed,
-        "action" => BehaviorKind.Action,
+        "computedProp" => BehaviorKind.ComputedProp,
+        "operation" => BehaviorKind.Operation,
         "mutation" => BehaviorKind.Mutation,
         "interceptor" => BehaviorKind.Interceptor,
         _ => throw new InvalidOperationException($"Stored behavior kind '{value}' is invalid"),

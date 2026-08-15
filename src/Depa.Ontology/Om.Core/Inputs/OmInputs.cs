@@ -4,40 +4,42 @@ using Depa.Ontology.Contracts.Models;
 
 namespace Depa.Ontology.Inputs;
 
-public sealed record DefineTypeInput(string Name, string Description, string? ParentType = null, IReadOnlyList<string>? Mixins = null);
+public sealed record DefineClassInput(string Name, string Description, string? ParentClass = null, IReadOnlyList<string>? Mixins = null);
 
 public sealed record DefineMixinInput(string Name, string Description);
 
-public sealed record DefineAttributeInput(
-    string TypeName,
-    string AttrName,
+public sealed record DefineFieldInput(
+    string ClassName,
+    string FieldName,
     OmValueType ValueType,
     bool Required = false,
     string? Description = null);
 
-public sealed record DefineRelationInput(
-    string RelName,
-    string FromType,
-    string ToType,
+public sealed record DefineRelationDefInput(
+    string RelationName,
+    string FromClass,
+    string ToClass,
     bool Directed = true,
     string? Description = null);
 
-public sealed record EntityInput(string Id, string TypeName, string Label);
+public sealed record ObjectInput(string Id, string ClassName, string Label);
 
-public sealed record SetPropertyInput(string EntityId, string AttrName, object? Value, WriteOptions? Options = null);
+public sealed record SetFieldValueInput(string ObjectId, string FieldName, object? Value, WriteOptions? Options = null);
 
-public sealed record LinkEntitiesInput(
-    string FromId,
-    string RelName,
-    string ToId,
-    object? Props = null,
+public sealed record CreateRelationLinkInput(
+    string FromObjectId,
+    string RelationName,
+    string ToObjectId,
+    object? Payload = null,
     WriteOptions? Options = null);
 
 public sealed record WriteOptions(bool SkipConstraints = false, string? ValidTime = null);
 
 public sealed record HistoryRangeOptions(string? From = null, string? To = null);
 
-public sealed record FindByTypeOptions(bool Exact = false);
+public sealed record FindByClassCoreOptions(bool Exact = false);
+
+public sealed record FindByClassOptions(bool Exact = false);
 
 public sealed record DefineExistentialRuleInput(string RuleName, ExistentialRuleSpec Spec);
 
@@ -45,15 +47,15 @@ public sealed record CheckExistentialRulesInput(IReadOnlyList<string>? Rules = n
 
 public sealed record ApplyExistentialRulesInput(IReadOnlyList<string>? Rules = null, int? MaxIterations = null, string? ValidTime = null);
 
-public sealed record DefineConstraintInput(string TypeName, string ConstraintName, string ConstraintType, string Message = "");
+public sealed record DefineConstraintInput(string ClassName, string ConstraintName, string ConstraintKind, string Message = "");
 
-public sealed record DefineComputedInput(string TypeName, string AttrName, string Description = "");
+public sealed record DefineComputedPropInput(string ClassName, string ComputedPropName, string Description = "");
 
-public sealed record DefineActionInput(string TypeName, string ActionName, string Description = "");
+public sealed record DefineOperationInput(string ClassName, string OperationName, string Description = "");
 
-public sealed record DefineMutationInput(string TypeName, string MutationName, string Description = "");
+public sealed record DefineMutationInput(string ClassName, string MutationName, string Description = "");
 
-public sealed record AddInterceptorInput(string TypeName, string ActionName, string Phase, int Seq, string Description = "");
+public sealed record AddInterceptorInput(string ClassName, string OperationName, string Phase, int Seq, string Description = "");
 
 public sealed record SchemaMigrationSpec(
     string MigrationId,
@@ -106,8 +108,8 @@ public sealed record RollbackSchemaV2Input(int TargetVersion, SchemaRollbackV2Op
 public sealed record DefinePermissionPolicyInput(
     string PolicyId,
     string Effect,
-    string Action,
-    string ResourceType,
+    string Operation,
+    string ResourceClass,
     bool Enabled = true,
     string Description = "");
 

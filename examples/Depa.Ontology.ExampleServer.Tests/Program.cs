@@ -28,6 +28,65 @@ try
         Assert(demoIds.Contains(demoId), $"/api/demos should contain {demoId}");
     }
 
+    var procurementTables = demos.RootElement.GetProperty("demos").EnumerateArray()
+        .Single(demo => demo.GetProperty("id").GetString() == "procurement")
+        .GetProperty("tables")
+        .EnumerateArray()
+        .ToArray();
+    var procurementTableNames = procurementTables
+        .Select(table => table.GetProperty("name").GetString())
+        .ToHashSet(StringComparer.Ordinal);
+    foreach (var tableName in new[] { "Class 定义", "Field 定义", "RelationDef 定义", "ComputedProp 定义", "Operation 定义", "Object 数据", "FieldValue 数据", "RelationLink 数据" })
+    {
+        Assert(procurementTableNames.Contains(tableName), $"/api/demos should teach renamed OM table {tableName}");
+    }
+
+    var relationDefColumns = procurementTables
+        .Single(table => table.GetProperty("name").GetString() == "RelationDef 定义")
+        .GetProperty("columns")
+        .EnumerateArray()
+        .Select(column => column.GetString())
+        .ToArray();
+    Assert(relationDefColumns.SequenceEqual(["relationName", "fromClass", "toClass", "directed", "description"]),
+        "RelationDef demo table should use relationName/fromClass/toClass columns");
+
+    var relationLinkColumns = procurementTables
+        .Single(table => table.GetProperty("name").GetString() == "RelationLink 数据")
+        .GetProperty("columns")
+        .EnumerateArray()
+        .Select(column => column.GetString())
+        .ToArray();
+    Assert(relationLinkColumns.SequenceEqual(["fromObjectId", "relationName", "toObjectId", "payload"]),
+        "RelationLink demo table should use fromObjectId/relationName/toObjectId/payload columns");
+
+    var computedPropColumns = procurementTables
+        .Single(table => table.GetProperty("name").GetString() == "ComputedProp 定义")
+        .GetProperty("columns")
+        .EnumerateArray()
+        .Select(column => column.GetString())
+        .ToArray();
+    Assert(computedPropColumns.SequenceEqual(["className", "computedPropName", "description"]),
+        "ComputedProp demo table should use className/computedPropName columns");
+
+    var operationColumns = procurementTables
+        .Single(table => table.GetProperty("name").GetString() == "Operation 定义")
+        .GetProperty("columns")
+        .EnumerateArray()
+        .Select(column => column.GetString())
+        .ToArray();
+    Assert(operationColumns.SequenceEqual(["className", "operationName", "description"]),
+        "Operation demo table should use className/operationName columns");
+
+    var approvalTables = demos.RootElement.GetProperty("demos").EnumerateArray()
+        .Single(demo => demo.GetProperty("id").GetString() == "approval-flow")
+        .GetProperty("tables")
+        .EnumerateArray()
+        .ToArray();
+    Assert(approvalTables.Single(table => table.GetProperty("name").GetString() == "ComputedProp 定义").GetProperty("rows").GetArrayLength() > 0,
+        "approval-flow should include a ComputedProp definition row");
+    Assert(approvalTables.Single(table => table.GetProperty("name").GetString() == "Operation 定义").GetProperty("rows").GetArrayLength() > 0,
+        "approval-flow should include Operation definition rows");
+
     using var allowedPreflight = new HttpRequestMessage(HttpMethod.Options, "/api/demos");
     allowedPreflight.Headers.Add("Origin", "http://127.0.0.1:4174");
     allowedPreflight.Headers.Add("Access-Control-Request-Method", "GET");
@@ -72,6 +131,10 @@ try
             Assert(visual.RootElement.TryGetProperty(resultKey, out _), $"{queryId} should return a browser-compatible {resultKey}");
         }
 
+        using var impactGraph = await PostJsonAsync(client, "/api/run", new { demoId = "procurement", queryId = "impactAnalysis", tables = Array.Empty<object>() });
+        var graph = impactGraph.RootElement.GetProperty("graph");
+        Assert(graph.TryGetProperty("relationLinks", out _), "impactAnalysis graph should expose relationLinks");
+
         using var initialSchema = await client.GetFromJsonAsync<JsonDocument>("/api/schema/state");
         Assert(initialSchema?.RootElement.GetProperty("currentVersion").GetInt32() == 1,
             "schema state should initialize at version 1");
@@ -87,7 +150,7 @@ try
                 strict = true,
                 steps = new[]
                 {
-                    new { kind = "addType", typeName = "ExampleServerEmployee", description = "Example server employee" }
+                    new { kind = "addClass", className = "ExampleServerEmployee", description = "Example server employee" }
                 }
             }
         });
@@ -118,7 +181,7 @@ try
         {
             subjectId = "u:1",
             resourceId = "r:1",
-            action = "read"
+            operation = "read"
         });
         Assert(governanceCheck.RootElement.TryGetProperty("result", out _),
             "governance check should return its permission result in a browser-compatible envelope");

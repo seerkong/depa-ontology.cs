@@ -1,0 +1,16 @@
+<decision #track.rename_ontology_om_class_object_contract.root {
+  priority = "P0"
+  status = "accepted"
+}
+(
+  <question ?>是否创建独立 track 处理 Class/Object/Field/FieldValue 存储与公开契约？</?>
+  <answer { }
+  (
+    <raw-answer ?>Mission G2-T1 requires a real TrackLink for this bounded slice.</?>
+    <decision-text ?>创建独立 track `rename-ontology-om-class-object-contract`，只覆盖 Class/Object/Field/FieldValue 存储和公开 API 契约。</?>
+    <rationale ?>RelationLink、ComputedProp、Operation 牵涉行为、权限、registry 和 scripting，已由 mission G2-T2 单独承载。</?>
+    <evidence ?>Mission design and ontology-core inventory show the rename spans schema, API, models, logic, tests, and examples.</?>
+  )
+  >
+)
+>

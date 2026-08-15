@@ -1,0 +1,16 @@
+<decision #track.rename_ontology_om_class_object_contract.scope {
+  priority = "P0"
+  status = "accepted"
+}
+(
+  <question ?>本 track 是否只覆盖 Class/Object/Field/FieldValue，而把 RelationLink、ComputedProp、Operation 留给后续 track？</?>
+  <answer { }
+  (
+    <raw-answer ?>Mission G2 splits these areas into two ontology-core tracks.</?>
+    <decision-text ?>本 track 只覆盖 Class/Object/Field/FieldValue 存储与公开契约。</?>
+    <rationale ?>RelationLink、ComputedProp、Operation 涉及行为、权限、interceptor、registry、scripting 与导入导出，适合单独 track。</?>
+    <evidence ?>Mission G2-T1 and G2-T2 are separate TrackLink leaves.</?>
+  )
+  >
+)
+>

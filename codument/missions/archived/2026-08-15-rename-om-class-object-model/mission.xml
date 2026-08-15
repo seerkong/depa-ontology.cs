@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cdt:Mission xmlns:cdt="https://codument.dev/schema/mission/v1"
+  id="rename-om-class-object-model"
+  schemaVersion="1"
+  status="completed"
+  revision="5"
+  createdAt="2026-08-14T20:16:25Z"
+  updatedAt="2026-08-14T22:58:28Z">
+
+  <cdt:Metadata>
+    <cdt:Title>Rename OM modeling language to Class/Object/Field/Operation</cdt:Title>
+    <cdt:Summary>
+      Plan a breaking, no-compatibility vocabulary and storage/API redesign for the ontology object model,
+      and coordinate the dependent knowledge-base project to follow the same naming system.
+    </cdt:Summary>
+    <cdt:Owner>kongweixian</cdt:Owner>
+    <cdt:Mode>breaking-redesign</cdt:Mode>
+  </cdt:Metadata>
+
+  <cdt:ProjectRefs>
+    <cdt:ProjectRef id="ontology-core" kind="host">
+      <cdt:Role>Primary project that owns the OM schema, API, contracts, tests, and Codument records.</cdt:Role>
+    </cdt:ProjectRef>
+    <cdt:ProjectRef id="knowledge-base" kind="external">
+      <cdt:Role>Dependent project that must migrate ontology API usage, direct OM table usage, and project skill assets after the host redesign.</cdt:Role>
+    </cdt:ProjectRef>
+  </cdt:ProjectRefs>
+
+  <cdt:ActorSets>
+    <cdt:ActorSet id="ontology-loop" default="true">
+      <cdt:Planner>Maintain the target naming design, task DAG, acceptance criteria, and replanning boundary for the ontology core.</cdt:Planner>
+      <cdt:Observer>Read implementation, tests, Codument records, and build output to compare actual state with the mission target.</cdt:Observer>
+      <cdt:Reconciler>Decide whether observed drift requires a new track, a revised track scope, or mission blocking.</cdt:Reconciler>
+      <cdt:Applier>Execute approved tracks and local code/document changes inside the ontology core project.</cdt:Applier>
+    </cdt:ActorSet>
+    <cdt:ActorSet id="knowledge-base-loop">
+      <cdt:Planner>Plan dependent knowledge-base updates against the new ontology contract.</cdt:Planner>
+      <cdt:Observer>Inspect knowledge-base source, tests, and direct Cozo queries for legacy OM vocabulary.</cdt:Observer>
+      <cdt:Reconciler>Separate required follow-up work from unrelated knowledge-base concerns.</cdt:Reconciler>
+      <cdt:Applier>Execute approved dependent-project migration tracks once the ontology core contract is available.</cdt:Applier>
+    </cdt:ActorSet>
+  </cdt:ActorSets>
+
+  <cdt:Ports>
+    <cdt:Port id="analysis" kind="vfs" path="vfs://./analysis/">
+      <cdt:Description>Mission-local analysis, decision tree notes, and temporary investigation output.</cdt:Description>
+    </cdt:Port>
+    <cdt:Port id="reports" kind="vfs" path="vfs://./reports/">
+      <cdt:Description>Mission execution reports, verification notes, and replan summaries.</cdt:Description>
+    </cdt:Port>
+    <cdt:Port id="tracks" kind="vfs" path="vfs://@/codument/tracks/">
+      <cdt:Description>Future implementation tracks created and executed by this mission.</cdt:Description>
+    </cdt:Port>
+  </cdt:Ports>
+
+  <cdt:TaskSpace>
+    <cdt:Task id="G1" kind="group" status="DONE" actorSet="ontology-loop">
+      <cdt:Title>Inventory and freeze the target language</cdt:Title>
+      <cdt:Description>
+        Establish a complete current-state inventory and freeze the agreed breaking rename matrix before implementation tracks.
+      </cdt:Description>
+      <cdt:Task id="G1-T1" kind="task" status="DONE">
+        <cdt:Title>Inventory legacy OM vocabulary in ontology core</cdt:Title>
+        <cdt:Description>Find Type, Entity, Attribute, Property, Edge, Action, and related storage/API/model/test/doc usages.</cdt:Description>
+      </cdt:Task>
+      <cdt:Task id="G1-T2" kind="task" status="DONE" actorSet="knowledge-base-loop">
+        <cdt:Title>Inventory dependent knowledge-base usage</cdt:Title>
+        <cdt:Description>Find ontology API calls, direct Cozo table/query references, and generated/handwritten skill assets that must follow the host rename.</cdt:Description>
+      </cdt:Task>
+      <cdt:Task id="G1-T2B" kind="task" status="DONE" actorSet="knowledge-base-loop">
+        <cdt:Title>Inventory knowledge-base skills vocabulary</cdt:Title>
+        <cdt:Description>Scan root business skills, skill references, skill scripts, skill tests, and any versioned agent-skill copies for legacy Type/Entity/Attribute/Property/Edge/Action OM wording.</cdt:Description>
+      </cdt:Task>
+      <cdt:Task id="G1-T3" kind="task" status="DONE">
+        <cdt:Title>Freeze glossary, table rename matrix, and API rename matrix</cdt:Title>
+        <cdt:Description>Confirm the mission design remains aligned with the user-approved Class/Object/Field/ComputedProp/Relation/Operation vocabulary.</cdt:Description>
+      </cdt:Task>
+    </cdt:Task>
+
+    <cdt:Task id="G2" kind="group" status="DONE" actorSet="ontology-loop">
+      <cdt:Title>Breakingly redesign ontology core contracts and storage</cdt:Title>
+      <cdt:Description>
+        Create and execute implementation tracks that rename public API, models, schema tables, Cozo queries, tests, and docs without legacy compatibility.
+      </cdt:Description>
+      <cdt:DependsOn task="G1"/>
+      <cdt:Task id="G2-T1" kind="task" status="DONE">
+        <cdt:Title>Create and execute ontology class/object/field storage-contract track</cdt:Title>
+        <cdt:Description>Rename Type to Class, Entity to Object, Attribute to Field, Property to FieldValue, and related aliases/hierarchy/query contracts.</cdt:Description>
+        <cdt:TrackLink state="bound" id="rename-ontology-om-class-object-contract" project-ref="ontology-core" required="true"/>
+      </cdt:Task>
+      <cdt:Task id="G2-T2" kind="task" status="DONE">
+        <cdt:Title>Create and execute ontology relation/computed/operation behavior track</cdt:Title>
+        <cdt:Description>Rename Edge to RelationLink, action concepts to Operation, computed definitions to ComputedProp, and update behavior/interceptor/permission surfaces.</cdt:Description>
+        <cdt:TrackLink state="bound" id="rename-ontology-operation-computedprop-contract" project-ref="ontology-core" required="true"/>
+      </cdt:Task>
+      <cdt:Task id="G2-T3" kind="task" status="DONE">
+        <cdt:Title>Verify ontology core has no legacy public or storage OM vocabulary</cdt:Title>
+        <cdt:Description>Build, test, and scan for accidental legacy aliases or old table names outside explicitly documented historical notes.</cdt:Description>
+      </cdt:Task>
+    </cdt:Task>
+
+    <cdt:Task id="G3" kind="group" status="DONE" actorSet="knowledge-base-loop">
+      <cdt:Title>Migrate dependent knowledge-base project</cdt:Title>
+      <cdt:Description>
+        After ontology core exposes the new breaking contract, update knowledge-base code, direct Cozo queries, tests, and documentation to the same language.
+      </cdt:Description>
+      <cdt:DependsOn task="G2"/>
+      <cdt:Task id="G3-T1" kind="task" status="DONE">
+        <cdt:Title>Create and execute knowledge-base follow-up migration track</cdt:Title>
+        <cdt:Description>Replace legacy ontology API/table/skill vocabulary in the dependent project with the new Class/Object/Field/ComputedProp/Relation/Operation contract.</cdt:Description>
+        <cdt:TrackLink state="bound" id="rename-knowledge-base-om-class-object-usage" project-ref="knowledge-base" required="true"/>
+      </cdt:Task>
+      <cdt:Task id="G3-T1B" kind="task" status="DONE">
+        <cdt:Title>Update knowledge-base skill contracts and examples</cdt:Title>
+        <cdt:Description>Ensure project skills, reference docs, validator/audit scripts, tests, examples, and prompts stop teaching old OM vocabulary and express the new modeling API consistently.</cdt:Description>
+      </cdt:Task>
+      <cdt:Task id="G3-T2" kind="task" status="DONE">
+        <cdt:Title>Verify knowledge-base against the renamed ontology contract</cdt:Title>
+        <cdt:Description>Run relevant builds/tests and scan code, docs, and skills for old OM table/API/terminology usage that would break or mislead after the host rename.</cdt:Description>
+      </cdt:Task>
+    </cdt:Task>
+
+    <cdt:Task id="G4" kind="group" status="DONE" actorSet="ontology-loop">
+      <cdt:Title>Cross-project verification and mission close</cdt:Title>
+      <cdt:Description>Confirm the redesigned vocabulary is coherent across both projects, then archive durable decisions and modeling memory.</cdt:Description>
+      <cdt:DependsOn task="G3"/>
+      <cdt:Task id="G4-T1" kind="task" status="DONE">
+        <cdt:Title>Run cross-project final verification</cdt:Title>
+        <cdt:Description>Confirm ontology core and knowledge-base pass agreed checks and no required migration work remains.</cdt:Description>
+      </cdt:Task>
+      <cdt:Task id="G4-T2" kind="task" status="SUPERSEDED">
+        <cdt:Title>Close and archive mission</cdt:Title>
+        <cdt:Description>Promote durable naming decisions and archive the mission after successful verification.</cdt:Description>
+      </cdt:Task>
+    </cdt:Task>
+  </cdt:TaskSpace>
+
+  <cdt:Schedule>
+    <cdt:Phase id="inventory" task="G1" order="1"/>
+    <cdt:Phase id="ontology-core-redesign" task="G2" order="2"/>
+    <cdt:Phase id="knowledge-base-migration" task="G3" order="3"/>
+    <cdt:Phase id="verification-and-close" task="G4" order="4"/>
+  </cdt:Schedule>
+
+  <cdt:Hooks>
+    <cdt:Hook event="mission:after-node" name="MissionReconcile">
+      <cdt:Param name="maxRounds" value="3"/>
+      <cdt:Param name="onDrift" value="replan-or-block"/>
+      <cdt:Param name="recordReportPort" value="reports"/>
+    </cdt:Hook>
+  </cdt:Hooks>
+</cdt:Mission>

@@ -57,11 +57,11 @@ static JsonElement Rows(JsonDocument document)
     return document.RootElement.GetProperty("rows");
 }
 
-static async Task ExpectCozoExceptionAsync(Func<Task> action, string messagePart, string assertMessage)
+static async Task ExpectCozoExceptionAsync(Func<Task> operation, string messagePart, string assertMessage)
 {
     try
     {
-        await action();
+        await operation();
     }
     catch (CozoException ex) when (ex.Message.Contains(messagePart, StringComparison.OrdinalIgnoreCase))
     {
@@ -71,12 +71,12 @@ static async Task ExpectCozoExceptionAsync(Func<Task> action, string messagePart
     throw new InvalidOperationException(assertMessage);
 }
 
-static async Task ExpectExceptionAsync<TException>(Func<Task> action, string assertMessage)
+static async Task ExpectExceptionAsync<TException>(Func<Task> operation, string assertMessage)
     where TException : Exception
 {
     try
     {
-        await action();
+        await operation();
     }
     catch (TException)
     {
@@ -87,9 +87,9 @@ static async Task ExpectExceptionAsync<TException>(Func<Task> action, string ass
 }
 
 static async Task<BehaviorUnresolvedException> ExpectUnresolvedAsync(
-    Func<Task> action,
+    Func<Task> operation,
     BehaviorCatalogKind kind,
-    string ownerType,
+    string ownerClass,
     string behaviorKey,
     BehaviorCatalogCallbackSlot slot,
     string bindingId,
@@ -98,14 +98,14 @@ static async Task<BehaviorUnresolvedException> ExpectUnresolvedAsync(
 {
     try
     {
-        await action();
+        await operation();
     }
     catch (BehaviorUnresolvedException ex)
     {
         var diagnostic = ex.Diagnostic;
         Assert(diagnostic.Code == "OMR1001"
                && diagnostic.Kind == kind
-               && diagnostic.OwnerType == ownerType
+               && diagnostic.OwnerClass == ownerClass
                && diagnostic.BehaviorKey == behaviorKey
                && diagnostic.Slot == slot
                && diagnostic.BindingId == bindingId
@@ -122,11 +122,11 @@ static int DefinitionCount(CozoDb db, string kind, string owner, string name)
 {
     var script = kind switch
     {
-        "constraint" => "?[type_name, constraint_name] := *om_constraint_def{type_name, constraint_name}, type_name = $owner, constraint_name = $name",
-        "computed" => "?[type_name, attr_name] := *om_computed_def{type_name, attr_name}, type_name = $owner, attr_name = $name",
-        "action" => "?[type_name, action_name] := *om_action_def{type_name, action_name}, type_name = $owner, action_name = $name",
-        "mutation" => "?[type_name, mutation_name] := *om_mutation_def{type_name, mutation_name}, type_name = $owner, mutation_name = $name",
-        "interceptor" => "?[type_name, action_name] := *om_interceptor_def{type_name, action_name}, type_name = $owner, action_name = $name",
+        "constraint" => "?[class_name, constraint_name] := *om_constraint_def{class_name, constraint_name}, class_name = $owner, constraint_name = $name",
+        "computedProp" => "?[class_name, computed_prop_name] := *om_computed_prop_def{class_name, computed_prop_name}, class_name = $owner, computed_prop_name = $name",
+        "operation" => "?[class_name, operation_name] := *om_operation_def{class_name, operation_name}, class_name = $owner, operation_name = $name",
+        "mutation" => "?[class_name, mutation_name] := *om_mutation_def{class_name, mutation_name}, class_name = $owner, mutation_name = $name",
+        "interceptor" => "?[class_name, operation_name] := *om_interceptor_def{class_name, operation_name}, class_name = $owner, operation_name = $name",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown behavior definition kind"),
     };
 
@@ -144,10 +144,10 @@ static string DefinitionPayload(
 {
     var script = kind switch
     {
-        "constraint" => "?[constraint_type, message] := *om_constraint_def{type_name: $owner, constraint_name: $name, constraint_type, message}",
-        "action" => "?[description] := *om_action_def{type_name: $owner, action_name: $name, description}",
-        "mutation" => "?[description] := *om_mutation_def{type_name: $owner, mutation_name: $name, description}",
-        "interceptor" => "?[description] := *om_interceptor_def{type_name: $owner, action_name: $name, phase: $phase, seq: $seq, description}",
+        "constraint" => "?[constraint_kind, message] := *om_constraint_def{class_name: $owner, constraint_name: $name, constraint_kind, message}",
+        "operation" => "?[description] := *om_operation_def{class_name: $owner, operation_name: $name, description}",
+        "mutation" => "?[description] := *om_mutation_def{class_name: $owner, mutation_name: $name, description}",
+        "interceptor" => "?[description] := *om_interceptor_def{class_name: $owner, operation_name: $name, phase: $phase, seq: $seq, description}",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown behavior definition kind"),
     };
 
@@ -161,15 +161,15 @@ static ImmutableArray<BehaviorMetadataProbe> CaptureBehaviorMetadata(BehaviorCat
     catalog.Behaviors
         .Select(entry => new BehaviorMetadataProbe(
             entry.Kind,
-            entry.OwnerType,
+            entry.OwnerClass,
             entry.Name,
-            entry.ConstraintType,
+            entry.ConstraintKind,
             entry.Message,
             entry.Description,
             entry.InterceptorPhase,
             entry.InterceptorSeq))
         .OrderBy(entry => entry.Kind)
-        .ThenBy(entry => entry.OwnerType, StringComparer.Ordinal)
+        .ThenBy(entry => entry.OwnerClass, StringComparer.Ordinal)
         .ThenBy(entry => entry.Name, StringComparer.Ordinal)
         .ThenBy(entry => entry.InterceptorPhase ?? "", StringComparer.Ordinal)
         .ThenBy(entry => entry.InterceptorSeq ?? -1)
@@ -179,7 +179,7 @@ static ImmutableArray<BehaviorReadinessProbe> CaptureBehaviorReadiness(BehaviorC
     catalog.Behaviors
         .SelectMany(entry => entry.Callbacks.Select(callback => new BehaviorReadinessProbe(
             entry.Kind,
-            entry.OwnerType,
+            entry.OwnerClass,
             entry.Name,
             entry.InterceptorPhase,
             entry.InterceptorSeq,
@@ -187,7 +187,7 @@ static ImmutableArray<BehaviorReadinessProbe> CaptureBehaviorReadiness(BehaviorC
             callback.BindingId,
             callback.Readiness)))
         .OrderBy(entry => entry.Kind)
-        .ThenBy(entry => entry.OwnerType, StringComparer.Ordinal)
+        .ThenBy(entry => entry.OwnerClass, StringComparer.Ordinal)
         .ThenBy(entry => entry.Name, StringComparer.Ordinal)
         .ThenBy(entry => entry.InterceptorPhase ?? "", StringComparer.Ordinal)
         .ThenBy(entry => entry.InterceptorSeq ?? -1)
@@ -200,7 +200,7 @@ static ImmutableArray<RegistryBindingProbe> CaptureRegistryBindings(CozoOmRegist
     var bindings = new List<RegistryBindingProbe>();
     bindings.AddRange(snapshot.Validators.Select(entry => new RegistryBindingProbe(
         BehaviorCatalogKind.Constraint,
-        entry.Key.TypeName,
+        entry.Key.ClassName,
         entry.Key.ConstraintName,
         BehaviorCatalogCallbackSlot.Validator,
         null,
@@ -211,7 +211,7 @@ static ImmutableArray<RegistryBindingProbe> CaptureRegistryBindings(CozoOmRegist
     {
         new RegistryBindingProbe(
             BehaviorCatalogKind.Constraint,
-            entry.Key.TypeName,
+            entry.Key.ClassName,
             entry.Key.ConstraintName,
             BehaviorCatalogCallbackSlot.When,
             null,
@@ -220,7 +220,7 @@ static ImmutableArray<RegistryBindingProbe> CaptureRegistryBindings(CozoOmRegist
             null),
         new RegistryBindingProbe(
             BehaviorCatalogKind.Constraint,
-            entry.Key.TypeName,
+            entry.Key.ClassName,
             entry.Key.ConstraintName,
             BehaviorCatalogCallbackSlot.Then,
             null,
@@ -228,19 +228,19 @@ static ImmutableArray<RegistryBindingProbe> CaptureRegistryBindings(CozoOmRegist
             entry.Value.ThenBindingId,
             null),
     }));
-    bindings.AddRange(snapshot.Computed.Select(entry => new RegistryBindingProbe(
-        BehaviorCatalogKind.Computed,
-        entry.Key.TypeName,
-        entry.Key.AttrName,
+    bindings.AddRange(snapshot.ComputedProps.Select(entry => new RegistryBindingProbe(
+        BehaviorCatalogKind.ComputedProp,
+        entry.Key.ClassName,
+        entry.Key.ComputedPropName,
         BehaviorCatalogCallbackSlot.Compute,
         null,
         null,
         entry.Value.BindingId,
         null)));
-    bindings.AddRange(snapshot.Actions.Select(entry => new RegistryBindingProbe(
-        BehaviorCatalogKind.Action,
-        entry.Key.TypeName,
-        entry.Key.ActionName,
+    bindings.AddRange(snapshot.Operations.Select(entry => new RegistryBindingProbe(
+        BehaviorCatalogKind.Operation,
+        entry.Key.ClassName,
+        entry.Key.OperationName,
         BehaviorCatalogCallbackSlot.Handler,
         null,
         null,
@@ -248,7 +248,7 @@ static ImmutableArray<RegistryBindingProbe> CaptureRegistryBindings(CozoOmRegist
         null)));
     bindings.AddRange(snapshot.Mutations.Select(entry => new RegistryBindingProbe(
         BehaviorCatalogKind.Mutation,
-        entry.Key.TypeName,
+        entry.Key.ClassName,
         entry.Key.MutationName,
         BehaviorCatalogCallbackSlot.Executor,
         null,
@@ -258,8 +258,8 @@ static ImmutableArray<RegistryBindingProbe> CaptureRegistryBindings(CozoOmRegist
     bindings.AddRange(snapshot.BeforeInterceptors.SelectMany(entry => entry.Value.Select(registration =>
         new RegistryBindingProbe(
             BehaviorCatalogKind.Interceptor,
-            entry.Key.TypeName,
-            entry.Key.ActionName,
+            entry.Key.ClassName,
+            entry.Key.OperationName,
             BehaviorCatalogCallbackSlot.Handler,
             "before",
             registration.Seq,
@@ -268,8 +268,8 @@ static ImmutableArray<RegistryBindingProbe> CaptureRegistryBindings(CozoOmRegist
     bindings.AddRange(snapshot.AfterInterceptors.SelectMany(entry => entry.Value.Select(registration =>
         new RegistryBindingProbe(
             BehaviorCatalogKind.Interceptor,
-            entry.Key.TypeName,
-            entry.Key.ActionName,
+            entry.Key.ClassName,
+            entry.Key.OperationName,
             BehaviorCatalogCallbackSlot.Handler,
             "after",
             registration.Seq,
@@ -278,7 +278,7 @@ static ImmutableArray<RegistryBindingProbe> CaptureRegistryBindings(CozoOmRegist
 
     return bindings
         .OrderBy(entry => entry.Kind)
-        .ThenBy(entry => entry.OwnerType, StringComparer.Ordinal)
+        .ThenBy(entry => entry.OwnerClass, StringComparer.Ordinal)
         .ThenBy(entry => entry.Name, StringComparer.Ordinal)
         .ThenBy(entry => entry.Phase ?? "", StringComparer.Ordinal)
         .ThenBy(entry => entry.Seq ?? -1)
@@ -328,12 +328,12 @@ static void AssertBehaviorStateEquivalent(
         message);
 }
 
-static async Task<TException> CaptureExceptionAsync<TException>(Func<Task> action, string assertMessage)
+static async Task<TException> CaptureExceptionAsync<TException>(Func<Task> operation, string assertMessage)
     where TException : Exception
 {
     try
     {
-        await action();
+        await operation();
     }
     catch (TException exception)
     {
@@ -406,16 +406,16 @@ var bindingRows = new[]
         new BehaviorBindingKey(BehaviorKind.Constraint, "PortableOwner", "portable_constraint", BehaviorCallbackSlot.Validator, "", -1),
         "binding:constraint:validator"),
     new BehaviorBindingRow(
-        new BehaviorBindingKey(BehaviorKind.Computed, "PortableOwner", "portable_computed", BehaviorCallbackSlot.Compute, "", -1),
-        "binding:computed"),
+        new BehaviorBindingKey(BehaviorKind.ComputedProp, "PortableOwner", "portable_computed_prop", BehaviorCallbackSlot.Compute, "", -1),
+        "binding:computedProp"),
     new BehaviorBindingRow(
-        new BehaviorBindingKey(BehaviorKind.Action, "PortableOwner", "portable_action", BehaviorCallbackSlot.Handler, "", -1),
-        "binding:action"),
+        new BehaviorBindingKey(BehaviorKind.Operation, "PortableOwner", "portable_operation", BehaviorCallbackSlot.Handler, "", -1),
+        "binding:operation"),
     new BehaviorBindingRow(
         new BehaviorBindingKey(BehaviorKind.Mutation, "PortableOwner", "portable_mutation", BehaviorCallbackSlot.Executor, "", -1),
         "binding:mutation"),
     new BehaviorBindingRow(
-        new BehaviorBindingKey(BehaviorKind.Interceptor, "PortableOwner", "portable_action", BehaviorCallbackSlot.Handler, "after", 7),
+        new BehaviorBindingKey(BehaviorKind.Interceptor, "PortableOwner", "portable_operation", BehaviorCallbackSlot.Handler, "after", 7),
         "binding:interceptor:after:7"),
 };
 
@@ -440,7 +440,7 @@ using (var bindingDb = new CozoDb(engine: "mem", path: ""))
     await BehaviorBindingLogic.PutAsync(
         bindingOm.Runtime,
         new BehaviorBindingRow(
-            new BehaviorBindingKey(BehaviorKind.Interceptor, "PortableOwner", "portable_action", BehaviorCallbackSlot.Handler, "before", 11),
+            new BehaviorBindingKey(BehaviorKind.Interceptor, "PortableOwner", "portable_operation", BehaviorCallbackSlot.Handler, "before", 11),
             "binding:interceptor:transient"));
     await bindingOm.RollbackSchemaAsync(901, strict: true);
     Assert((await BehaviorBindingLogic.ListAsync(bindingOm.Runtime)).SequenceEqual(bindingRows),
@@ -450,21 +450,21 @@ using (var bindingDb = new CozoDb(engine: "mem", path: ""))
         () => BehaviorBindingLogic.PutAsync(
             bindingOm.Runtime,
             new BehaviorBindingRow(
-                new BehaviorBindingKey(BehaviorKind.Action, " ", "portable_action", BehaviorCallbackSlot.Handler, "", -1),
+                new BehaviorBindingKey(BehaviorKind.Operation, " ", "portable_operation", BehaviorCallbackSlot.Handler, "", -1),
                 "binding:invalid")),
         "binding owner names should be required");
     await ExpectExceptionAsync<ArgumentException>(
         () => BehaviorBindingLogic.PutAsync(
             bindingOm.Runtime,
             new BehaviorBindingRow(
-                new BehaviorBindingKey(BehaviorKind.Action, "PortableOwner", "portable_action", BehaviorCallbackSlot.Handler, "before", 0),
+                new BehaviorBindingKey(BehaviorKind.Operation, "PortableOwner", "portable_operation", BehaviorCallbackSlot.Handler, "before", 0),
                 "binding:invalid")),
         "non-interceptor bindings should require canonical empty phase and sentinel sequence");
     await ExpectExceptionAsync<ArgumentException>(
         () => BehaviorBindingLogic.PutAsync(
             bindingOm.Runtime,
             new BehaviorBindingRow(
-                new BehaviorBindingKey(BehaviorKind.Interceptor, "PortableOwner", "portable_action", BehaviorCallbackSlot.Compute, "before", 0),
+                new BehaviorBindingKey(BehaviorKind.Interceptor, "PortableOwner", "portable_operation", BehaviorCallbackSlot.Compute, "before", 0),
                 "binding:invalid")),
         "binding slots should be valid for their behavior kind");
     await ExpectExceptionAsync<ArgumentException>(
@@ -478,13 +478,13 @@ using (var catalogDb = new CozoDb(engine: "mem", path: ""))
 {
     var catalogOm = new CozoOm(catalogDb);
     await catalogOm.InitSchemaAsync();
-    await catalogOm.DefineTypeAsync("PortableOwner", "Portable behavior owner");
+    await catalogOm.DefineClassAsync("PortableOwner", "Portable behavior owner");
     await catalogOm.DefineConstraintAsync("PortableOwner", "portable_constraint", "custom", "portable constraint message");
-    await catalogOm.DefineComputedAsync("PortableOwner", "portable_computed", "portable computed description");
-    await catalogOm.DefineActionAsync("PortableOwner", "portable_action", "portable action description");
-    await catalogOm.DefineActionAsync("PortableOwner", "native_action", "native action description");
+    await catalogOm.DefineComputedPropAsync("PortableOwner", "portable_computed_prop", "portable computedProp description");
+    await catalogOm.DefineOperationAsync("PortableOwner", "portable_operation", "portable operation description");
+    await catalogOm.DefineOperationAsync("PortableOwner", "native_operation", "native operation description");
     await catalogOm.DefineMutationAsync("PortableOwner", "portable_mutation", "portable mutation description");
-    await catalogOm.AddInterceptorAsync("PortableOwner", "portable_action", "after", 7, "portable interceptor description");
+    await catalogOm.AddInterceptorAsync("PortableOwner", "portable_operation", "after", 7, "portable interceptor description");
     foreach (var row in bindingRows)
     {
         await BehaviorBindingLogic.PutAsync(catalogOm.Runtime, row);
@@ -497,8 +497,8 @@ using (var catalogDb = new CozoDb(engine: "mem", path: ""))
     Assert(unresolvedCatalog.Behaviors.Select(entry => entry.Kind).Distinct().Count() == 5,
         "the public behavior catalog should represent all five behavior kinds");
     var constraintEntry = unresolvedCatalog.Behaviors.Single(entry =>
-        entry.Kind == BehaviorCatalogKind.Constraint && entry.OwnerType == "PortableOwner" && entry.Name == "portable_constraint");
-    Assert(constraintEntry.ConstraintType == "custom"
+        entry.Kind == BehaviorCatalogKind.Constraint && entry.OwnerClass == "PortableOwner" && entry.Name == "portable_constraint");
+    Assert(constraintEntry.ConstraintKind == "custom"
            && constraintEntry.Message == "portable constraint message"
            && constraintEntry.Callbacks.Select(callback => callback.Slot).SequenceEqual(
                new[] { BehaviorCatalogCallbackSlot.When, BehaviorCatalogCallbackSlot.Then, BehaviorCatalogCallbackSlot.Validator }),
@@ -547,9 +547,9 @@ using (var catalogDb = new CozoDb(engine: "mem", path: ""))
       "behaviors": [
         {
           "kind": "mystery",
-          "ownerType": " ",
+          "ownerClass": " ",
           "name": "bad",
-          "constraintType": null,
+          "constraintKind": null,
           "message": null,
           "description": null,
           "interceptorPhase": null,
@@ -557,10 +557,10 @@ using (var catalogDb = new CozoDb(engine: "mem", path: ""))
           "callbacks": [{ "slot": "mystery-slot", "bindingId": "binding:a", "readiness": "ready" }]
         },
         {
-          "kind": "action",
-          "ownerType": "PortableOwner",
+          "kind": "operation",
+          "ownerClass": "PortableOwner",
           "name": "duplicate",
-          "constraintType": null,
+          "constraintKind": null,
           "message": null,
           "description": "first",
           "interceptorPhase": null,
@@ -571,10 +571,10 @@ using (var catalogDb = new CozoDb(engine: "mem", path: ""))
           ]
         },
         {
-          "kind": "action",
-          "ownerType": "PortableOwner",
+          "kind": "operation",
+          "ownerClass": "PortableOwner",
           "name": "duplicate",
-          "constraintType": null,
+          "constraintKind": null,
           "message": null,
           "description": "conflict",
           "interceptorPhase": null,
@@ -608,30 +608,30 @@ using (var catalogDb = new CozoDb(engine: "mem", path: ""))
         {
           "version": 1,
           "behaviors": [
-            { "kind": "constraint", "ownerType": "PortableOwner", "name": "invalid_constraint", "constraintType": null, "message": "allowed", "description": "forbidden", "interceptorPhase": "before", "interceptorSeq": 0, "callbacks": [] },
-            { "kind": "computed", "ownerType": "PortableOwner", "name": "invalid_computed", "constraintType": "custom", "message": "forbidden", "description": "allowed", "interceptorPhase": null, "interceptorSeq": null, "callbacks": [] },
-            { "kind": "action", "ownerType": "PortableOwner", "name": "invalid_action", "constraintType": "custom", "message": "forbidden", "description": "allowed", "interceptorPhase": null, "interceptorSeq": null, "callbacks": [] },
-            { "kind": "mutation", "ownerType": "PortableOwner", "name": "invalid_mutation", "constraintType": "custom", "message": "forbidden", "description": "allowed", "interceptorPhase": "after", "interceptorSeq": 2, "callbacks": [] },
-            { "kind": "interceptor", "ownerType": "PortableOwner", "name": "invalid_interceptor", "constraintType": "custom", "message": "forbidden", "description": "allowed", "interceptorPhase": "after", "interceptorSeq": 3, "callbacks": [] }
+            { "kind": "constraint", "ownerClass": "PortableOwner", "name": "invalid_constraint", "constraintKind": null, "message": "allowed", "description": "forbidden", "interceptorPhase": "before", "interceptorSeq": 0, "callbacks": [] },
+            { "kind": "computedProp", "ownerClass": "PortableOwner", "name": "invalid_computed", "constraintKind": "custom", "message": "forbidden", "description": "allowed", "interceptorPhase": null, "interceptorSeq": null, "callbacks": [] },
+            { "kind": "operation", "ownerClass": "PortableOwner", "name": "invalid_operation", "constraintKind": "custom", "message": "forbidden", "description": "allowed", "interceptorPhase": null, "interceptorSeq": null, "callbacks": [] },
+            { "kind": "mutation", "ownerClass": "PortableOwner", "name": "invalid_mutation", "constraintKind": "custom", "message": "forbidden", "description": "allowed", "interceptorPhase": "after", "interceptorSeq": 2, "callbacks": [] },
+            { "kind": "interceptor", "ownerClass": "PortableOwner", "name": "invalid_interceptor", "constraintKind": "custom", "message": "forbidden", "description": "allowed", "interceptorPhase": "after", "interceptorSeq": 3, "callbacks": [] }
           ]
         }
         """;
     var invalidMetadataMatrixDecode = BehaviorManifestJsonCodec.Decode(invalidMetadataMatrixManifest);
     var expectedMetadataMatrixDiagnostics = new[]
     {
-        new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[0].constraintType", "Property 'constraintType' must be a string for behavior kind 'constraint'."),
+        new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[0].constraintKind", "Property 'constraintKind' must be a string for behavior kind 'constraint'."),
         new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[0].description", "Property 'description' must be null for behavior kind 'constraint'."),
         new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[0].interceptorPhase", "Property 'interceptorPhase' must be null for behavior kind 'constraint'."),
         new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[0].interceptorSeq", "Property 'interceptorSeq' must be null for behavior kind 'constraint'."),
-        new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[1].constraintType", "Property 'constraintType' must be null for behavior kind 'computed'."),
-        new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[1].message", "Property 'message' must be null for behavior kind 'computed'."),
-        new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[2].constraintType", "Property 'constraintType' must be null for behavior kind 'action'."),
-        new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[2].message", "Property 'message' must be null for behavior kind 'action'."),
-        new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[3].constraintType", "Property 'constraintType' must be null for behavior kind 'mutation'."),
+        new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[1].constraintKind", "Property 'constraintKind' must be null for behavior kind 'computedProp'."),
+        new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[1].message", "Property 'message' must be null for behavior kind 'computedProp'."),
+        new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[2].constraintKind", "Property 'constraintKind' must be null for behavior kind 'operation'."),
+        new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[2].message", "Property 'message' must be null for behavior kind 'operation'."),
+        new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[3].constraintKind", "Property 'constraintKind' must be null for behavior kind 'mutation'."),
         new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[3].interceptorPhase", "Property 'interceptorPhase' must be null for behavior kind 'mutation'."),
         new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[3].interceptorSeq", "Property 'interceptorSeq' must be null for behavior kind 'mutation'."),
         new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[3].message", "Property 'message' must be null for behavior kind 'mutation'."),
-        new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[4].constraintType", "Property 'constraintType' must be null for behavior kind 'interceptor'."),
+        new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[4].constraintKind", "Property 'constraintKind' must be null for behavior kind 'interceptor'."),
         new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[4].message", "Property 'message' must be null for behavior kind 'interceptor'."),
     };
     Assert(!invalidMetadataMatrixDecode.Success
@@ -639,7 +639,7 @@ using (var catalogDb = new CozoDb(engine: "mem", path: ""))
            && invalidMetadataMatrixDecode.Diagnostics.SequenceEqual(expectedMetadataMatrixDiagnostics),
         "canonical decode must reject every cross-kind metadata field with exact deterministic diagnostics");
     var invalidInterceptorKeyDecode = BehaviorManifestJsonCodec.Decode("""
-        {"version":1,"behaviors":[{"kind":"interceptor","ownerType":"PortableOwner","name":"invalid_interceptor_key","constraintType":null,"message":null,"description":"allowed","interceptorPhase":"during","interceptorSeq":-1,"callbacks":[]}]}
+        {"version":1,"behaviors":[{"kind":"interceptor","ownerClass":"PortableOwner","name":"invalid_interceptor_key","constraintKind":null,"message":null,"description":"allowed","interceptorPhase":"during","interceptorSeq":-1,"callbacks":[]}]}
         """);
     Assert(!invalidInterceptorKeyDecode.Success
            && invalidInterceptorKeyDecode.Diagnostics.SequenceEqual(
@@ -656,9 +656,9 @@ using (var catalogDb = new CozoDb(engine: "mem", path: ""))
         new(BehaviorCatalogCallbackSlot.Handler, "binding:immutable", BehaviorReadiness.Unresolved),
     };
     var immutableEntry = new BehaviorCatalogEntry(
-        BehaviorCatalogKind.Action,
+        BehaviorCatalogKind.Operation,
         "ImmutableOwner",
-        "immutable_action",
+        "immutable_operation",
         null,
         null,
         "immutable",
@@ -687,18 +687,18 @@ using (var catalogDb = new CozoDb(engine: "mem", path: ""))
            && RejectsImmutableArrayMutation(
                immutableDecode.Diagnostics,
                immutableDecode.Diagnostics[0] with { Message = "mutated" })
-           && immutableCatalog.Behaviors[0].Name == "immutable_action"
+           && immutableCatalog.Behaviors[0].Name == "immutable_operation"
            && immutableCatalog.Behaviors[0].Callbacks[0].BindingId == "binding:immutable"
            && immutableDecode.Diagnostics[0].Message == "immutable",
         "downcast mutation attempts must be rejected without changing public behavior values");
 
     catalogOm.Runtime.Registry.RegisterConstraint("PortableOwner", "portable_constraint", _ => ValueTask.FromResult(true), _ => ValueTask.FromResult(true));
     catalogOm.Runtime.Registry.RegisterValidator("PortableOwner", "portable_constraint", _ => ValueTask.FromResult<string?>(null));
-    catalogOm.Runtime.Registry.RegisterComputed("PortableOwner", "portable_computed", _ => ValueTask.FromResult<object?>(1));
-    catalogOm.Runtime.Registry.RegisterAction("PortableOwner", "portable_action", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]));
+    catalogOm.Runtime.Registry.RegisterComputedProp("PortableOwner", "portable_computed_prop", _ => ValueTask.FromResult<object?>(1));
+    catalogOm.Runtime.Registry.RegisterOperation("PortableOwner", "portable_operation", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]));
     catalogOm.Runtime.Registry.RegisterMutation("PortableOwner", "portable_mutation", (_, _) => ValueTask.CompletedTask);
-    catalogOm.Runtime.Registry.RegisterInterceptor("PortableOwner", "portable_action", "after", 7, _ => ValueTask.CompletedTask);
-    catalogOm.Runtime.Registry.RegisterAction("PortableOwner", "native_action", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]));
+    catalogOm.Runtime.Registry.RegisterInterceptor("PortableOwner", "portable_operation", "after", 7, _ => ValueTask.CompletedTask);
+    catalogOm.Runtime.Registry.RegisterOperation("PortableOwner", "native_operation", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]));
 
     var legacyCatalog = await catalogOm.GetBehaviorCatalogAsync();
     Assert(legacyCatalog.Behaviors.SelectMany(entry => entry.Callbacks)
@@ -718,10 +718,10 @@ using (var catalogDb = new CozoDb(engine: "mem", path: ""))
         "portable_constraint",
         "binding:constraint:validator:mismatch",
         _ => ValueTask.FromResult<string?>(null));
-    catalogOm.Runtime.Registry.RegisterComputed("PortableOwner", "portable_computed", "binding:computed:mismatch", _ => ValueTask.FromResult<object?>(1));
-    catalogOm.Runtime.Registry.RegisterAction("PortableOwner", "portable_action", "binding:action:mismatch", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]));
+    catalogOm.Runtime.Registry.RegisterComputedProp("PortableOwner", "portable_computed_prop", "binding:computedProp:mismatch", _ => ValueTask.FromResult<object?>(1));
+    catalogOm.Runtime.Registry.RegisterOperation("PortableOwner", "portable_operation", "binding:operation:mismatch", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]));
     catalogOm.Runtime.Registry.RegisterMutation("PortableOwner", "portable_mutation", "binding:mutation:mismatch", (_, _) => ValueTask.CompletedTask);
-    catalogOm.Runtime.Registry.RegisterInterceptor("PortableOwner", "portable_action", "after", 7, "binding:interceptor:mismatch", _ => ValueTask.CompletedTask);
+    catalogOm.Runtime.Registry.RegisterInterceptor("PortableOwner", "portable_operation", "after", 7, "binding:interceptor:mismatch", _ => ValueTask.CompletedTask);
     var mismatchedCatalog = await catalogOm.GetBehaviorCatalogAsync();
     var mismatchedConstraint = mismatchedCatalog.Behaviors.Single(entry => entry.Kind == BehaviorCatalogKind.Constraint);
     Assert(mismatchedConstraint.Callbacks.Single(callback => callback.Slot == BehaviorCatalogCallbackSlot.When).Readiness == BehaviorReadiness.Ready
@@ -741,30 +741,30 @@ using (var catalogDb = new CozoDb(engine: "mem", path: ""))
         "binding:constraint:then",
         _ => ValueTask.FromResult(true));
     catalogOm.Runtime.Registry.RegisterValidator("PortableOwner", "portable_constraint", "binding:constraint:validator", _ => ValueTask.FromResult<string?>(null));
-    catalogOm.Runtime.Registry.RegisterComputed("PortableOwner", "portable_computed", "binding:computed", _ => ValueTask.FromResult<object?>(1));
-    catalogOm.Runtime.Registry.RegisterAction("PortableOwner", "portable_action", "binding:action", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]));
+    catalogOm.Runtime.Registry.RegisterComputedProp("PortableOwner", "portable_computed_prop", "binding:computedProp", _ => ValueTask.FromResult<object?>(1));
+    catalogOm.Runtime.Registry.RegisterOperation("PortableOwner", "portable_operation", "binding:operation", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]));
     catalogOm.Runtime.Registry.RegisterMutation("PortableOwner", "portable_mutation", "binding:mutation", (_, _) => ValueTask.CompletedTask);
-    catalogOm.Runtime.Registry.RegisterInterceptor("PortableOwner", "portable_action", "after", 7, "binding:interceptor:after:7", _ => ValueTask.CompletedTask);
+    catalogOm.Runtime.Registry.RegisterInterceptor("PortableOwner", "portable_operation", "after", 7, "binding:interceptor:after:7", _ => ValueTask.CompletedTask);
 
     var readyCatalog = await catalogOm.GetBehaviorCatalogAsync();
     Assert(readyCatalog.Behaviors.SelectMany(entry => entry.Callbacks)
             .Where(callback => callback.BindingId is not null)
             .All(callback => callback.Readiness == BehaviorReadiness.Ready),
         "only exact portable binding identities should project the catalog ready");
-    Assert(readyCatalog.Behaviors.Single(entry => entry.Kind == BehaviorCatalogKind.Action && entry.Name == "native_action")
+    Assert(readyCatalog.Behaviors.Single(entry => entry.Kind == BehaviorCatalogKind.Operation && entry.Name == "native_operation")
             .Callbacks.Single().Readiness == BehaviorReadiness.Unbound,
         "a native definition without a persistent binding identity must remain unbound even when a callback is registered");
 
-    await catalogOm.DefineActionAsync("PortableOwner", "sparse_action", "sparse action");
-    await catalogOm.AddInterceptorAsync("PortableOwner", "sparse_action", "before", 7, "sparse existing");
-    catalogOm.Runtime.Registry.RegisterInterceptor("PortableOwner", "sparse_action", "before", 7, _ => ValueTask.CompletedTask);
-    await catalogOm.AddInterceptorAsync("PortableOwner", "sparse_action", "before", _ => ValueTask.CompletedTask, "sparse appended");
+    await catalogOm.DefineOperationAsync("PortableOwner", "sparse_operation", "sparse operation");
+    await catalogOm.AddInterceptorAsync("PortableOwner", "sparse_operation", "before", 7, "sparse existing");
+    catalogOm.Runtime.Registry.RegisterInterceptor("PortableOwner", "sparse_operation", "before", 7, _ => ValueTask.CompletedTask);
+    await catalogOm.AddInterceptorAsync("PortableOwner", "sparse_operation", "before", _ => ValueTask.CompletedTask, "sparse appended");
     var sparseInterceptors = (await catalogOm.GetBehaviorCatalogAsync()).Behaviors
-        .Where(entry => entry.Kind == BehaviorCatalogKind.Interceptor && entry.Name == "sparse_action" && entry.InterceptorPhase == "before")
+        .Where(entry => entry.Kind == BehaviorCatalogKind.Interceptor && entry.Name == "sparse_operation" && entry.InterceptorPhase == "before")
         .ToArray();
     Assert(sparseInterceptors.Select(entry => entry.InterceptorSeq).SequenceEqual(new int?[] { 7, 8 })
-           && catalogOm.Runtime.Registry.TryGetInterceptor("PortableOwner", "sparse_action", "before", 7, out _)
-           && catalogOm.Runtime.Registry.TryGetInterceptor("PortableOwner", "sparse_action", "before", 8, out _),
+           && catalogOm.Runtime.Registry.TryGetInterceptor("PortableOwner", "sparse_operation", "before", 7, out _)
+           && catalogOm.Runtime.Registry.TryGetInterceptor("PortableOwner", "sparse_operation", "before", 8, out _),
         "sparse interceptor allocation should use max sequence plus one without overwriting the existing item");
 }
 
@@ -773,18 +773,18 @@ using (var snapshotDb = new CozoDb(engine: "mem", path: ""))
     var snapshotStore = new RunHookOmStore(new CozoDbOmStore(snapshotDb));
     var snapshotOm = new CozoOm(snapshotStore);
     await snapshotOm.InitSchemaAsync();
-    await snapshotOm.DefineTypeAsync("SnapshotOwner", "Snapshot owner");
-    await snapshotOm.DefineActionAsync("SnapshotOwner", "snapshot_action", "snapshot action");
+    await snapshotOm.DefineClassAsync("SnapshotOwner", "Snapshot owner");
+    await snapshotOm.DefineOperationAsync("SnapshotOwner", "snapshot_operation", "snapshot operation");
     await BehaviorBindingLogic.PutAsync(
         snapshotOm.Runtime,
         new BehaviorBindingRow(
-            new BehaviorBindingKey(BehaviorKind.Action, "SnapshotOwner", "snapshot_action", BehaviorCallbackSlot.Handler, "", -1),
-            "binding:snapshot:action"));
+            new BehaviorBindingKey(BehaviorKind.Operation, "SnapshotOwner", "snapshot_operation", BehaviorCallbackSlot.Handler, "", -1),
+            "binding:snapshot:operation"));
     snapshotStore.RunOnceWhenScriptContains = "*om_behavior_binding";
-    snapshotStore.OnRunOnce = () => snapshotOm.Runtime.Registry.RegisterAction(
+    snapshotStore.OnRunOnce = () => snapshotOm.Runtime.Registry.RegisterOperation(
         "SnapshotOwner",
-        "snapshot_action",
-        "binding:snapshot:action",
+        "snapshot_operation",
+        "binding:snapshot:operation",
         (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]));
 
     var capturedCatalog = await snapshotOm.GetBehaviorCatalogAsync();
@@ -798,13 +798,13 @@ HarnessDiagnostics.Start("behavior schema snapshots and legacy compatibility");
 
 using (var legacyDb = new CozoDb(engine: "mem", path: ""))
 {
-    legacyDb.Run(":create om_type {name => description, parent_type}");
+    legacyDb.Run(":create om_class_def {class_name => description, parent_class}");
     legacyDb.Run(
-        "?[name, description, parent_type] <- [[$name, $description, null]]\n:put om_type {name => description, parent_type}",
-        new { name = "LegacyType", description = "legacy row" });
+        "?[class_name, description, parent_class] <- [[$class_name, $description, null]]\n:put om_class_def {class_name => description, parent_class}",
+        new { class_name = "LegacyClass", description = "legacy row" });
     var legacyOm = new CozoOm(legacyDb);
     await legacyOm.InitSchemaAsync();
-    using var legacyRows = legacyDb.Run("?[description] := *om_type{name: \"LegacyType\", description, parent_type: _parent}");
+    using var legacyRows = legacyDb.Run("?[description] := *om_class_def{class_name: \"LegacyClass\", description, parent_class: _parent}");
     Assert(Rows(legacyRows).GetArrayLength() == 1 && Rows(legacyRows)[0][0].GetString() == "legacy row",
         "additive schema initialization should preserve rows in a database created before the binding relation");
     await BehaviorBindingLogic.PutAsync(legacyOm.Runtime, bindingRows[0]);
@@ -821,12 +821,12 @@ try
     {
         var persistentOm = new CozoOm(persistentDb);
         await persistentOm.InitSchemaAsync();
-        await persistentOm.DefineTypeAsync("PortableOwner", "Portable behavior owner");
+        await persistentOm.DefineClassAsync("PortableOwner", "Portable behavior owner");
         await persistentOm.DefineConstraintAsync("PortableOwner", "portable_constraint", "custom", "portable constraint message");
-        await persistentOm.DefineComputedAsync("PortableOwner", "portable_computed", "portable computed description");
-        await persistentOm.DefineActionAsync("PortableOwner", "portable_action", "portable action description");
+        await persistentOm.DefineComputedPropAsync("PortableOwner", "portable_computed_prop", "portable computedProp description");
+        await persistentOm.DefineOperationAsync("PortableOwner", "portable_operation", "portable operation description");
         await persistentOm.DefineMutationAsync("PortableOwner", "portable_mutation", "portable mutation description");
-        await persistentOm.AddInterceptorAsync("PortableOwner", "portable_action", "after", 7, "portable interceptor description");
+        await persistentOm.AddInterceptorAsync("PortableOwner", "portable_operation", "after", 7, "portable interceptor description");
         foreach (var row in bindingRows)
         {
             await BehaviorBindingLogic.PutAsync(persistentOm.Runtime, row);
@@ -834,10 +834,10 @@ try
 
         persistentOm.Runtime.Registry.RegisterConstraint("PortableOwner", "portable_constraint", "binding:constraint:when", _ => ValueTask.FromResult(true), "binding:constraint:then", _ => ValueTask.FromResult(true));
         persistentOm.Runtime.Registry.RegisterValidator("PortableOwner", "portable_constraint", "binding:constraint:validator", _ => ValueTask.FromResult<string?>(null));
-        persistentOm.Runtime.Registry.RegisterComputed("PortableOwner", "portable_computed", "binding:computed", _ => ValueTask.FromResult<object?>(1));
-        persistentOm.Runtime.Registry.RegisterAction("PortableOwner", "portable_action", "binding:action", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]));
+        persistentOm.Runtime.Registry.RegisterComputedProp("PortableOwner", "portable_computed_prop", "binding:computedProp", _ => ValueTask.FromResult<object?>(1));
+        persistentOm.Runtime.Registry.RegisterOperation("PortableOwner", "portable_operation", "binding:operation", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]));
         persistentOm.Runtime.Registry.RegisterMutation("PortableOwner", "portable_mutation", "binding:mutation", (_, _) => ValueTask.CompletedTask);
-        persistentOm.Runtime.Registry.RegisterInterceptor("PortableOwner", "portable_action", "after", 7, "binding:interceptor:after:7", _ => ValueTask.CompletedTask);
+        persistentOm.Runtime.Registry.RegisterInterceptor("PortableOwner", "portable_operation", "after", 7, "binding:interceptor:after:7", _ => ValueTask.CompletedTask);
         Assert((await persistentOm.GetBehaviorCatalogAsync()).Behaviors.SelectMany(entry => entry.Callbacks)
                 .Where(callback => callback.BindingId is not null)
                 .All(callback => callback.Readiness == BehaviorReadiness.Ready),
@@ -858,10 +858,10 @@ try
 
         reopenedOm.Runtime.Registry.RegisterConstraint("PortableOwner", "portable_constraint", "binding:constraint:when", _ => ValueTask.FromResult(true), "binding:constraint:then", _ => ValueTask.FromResult(true));
         reopenedOm.Runtime.Registry.RegisterValidator("PortableOwner", "portable_constraint", "binding:constraint:validator", _ => ValueTask.FromResult<string?>(null));
-        reopenedOm.Runtime.Registry.RegisterComputed("PortableOwner", "portable_computed", "binding:computed", _ => ValueTask.FromResult<object?>(1));
-        reopenedOm.Runtime.Registry.RegisterAction("PortableOwner", "portable_action", "binding:action", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]));
+        reopenedOm.Runtime.Registry.RegisterComputedProp("PortableOwner", "portable_computed_prop", "binding:computedProp", _ => ValueTask.FromResult<object?>(1));
+        reopenedOm.Runtime.Registry.RegisterOperation("PortableOwner", "portable_operation", "binding:operation", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]));
         reopenedOm.Runtime.Registry.RegisterMutation("PortableOwner", "portable_mutation", "binding:mutation", (_, _) => ValueTask.CompletedTask);
-        reopenedOm.Runtime.Registry.RegisterInterceptor("PortableOwner", "portable_action", "after", 7, "binding:interceptor:after:7", _ => ValueTask.CompletedTask);
+        reopenedOm.Runtime.Registry.RegisterInterceptor("PortableOwner", "portable_operation", "after", 7, "binding:interceptor:after:7", _ => ValueTask.CompletedTask);
         Assert((await reopenedOm.GetBehaviorCatalogAsync()).Behaviors.SelectMany(entry => entry.Callbacks)
                 .Where(callback => callback.BindingId is not null)
                 .All(callback => callback.Readiness == BehaviorReadiness.Ready),
@@ -880,31 +880,31 @@ using (var readinessDb = new CozoDb(engine: "mem", path: ""))
     var readinessOm = new CozoOm(readinessDb);
     await readinessOm.InitSchemaAsync();
 
-    foreach (var typeName in new[]
+    foreach (var className in new[]
              {
                  "ReadinessBase", "ReadinessChild", "WhenOwner", "ThenOwner", "ValidatorOwner", "ComputedOwner",
                  "ComputedStoredBase", "ComputedReadyOwner", "ComputedUnboundOwner"
              })
     {
-        await readinessOm.DefineTypeAsync(
-            typeName,
-            typeName,
-            typeName == "ReadinessChild" ? "ReadinessBase" : null);
+        await readinessOm.DefineClassAsync(
+            className,
+            className,
+            className == "ReadinessChild" ? "ReadinessBase" : null);
     }
 
-    await readinessOm.DefineAttributeAsync("ReadinessBase", "effect", OmValueType.String);
-    await readinessOm.CreateEntityAsync("ready:child", "ReadinessChild", "Readiness child");
-    await readinessOm.SetPropertyAsync("ready:child", "effect", "initial");
+    await readinessOm.DefineFieldAsync("ReadinessBase", "effect", OmValueType.String);
+    await readinessOm.CreateObjectAsync("ready:child", "ReadinessChild", "Readiness child");
+    await readinessOm.SetFieldValueAsync("ready:child", "effect", "initial");
 
     await readinessOm.DefineConstraintAsync("WhenOwner", "when_gap", "conditional", "when gap");
-    await readinessOm.CreateEntityAsync("ready:when", "WhenOwner", "When owner");
+    await readinessOm.CreateObjectAsync("ready:when", "WhenOwner", "When owner");
     await BehaviorBindingLogic.PutAsync(
         readinessOm.Runtime,
         new BehaviorBindingRow(
             new BehaviorBindingKey(BehaviorKind.Constraint, "WhenOwner", "when_gap", BehaviorCallbackSlot.When, "", -1),
             "binding:when"));
     await ExpectUnresolvedAsync(
-        async () => { await readinessOm.ValidateEntityAsync("ready:when"); },
+        async () => { await readinessOm.ValidateObjectAsync("ready:when"); },
         BehaviorCatalogKind.Constraint,
         "WhenOwner",
         "constraint:WhenOwner/when_gap",
@@ -919,7 +919,7 @@ using (var readinessDb = new CozoDb(engine: "mem", path: ""))
         "binding:when");
 
     await readinessOm.DefineConstraintAsync("ThenOwner", "then_gap", "conditional", "then gap");
-    await readinessOm.CreateEntityAsync("ready:then", "ThenOwner", "Then owner");
+    await readinessOm.CreateObjectAsync("ready:then", "ThenOwner", "Then owner");
     await BehaviorBindingLogic.PutAsync(
         readinessOm.Runtime,
         new BehaviorBindingRow(
@@ -938,7 +938,7 @@ using (var readinessDb = new CozoDb(engine: "mem", path: ""))
         "binding:then:mismatch",
         _ => ValueTask.FromResult(true));
     await ExpectUnresolvedAsync(
-        async () => { await readinessOm.ValidateEntityAsync("ready:then"); },
+        async () => { await readinessOm.ValidateObjectAsync("ready:then"); },
         BehaviorCatalogKind.Constraint,
         "ThenOwner",
         "constraint:ThenOwner/then_gap",
@@ -946,186 +946,186 @@ using (var readinessDb = new CozoDb(engine: "mem", path: ""))
         "binding:then");
 
     await readinessOm.DefineConstraintAsync("ValidatorOwner", "validator_gap", "custom", "validator gap");
-    await readinessOm.CreateEntityAsync("ready:validator", "ValidatorOwner", "Validator owner");
+    await readinessOm.CreateObjectAsync("ready:validator", "ValidatorOwner", "Validator owner");
     await BehaviorBindingLogic.PutAsync(
         readinessOm.Runtime,
         new BehaviorBindingRow(
             new BehaviorBindingKey(BehaviorKind.Constraint, "ValidatorOwner", "validator_gap", BehaviorCallbackSlot.Validator, "", -1),
             "binding:validator"));
     await ExpectUnresolvedAsync(
-        async () => { await readinessOm.ValidateEntityAsync("ready:validator"); },
+        async () => { await readinessOm.ValidateObjectAsync("ready:validator"); },
         BehaviorCatalogKind.Constraint,
         "ValidatorOwner",
         "constraint:ValidatorOwner/validator_gap",
         BehaviorCatalogCallbackSlot.Validator,
         "binding:validator");
 
-    await readinessOm.DefineComputedAsync("ComputedOwner", "computed_gap");
-    await readinessOm.CreateEntityAsync("ready:computed", "ComputedOwner", "Computed owner");
+    await readinessOm.DefineComputedPropAsync("ComputedOwner", "computed_prop_gap");
+    await readinessOm.CreateObjectAsync("ready:computedProp", "ComputedOwner", "ComputedProp owner");
     await BehaviorBindingLogic.PutAsync(
         readinessOm.Runtime,
         new BehaviorBindingRow(
-            new BehaviorBindingKey(BehaviorKind.Computed, "ComputedOwner", "computed_gap", BehaviorCallbackSlot.Compute, "", -1),
-            "binding:computed:gap"));
-    readinessOm.Runtime.Registry.RegisterComputed(
+            new BehaviorBindingKey(BehaviorKind.ComputedProp, "ComputedOwner", "computed_prop_gap", BehaviorCallbackSlot.Compute, "", -1),
+            "binding:computedProp:gap"));
+    readinessOm.Runtime.Registry.RegisterComputedProp(
         "ComputedOwner",
-        "computed_gap",
-        "binding:computed:mismatch",
+        "computed_prop_gap",
+        "binding:computedProp:mismatch",
         _ => ValueTask.FromResult<object?>(42));
     foreach (var read in new Func<Task>[]
              {
-                 async () => { await readinessOm.GetPropertyAsync("ready:computed", "computed_gap"); },
-                 async () => { await readinessOm.GetEntityViewAsync("ready:computed"); },
-                 async () => { await readinessOm.GetPropertyAsOfAsync("ready:computed", "computed_gap", "2026-01-01T00:00:00Z"); },
-                 async () => { await readinessOm.GetEntityViewAsOfAsync("ready:computed", "2026-01-01T00:00:00Z"); },
+                 async () => { await readinessOm.GetFieldValueAsync("ready:computedProp", "computed_prop_gap"); },
+                 async () => { await readinessOm.GetObjectViewAsync("ready:computedProp"); },
+                 async () => { await readinessOm.GetFieldValueAsOfAsync("ready:computedProp", "computed_prop_gap", "2026-01-01T00:00:00Z"); },
+                 async () => { await readinessOm.GetObjectViewAsOfAsync("ready:computedProp", "2026-01-01T00:00:00Z"); },
              })
     {
         await ExpectUnresolvedAsync(
             read,
-            BehaviorCatalogKind.Computed,
+            BehaviorCatalogKind.ComputedProp,
             "ComputedOwner",
-            "computed:ComputedOwner/computed_gap",
+            "computedProp:ComputedOwner/computed_prop_gap",
             BehaviorCatalogCallbackSlot.Compute,
-            "binding:computed:gap");
+            "binding:computedProp:gap");
     }
 
-    await readinessOm.DefineTypeAsync("ComputedStoredChild", "Computed stored child", "ComputedStoredBase");
-    await readinessOm.DefineAttributeAsync("ComputedStoredBase", "stored_computed", OmValueType.String);
-    await readinessOm.DefineComputedAsync("ComputedStoredBase", "stored_computed");
-    await readinessOm.CreateEntityAsync("ready:computed:stored", "ComputedStoredChild", "Computed stored child");
-    await readinessOm.SetPropertyAsync(
-        "ready:computed:stored",
-        "stored_computed",
+    await readinessOm.DefineClassAsync("ComputedStoredChild", "ComputedProp stored child", "ComputedStoredBase");
+    await readinessOm.DefineFieldAsync("ComputedStoredBase", "stored_computed_prop", OmValueType.String);
+    await readinessOm.DefineComputedPropAsync("ComputedStoredBase", "stored_computed_prop");
+    await readinessOm.CreateObjectAsync("ready:computedProp:stored", "ComputedStoredChild", "ComputedProp stored child");
+    await readinessOm.SetFieldValueAsync(
+        "ready:computedProp:stored",
+        "stored_computed_prop",
         "stored",
         new WriteOptions(ValidTime: "2025-01-01T00:00:00Z"));
     await BehaviorBindingLogic.PutAsync(
         readinessOm.Runtime,
         new BehaviorBindingRow(
-            new BehaviorBindingKey(BehaviorKind.Computed, "ComputedStoredBase", "stored_computed", BehaviorCallbackSlot.Compute, "", -1),
-            "binding:computed:stored"));
+            new BehaviorBindingKey(BehaviorKind.ComputedProp, "ComputedStoredBase", "stored_computed_prop", BehaviorCallbackSlot.Compute, "", -1),
+            "binding:computedProp:stored"));
     var unresolvedStoredCallbackCount = 0;
-    readinessOm.Runtime.Registry.RegisterComputed(
+    readinessOm.Runtime.Registry.RegisterComputedProp(
         "ComputedStoredBase",
-        "stored_computed",
-        "binding:computed:stored:mismatch",
+        "stored_computed_prop",
+        "binding:computedProp:stored:mismatch",
         _ =>
         {
             unresolvedStoredCallbackCount++;
-            return ValueTask.FromResult<object?>("computed");
+            return ValueTask.FromResult<object?>("computedProp");
         });
     foreach (var read in new Func<Task>[]
              {
-                 async () => { await readinessOm.GetPropertyAsync("ready:computed:stored", "stored_computed"); },
-                 async () => { await readinessOm.GetEntityViewAsync("ready:computed:stored"); },
-                 async () => { await readinessOm.GetPropertyAsOfAsync("ready:computed:stored", "stored_computed", "2026-01-01T00:00:00Z"); },
-                 async () => { await readinessOm.GetEntityViewAsOfAsync("ready:computed:stored", "2026-01-01T00:00:00Z"); },
+                 async () => { await readinessOm.GetFieldValueAsync("ready:computedProp:stored", "stored_computed_prop"); },
+                 async () => { await readinessOm.GetObjectViewAsync("ready:computedProp:stored"); },
+                 async () => { await readinessOm.GetFieldValueAsOfAsync("ready:computedProp:stored", "stored_computed_prop", "2026-01-01T00:00:00Z"); },
+                 async () => { await readinessOm.GetObjectViewAsOfAsync("ready:computedProp:stored", "2026-01-01T00:00:00Z"); },
              })
     {
         await ExpectUnresolvedAsync(
             read,
-            BehaviorCatalogKind.Computed,
+            BehaviorCatalogKind.ComputedProp,
             "ComputedStoredBase",
-            "computed:ComputedStoredBase/stored_computed",
+            "computedProp:ComputedStoredBase/stored_computed_prop",
             BehaviorCatalogCallbackSlot.Compute,
-            "binding:computed:stored");
+            "binding:computedProp:stored");
     }
     Assert(unresolvedStoredCallbackCount == 0,
-        "stored values must not invoke an unresolved inherited computed callback");
+        "stored values must not invoke an unresolved inherited computedProp callback");
 
-    await readinessOm.DefineAttributeAsync("ComputedReadyOwner", "ready_computed", OmValueType.String);
-    await readinessOm.DefineComputedAsync("ComputedReadyOwner", "ready_computed");
-    await readinessOm.CreateEntityAsync("ready:computed:ready:stored", "ComputedReadyOwner", "Ready computed stored");
-    await readinessOm.CreateEntityAsync("ready:computed:ready:missing", "ComputedReadyOwner", "Ready computed missing");
-    await readinessOm.SetPropertyAsync(
-        "ready:computed:ready:stored",
-        "ready_computed",
+    await readinessOm.DefineFieldAsync("ComputedReadyOwner", "ready_computed_prop", OmValueType.String);
+    await readinessOm.DefineComputedPropAsync("ComputedReadyOwner", "ready_computed_prop");
+    await readinessOm.CreateObjectAsync("ready:computedProp:ready:stored", "ComputedReadyOwner", "Ready computedProp stored");
+    await readinessOm.CreateObjectAsync("ready:computedProp:ready:missing", "ComputedReadyOwner", "Ready computedProp missing");
+    await readinessOm.SetFieldValueAsync(
+        "ready:computedProp:ready:stored",
+        "ready_computed_prop",
         "stored-ready",
         new WriteOptions(ValidTime: "2025-01-01T00:00:00Z"));
     await BehaviorBindingLogic.PutAsync(
         readinessOm.Runtime,
         new BehaviorBindingRow(
-            new BehaviorBindingKey(BehaviorKind.Computed, "ComputedReadyOwner", "ready_computed", BehaviorCallbackSlot.Compute, "", -1),
-            "binding:computed:ready"));
+            new BehaviorBindingKey(BehaviorKind.ComputedProp, "ComputedReadyOwner", "ready_computed_prop", BehaviorCallbackSlot.Compute, "", -1),
+            "binding:computedProp:ready"));
     var readyComputedCallbackCount = 0;
-    readinessOm.Runtime.Registry.RegisterComputed(
+    readinessOm.Runtime.Registry.RegisterComputedProp(
         "ComputedReadyOwner",
-        "ready_computed",
-        "binding:computed:ready",
+        "ready_computed_prop",
+        "binding:computedProp:ready",
         _ =>
         {
             readyComputedCallbackCount++;
-            return ValueTask.FromResult<object?>("computed-ready");
+            return ValueTask.FromResult<object?>("computedProp-ready");
         });
-    Assert(AsString(await readinessOm.GetPropertyAsync("ready:computed:ready:stored", "ready_computed")) == "stored-ready",
-        "a ready computed direct read should prefer the stored value");
-    Assert(AsString((await readinessOm.GetEntityViewAsync("ready:computed:ready:stored"))!.Properties["ready_computed"]) == "stored-ready",
-        "a ready computed entity view should prefer the stored value");
-    Assert(AsString(await readinessOm.GetPropertyAsOfAsync(
-            "ready:computed:ready:stored", "ready_computed", "2026-01-01T00:00:00Z")) == "stored-ready",
-        "a ready computed as-of read should prefer the stored value");
-    Assert(AsString((await readinessOm.GetEntityViewAsOfAsync(
-            "ready:computed:ready:stored", "2026-01-01T00:00:00Z"))!.Properties["ready_computed"]) == "stored-ready",
-        "a ready computed as-of entity view should prefer the stored value");
+    Assert(AsString(await readinessOm.GetFieldValueAsync("ready:computedProp:ready:stored", "ready_computed_prop")) == "stored-ready",
+        "a ready computedProp direct read should prefer the stored value");
+    Assert(AsString((await readinessOm.GetObjectViewAsync("ready:computedProp:ready:stored"))!.FieldValues["ready_computed_prop"]) == "stored-ready",
+        "a ready computedProp entity view should prefer the stored value");
+    Assert(AsString(await readinessOm.GetFieldValueAsOfAsync(
+            "ready:computedProp:ready:stored", "ready_computed_prop", "2026-01-01T00:00:00Z")) == "stored-ready",
+        "a ready computedProp as-of read should prefer the stored value");
+    Assert(AsString((await readinessOm.GetObjectViewAsOfAsync(
+            "ready:computedProp:ready:stored", "2026-01-01T00:00:00Z"))!.FieldValues["ready_computed_prop"]) == "stored-ready",
+        "a ready computedProp as-of entity view should prefer the stored value");
     Assert(readyComputedCallbackCount == 0,
-        "stored values must prevent ready computed callbacks from running");
-    Assert(AsString(await readinessOm.GetPropertyAsync("ready:computed:ready:missing", "ready_computed")) == "computed-ready",
-        "a ready computed direct read should compute when no stored value exists");
-    Assert(AsString((await readinessOm.GetEntityViewAsync("ready:computed:ready:missing"))!.Properties["ready_computed"]) == "computed-ready",
-        "a ready computed entity view should compute when no stored value exists");
-    Assert(AsString(await readinessOm.GetPropertyAsOfAsync(
-            "ready:computed:ready:missing", "ready_computed", "2026-01-01T00:00:00Z")) == "computed-ready",
-        "a ready computed as-of read should compute when no stored value exists");
-    Assert(AsString((await readinessOm.GetEntityViewAsOfAsync(
-            "ready:computed:ready:missing", "2026-01-01T00:00:00Z"))!.Properties["ready_computed"]) == "computed-ready",
-        "a ready computed as-of entity view should compute when no stored value exists");
+        "stored values must prevent ready computedProp callbacks from running");
+    Assert(AsString(await readinessOm.GetFieldValueAsync("ready:computedProp:ready:missing", "ready_computed_prop")) == "computedProp-ready",
+        "a ready computedProp direct read should compute when no stored value exists");
+    Assert(AsString((await readinessOm.GetObjectViewAsync("ready:computedProp:ready:missing"))!.FieldValues["ready_computed_prop"]) == "computedProp-ready",
+        "a ready computedProp entity view should compute when no stored value exists");
+    Assert(AsString(await readinessOm.GetFieldValueAsOfAsync(
+            "ready:computedProp:ready:missing", "ready_computed_prop", "2026-01-01T00:00:00Z")) == "computedProp-ready",
+        "a ready computedProp as-of read should compute when no stored value exists");
+    Assert(AsString((await readinessOm.GetObjectViewAsOfAsync(
+            "ready:computedProp:ready:missing", "2026-01-01T00:00:00Z"))!.FieldValues["ready_computed_prop"]) == "computedProp-ready",
+        "a ready computedProp as-of entity view should compute when no stored value exists");
     Assert(readyComputedCallbackCount == 4,
-        "ready computed callbacks should run exactly once per read only when no stored value exists");
+        "ready computedProp callbacks should run exactly once per read only when no stored value exists");
 
-    await readinessOm.DefineAttributeAsync("ComputedUnboundOwner", "unbound_computed", OmValueType.String);
-    await readinessOm.DefineComputedAsync("ComputedUnboundOwner", "unbound_computed");
-    await readinessOm.CreateEntityAsync("ready:computed:unbound:stored", "ComputedUnboundOwner", "Unbound computed stored");
-    await readinessOm.CreateEntityAsync("ready:computed:unbound:missing", "ComputedUnboundOwner", "Unbound computed missing");
-    await readinessOm.SetPropertyAsync(
-        "ready:computed:unbound:stored",
-        "unbound_computed",
+    await readinessOm.DefineFieldAsync("ComputedUnboundOwner", "unbound_computed_prop", OmValueType.String);
+    await readinessOm.DefineComputedPropAsync("ComputedUnboundOwner", "unbound_computed_prop");
+    await readinessOm.CreateObjectAsync("ready:computedProp:unbound:stored", "ComputedUnboundOwner", "Unbound computedProp stored");
+    await readinessOm.CreateObjectAsync("ready:computedProp:unbound:missing", "ComputedUnboundOwner", "Unbound computedProp missing");
+    await readinessOm.SetFieldValueAsync(
+        "ready:computedProp:unbound:stored",
+        "unbound_computed_prop",
         "stored-unbound",
         new WriteOptions(ValidTime: "2025-01-01T00:00:00Z"));
     var unboundComputedCallbackCount = 0;
-    readinessOm.Runtime.Registry.RegisterComputed(
+    readinessOm.Runtime.Registry.RegisterComputedProp(
         "ComputedUnboundOwner",
-        "unbound_computed",
+        "unbound_computed_prop",
         _ =>
         {
             unboundComputedCallbackCount++;
-            return ValueTask.FromResult<object?>("computed-unbound");
+            return ValueTask.FromResult<object?>("computedProp-unbound");
         });
-    Assert(AsString(await readinessOm.GetPropertyAsync("ready:computed:unbound:stored", "unbound_computed")) == "stored-unbound",
-        "an unbound computed direct read should prefer the stored value");
-    Assert(AsString((await readinessOm.GetEntityViewAsync("ready:computed:unbound:stored"))!.Properties["unbound_computed"]) == "stored-unbound",
-        "an unbound computed entity view should prefer the stored value");
-    Assert(AsString(await readinessOm.GetPropertyAsOfAsync(
-            "ready:computed:unbound:stored", "unbound_computed", "2026-01-01T00:00:00Z")) == "stored-unbound",
-        "an unbound computed as-of read should prefer the stored value");
-    Assert(AsString((await readinessOm.GetEntityViewAsOfAsync(
-            "ready:computed:unbound:stored", "2026-01-01T00:00:00Z"))!.Properties["unbound_computed"]) == "stored-unbound",
-        "an unbound computed as-of entity view should prefer the stored value");
+    Assert(AsString(await readinessOm.GetFieldValueAsync("ready:computedProp:unbound:stored", "unbound_computed_prop")) == "stored-unbound",
+        "an unbound computedProp direct read should prefer the stored value");
+    Assert(AsString((await readinessOm.GetObjectViewAsync("ready:computedProp:unbound:stored"))!.FieldValues["unbound_computed_prop"]) == "stored-unbound",
+        "an unbound computedProp entity view should prefer the stored value");
+    Assert(AsString(await readinessOm.GetFieldValueAsOfAsync(
+            "ready:computedProp:unbound:stored", "unbound_computed_prop", "2026-01-01T00:00:00Z")) == "stored-unbound",
+        "an unbound computedProp as-of read should prefer the stored value");
+    Assert(AsString((await readinessOm.GetObjectViewAsOfAsync(
+            "ready:computedProp:unbound:stored", "2026-01-01T00:00:00Z"))!.FieldValues["unbound_computed_prop"]) == "stored-unbound",
+        "an unbound computedProp as-of entity view should prefer the stored value");
     Assert(unboundComputedCallbackCount == 0,
-        "stored values must prevent unbound computed callbacks from running");
-    Assert(AsString(await readinessOm.GetPropertyAsync("ready:computed:unbound:missing", "unbound_computed")) == "computed-unbound",
-        "an unbound computed direct read should compute when no stored value exists");
-    Assert(AsString((await readinessOm.GetEntityViewAsync("ready:computed:unbound:missing"))!.Properties["unbound_computed"]) == "computed-unbound",
-        "an unbound computed entity view should compute when no stored value exists");
-    Assert(AsString(await readinessOm.GetPropertyAsOfAsync(
-            "ready:computed:unbound:missing", "unbound_computed", "2026-01-01T00:00:00Z")) == "computed-unbound",
-        "an unbound computed as-of read should compute when no stored value exists");
-    Assert(AsString((await readinessOm.GetEntityViewAsOfAsync(
-            "ready:computed:unbound:missing", "2026-01-01T00:00:00Z"))!.Properties["unbound_computed"]) == "computed-unbound",
-        "an unbound computed as-of entity view should compute when no stored value exists");
+        "stored values must prevent unbound computedProp callbacks from running");
+    Assert(AsString(await readinessOm.GetFieldValueAsync("ready:computedProp:unbound:missing", "unbound_computed_prop")) == "computedProp-unbound",
+        "an unbound computedProp direct read should compute when no stored value exists");
+    Assert(AsString((await readinessOm.GetObjectViewAsync("ready:computedProp:unbound:missing"))!.FieldValues["unbound_computed_prop"]) == "computedProp-unbound",
+        "an unbound computedProp entity view should compute when no stored value exists");
+    Assert(AsString(await readinessOm.GetFieldValueAsOfAsync(
+            "ready:computedProp:unbound:missing", "unbound_computed_prop", "2026-01-01T00:00:00Z")) == "computedProp-unbound",
+        "an unbound computedProp as-of read should compute when no stored value exists");
+    Assert(AsString((await readinessOm.GetObjectViewAsOfAsync(
+            "ready:computedProp:unbound:missing", "2026-01-01T00:00:00Z"))!.FieldValues["unbound_computed_prop"]) == "computedProp-unbound",
+        "an unbound computedProp as-of entity view should compute when no stored value exists");
     Assert(unboundComputedCallbackCount == 4,
-        "unbound computed callbacks should run exactly once per read only when no stored value exists");
+        "unbound computedProp callbacks should run exactly once per read only when no stored value exists");
 
     var parentFallbackRan = false;
-    await readinessOm.DefineActionAsync(
+    await readinessOm.DefineOperationAsync(
         "ReadinessBase",
         "blocked_override",
         (_, _) =>
@@ -1133,54 +1133,54 @@ using (var readinessDb = new CozoDb(engine: "mem", path: ""))
             parentFallbackRan = true;
             return ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]);
         });
-    await readinessOm.DefineActionAsync("ReadinessChild", "blocked_override");
+    await readinessOm.DefineOperationAsync("ReadinessChild", "blocked_override");
     await BehaviorBindingLogic.PutAsync(
         readinessOm.Runtime,
         new BehaviorBindingRow(
-            new BehaviorBindingKey(BehaviorKind.Action, "ReadinessChild", "blocked_override", BehaviorCallbackSlot.Handler, "", -1),
-            "binding:action:child"));
+            new BehaviorBindingKey(BehaviorKind.Operation, "ReadinessChild", "blocked_override", BehaviorCallbackSlot.Handler, "", -1),
+            "binding:operation:child"));
     await ExpectUnresolvedAsync(
-        () => readinessOm.ExecuteActionAsync("ready:child", "blocked_override"),
-        BehaviorCatalogKind.Action,
+        () => readinessOm.ExecuteOperationAsync("ready:child", "blocked_override"),
+        BehaviorCatalogKind.Operation,
         "ReadinessChild",
-        "action:ReadinessChild/blocked_override",
+        "operation:ReadinessChild/blocked_override",
         BehaviorCatalogCallbackSlot.Handler,
-        "binding:action:child");
-    Assert(!parentFallbackRan, "an unresolved child action definition must not fall back to a ready parent callback");
+        "binding:operation:child");
+    Assert(!parentFallbackRan, "an unresolved child operation definition must not fall back to a ready parent callback");
 
     var parentActionRan = false;
-    await readinessOm.DefineActionAsync("ReadinessBase", "blocked_parent");
+    await readinessOm.DefineOperationAsync("ReadinessBase", "blocked_parent");
     await BehaviorBindingLogic.PutAsync(
         readinessOm.Runtime,
         new BehaviorBindingRow(
-            new BehaviorBindingKey(BehaviorKind.Action, "ReadinessBase", "blocked_parent", BehaviorCallbackSlot.Handler, "", -1),
-            "binding:action:parent"));
-    await readinessOm.DefineActionAsync(
+            new BehaviorBindingKey(BehaviorKind.Operation, "ReadinessBase", "blocked_parent", BehaviorCallbackSlot.Handler, "", -1),
+            "binding:operation:parent"));
+    await readinessOm.DefineOperationAsync(
         "ReadinessChild",
         "blocked_parent",
         async (ctx, parameters) =>
         {
-            await ctx.SetPropertyAsync("effect", "parent-call-should-roll-back");
-            return await ctx.CallParentActionAsync("blocked_parent", parameters);
+            await ctx.SetFieldValueAsync("effect", "parent-call-should-roll-back");
+            return await ctx.CallParentOperationAsync("blocked_parent", parameters);
         });
-    readinessOm.Runtime.Registry.RegisterAction(
+    readinessOm.Runtime.Registry.RegisterOperation(
         "ReadinessBase",
         "blocked_parent",
-        "binding:action:parent:mismatch",
+        "binding:operation:parent:mismatch",
         (_, _) =>
         {
             parentActionRan = true;
             return ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]);
         });
     await ExpectUnresolvedAsync(
-        () => readinessOm.ExecuteActionAsync("ready:child", "blocked_parent"),
-        BehaviorCatalogKind.Action,
+        () => readinessOm.ExecuteOperationAsync("ready:child", "blocked_parent"),
+        BehaviorCatalogKind.Operation,
         "ReadinessBase",
-        "action:ReadinessBase/blocked_parent",
+        "operation:ReadinessBase/blocked_parent",
         BehaviorCatalogCallbackSlot.Handler,
-        "binding:action:parent");
-    Assert(!parentActionRan && AsString(await readinessOm.GetPropertyAsync("ready:child", "effect")) == "initial",
-        "an unresolved parent action must not run its callback and must roll back prior child writes");
+        "binding:operation:parent");
+    Assert(!parentActionRan && AsString(await readinessOm.GetFieldValueAsync("ready:child", "effect")) == "initial",
+        "an unresolved parent operation must not run its callback and must roll back prior child writes");
 
     var parentMutationRan = false;
     await readinessOm.DefineMutationAsync(
@@ -1197,23 +1197,23 @@ using (var readinessDb = new CozoDb(engine: "mem", path: ""))
         new BehaviorBindingRow(
             new BehaviorBindingKey(BehaviorKind.Mutation, "ReadinessChild", "blocked_mutation", BehaviorCallbackSlot.Executor, "", -1),
             "binding:mutation:child"));
-    await readinessOm.DefineActionAsync(
+    await readinessOm.DefineOperationAsync(
         "ReadinessChild",
         "returns_blocked_mutation",
         async (ctx, _) =>
         {
-            await ctx.SetPropertyAsync("effect", "mutation-should-roll-back");
+            await ctx.SetFieldValueAsync("effect", "mutation-should-roll-back");
             return [new MutationSpec("blocked_mutation")];
         });
     await ExpectUnresolvedAsync(
-        () => readinessOm.ExecuteActionAsync("ready:child", "returns_blocked_mutation"),
+        () => readinessOm.ExecuteOperationAsync("ready:child", "returns_blocked_mutation"),
         BehaviorCatalogKind.Mutation,
         "ReadinessChild",
         "mutation:ReadinessChild/blocked_mutation",
         BehaviorCatalogCallbackSlot.Executor,
         "binding:mutation:child");
-    Assert(!parentMutationRan && AsString(await readinessOm.GetPropertyAsync("ready:child", "effect")) == "initial",
-        "an unresolved nearest mutation must not fall back or leave committed action writes");
+    Assert(!parentMutationRan && AsString(await readinessOm.GetFieldValueAsync("ready:child", "effect")) == "initial",
+        "an unresolved nearest mutation must not fall back or leave committed operation writes");
     await ExpectUnresolvedAsync(
         () => readinessOm.ExecuteMutationsAsync("ready:child", [new MutationSpec("blocked_mutation")]),
         BehaviorCatalogKind.Mutation,
@@ -1221,12 +1221,12 @@ using (var readinessDb = new CozoDb(engine: "mem", path: ""))
         "mutation:ReadinessChild/blocked_mutation",
         BehaviorCatalogCallbackSlot.Executor,
         "binding:mutation:child");
-    Assert(!parentMutationRan && AsString(await readinessOm.GetPropertyAsync("ready:child", "effect")) == "initial",
+    Assert(!parentMutationRan && AsString(await readinessOm.GetFieldValueAsync("ready:child", "effect")) == "initial",
         "direct unresolved mutation execution must remain fail closed and effect free");
 
     var beforeInterceptorRan = false;
     var interceptedActionRan = false;
-    await readinessOm.DefineActionAsync(
+    await readinessOm.DefineOperationAsync(
         "ReadinessChild",
         "blocked_after_interceptor",
         (_, _) =>
@@ -1250,7 +1250,7 @@ using (var readinessDb = new CozoDb(engine: "mem", path: ""))
             new BehaviorBindingKey(BehaviorKind.Interceptor, "ReadinessBase", "blocked_after_interceptor", BehaviorCallbackSlot.Handler, "after", 7),
             "binding:interceptor:after:7"));
     await ExpectUnresolvedAsync(
-        () => readinessOm.ExecuteActionAsync("ready:child", "blocked_after_interceptor"),
+        () => readinessOm.ExecuteOperationAsync("ready:child", "blocked_after_interceptor"),
         BehaviorCatalogKind.Interceptor,
         "ReadinessBase",
         "interceptor:ReadinessBase/blocked_after_interceptor/after/7",
@@ -1259,10 +1259,10 @@ using (var readinessDb = new CozoDb(engine: "mem", path: ""))
         "after",
         7);
     Assert(!beforeInterceptorRan && !interceptedActionRan,
-        "before and action callbacks must not run when an inherited after interceptor is unresolved");
+        "before and operation callbacks must not run when an inherited after interceptor is unresolved");
 
     var nativeActionRan = false;
-    await readinessOm.DefineActionAsync(
+    await readinessOm.DefineOperationAsync(
         "ReadinessChild",
         "native_unbound",
         (_, _) =>
@@ -1270,7 +1270,7 @@ using (var readinessDb = new CozoDb(engine: "mem", path: ""))
             nativeActionRan = true;
             return ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]);
         });
-    await readinessOm.ExecuteActionAsync("ready:child", "native_unbound");
+    await readinessOm.ExecuteOperationAsync("ready:child", "native_unbound");
     Assert(nativeActionRan, "legacy/native behavior without a binding row must remain executable");
 }
 
@@ -1280,11 +1280,11 @@ using (var gateDb = new CozoDb(engine: "mem", path: ""))
 {
     var gateOm = new CozoOm(gateDb);
     await gateOm.InitSchemaAsync();
-    await gateOm.DefineTypeAsync("GateBase", "Gate base");
-    await gateOm.DefineTypeAsync("GateChild", "Gate child", "GateBase");
-    await gateOm.DefineAttributeAsync("GateBase", "marker", OmValueType.String);
-    await gateOm.CreateEntityAsync("gate:child", "GateChild", "Gate child");
-    await gateOm.SetPropertyAsync("gate:child", "marker", "stable");
+    await gateOm.DefineClassAsync("GateBase", "Gate base");
+    await gateOm.DefineClassAsync("GateChild", "Gate child", "GateBase");
+    await gateOm.DefineFieldAsync("GateBase", "marker", OmValueType.String);
+    await gateOm.CreateObjectAsync("gate:child", "GateChild", "Gate child");
+    await gateOm.SetFieldValueAsync("gate:child", "marker", "stable");
 
     var runtimeClone = gateOm.Runtime with { Store = gateOm.Runtime.Store };
     Assert(ReferenceEquals(gateOm.Runtime.BehaviorGate, runtimeClone.BehaviorGate),
@@ -1296,16 +1296,16 @@ using (var gateDb = new CozoDb(engine: "mem", path: ""))
             "transaction runtime clones must share the behavior gate");
     }
 
-    await gateOm.DefineActionAsync("GateChild", "catalog_gate");
+    await gateOm.DefineOperationAsync("GateChild", "catalog_gate");
     var catalogKey = new BehaviorBindingKey(
-        BehaviorKind.Action,
+        BehaviorKind.Operation,
         "GateChild",
         "catalog_gate",
         BehaviorCallbackSlot.Handler,
         BehaviorBindingLogic.NonInterceptorPhase,
         BehaviorBindingLogic.NonInterceptorSeq);
     await BehaviorBindingLogic.PutAsync(gateOm.Runtime, new BehaviorBindingRow(catalogKey, "binding:catalog:pre"));
-    gateOm.Runtime.Registry.RegisterAction(
+    gateOm.Runtime.Registry.RegisterOperation(
         "GateChild",
         "catalog_gate",
         "binding:catalog:pre",
@@ -1325,7 +1325,7 @@ using (var gateDb = new CozoDb(engine: "mem", path: ""))
         await BehaviorBindingLogic.PutAsync(
             gateOm.Runtime,
             new BehaviorBindingRow(catalogKey, "binding:catalog:post"));
-        gateOm.Runtime.Registry.RegisterAction(
+        gateOm.Runtime.Registry.RegisterOperation(
             "GateChild",
             "catalog_gate",
             "binding:catalog:post",
@@ -1337,8 +1337,8 @@ using (var gateDb = new CozoDb(engine: "mem", path: ""))
             is { BindingId: "binding:catalog:post", Readiness: BehaviorReadiness.Ready },
         "a gated catalog reader must observe the complete post-publication state, never split binding and registry state");
 
-    await gateOm.DefineComputedAsync("GateBase", "gate_computed");
-    gateOm.RegisterComputed("GateBase", "gate_computed", _ => ValueTask.FromResult<object?>(1));
+    await gateOm.DefineComputedPropAsync("GateBase", "gate_computed");
+    gateOm.RegisterComputedProp("GateBase", "gate_computed", _ => ValueTask.FromResult<object?>(1));
     await gateOm.DefineConstraintAsync(
         "GateBase",
         "gate_constraint",
@@ -1349,20 +1349,20 @@ using (var gateDb = new CozoDb(engine: "mem", path: ""))
         "GateBase",
         "gate_mutation",
         (_, _) => ValueTask.CompletedTask);
-    await gateOm.DefineActionAsync(
+    await gateOm.DefineOperationAsync(
         "GateChild",
-        "gate_action",
+        "gate_operation",
         (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]));
 
     var gatedEntrypoints = new (string Name, Func<CancellationToken, Task> Start)[]
     {
         ("catalog", async token => { await gateOm.GetBehaviorCatalogAsync(token); }),
-        ("constraint", async token => { await gateOm.ValidateEntityAsync("gate:child", token); }),
-        ("computed-direct", async token => { await gateOm.GetPropertyAsync("gate:child", "gate_computed", token); }),
-        ("computed-view", async token => { await gateOm.GetEntityViewAsync("gate:child", token); }),
-        ("computed-as-of", async token => { await gateOm.GetPropertyAsOfAsync("gate:child", "gate_computed", "2026-01-01T00:00:00Z", token); }),
-        ("computed-view-as-of", async token => { await gateOm.GetEntityViewAsOfAsync("gate:child", "2026-01-01T00:00:00Z", token); }),
-        ("action", token => gateOm.ExecuteActionAsync("gate:child", "gate_action", cancellationToken: token)),
+        ("constraint", async token => { await gateOm.ValidateObjectAsync("gate:child", token); }),
+        ("computedProp-direct", async token => { await gateOm.GetFieldValueAsync("gate:child", "gate_computed", token); }),
+        ("computedProp-view", async token => { await gateOm.GetObjectViewAsync("gate:child", token); }),
+        ("computedProp-as-of", async token => { await gateOm.GetFieldValueAsOfAsync("gate:child", "gate_computed", "2026-01-01T00:00:00Z", token); }),
+        ("computedProp-view-as-of", async token => { await gateOm.GetObjectViewAsOfAsync("gate:child", "2026-01-01T00:00:00Z", token); }),
+        ("operation", token => gateOm.ExecuteOperationAsync("gate:child", "gate_operation", cancellationToken: token)),
         ("mutation", token => gateOm.ExecuteMutationsAsync("gate:child", [new MutationSpec("gate_mutation")], token)),
     };
     foreach (var (name, start) in gatedEntrypoints)
@@ -1384,15 +1384,15 @@ using (var gateDb = new CozoDb(engine: "mem", path: ""))
     }
 
     var reentered = false;
-    await gateOm.DefineActionAsync(
+    await gateOm.DefineOperationAsync(
         "GateChild",
         "reentrant",
         async (ctx, _) =>
         {
-            reentered = AsString(await ctx.GetPropertyAsync("marker")) == "stable";
+            reentered = AsString(await ctx.GetFieldValueAsync("marker")) == "stable";
             return [];
         });
-    await gateOm.ExecuteActionAsync("gate:child", "reentrant").WaitAsync(TimeSpan.FromSeconds(2));
+    await gateOm.ExecuteOperationAsync("gate:child", "reentrant").WaitAsync(TimeSpan.FromSeconds(2));
     Assert(reentered, "user callbacks must run after releasing the behavior gate so OM reentry cannot deadlock");
 
     var pipeline = new List<string>();
@@ -1404,9 +1404,9 @@ using (var gateDb = new CozoDb(engine: "mem", path: ""))
             pipeline.Add("mutation:old");
             return ValueTask.CompletedTask;
         });
-    await gateOm.DefineActionAsync(
+    await gateOm.DefineOperationAsync(
         "GateBase",
-        "pipeline_action",
+        "pipeline_operation",
         (_, _) =>
         {
             pipeline.Add("parent:old");
@@ -1414,7 +1414,7 @@ using (var gateDb = new CozoDb(engine: "mem", path: ""))
         });
     await gateOm.AddInterceptorAsync(
         "GateBase",
-        "pipeline_action",
+        "pipeline_operation",
         "before",
         _ =>
         {
@@ -1423,22 +1423,22 @@ using (var gateDb = new CozoDb(engine: "mem", path: ""))
         });
     await gateOm.AddInterceptorAsync(
         "GateBase",
-        "pipeline_action",
+        "pipeline_operation",
         "after",
         _ =>
         {
             pipeline.Add("after:old");
             return ValueTask.CompletedTask;
         });
-    await gateOm.DefineActionAsync(
+    await gateOm.DefineOperationAsync(
         "GateChild",
-        "pipeline_action",
+        "pipeline_operation",
         async (ctx, parameters) =>
         {
             pipeline.Add("child");
-            gateOm.Runtime.Registry.RegisterAction(
+            gateOm.Runtime.Registry.RegisterOperation(
                 "GateBase",
-                "pipeline_action",
+                "pipeline_operation",
                 (_, _) =>
                 {
                     pipeline.Add("parent:new");
@@ -1454,7 +1454,7 @@ using (var gateDb = new CozoDb(engine: "mem", path: ""))
                 });
             gateOm.Runtime.Registry.RegisterInterceptor(
                 "GateBase",
-                "pipeline_action",
+                "pipeline_operation",
                 "after",
                 0,
                 _ =>
@@ -1462,12 +1462,12 @@ using (var gateDb = new CozoDb(engine: "mem", path: ""))
                     pipeline.Add("after:new");
                     return ValueTask.CompletedTask;
                 });
-            return await ctx.CallParentActionAsync("pipeline_action", parameters);
+            return await ctx.CallParentOperationAsync("pipeline_operation", parameters);
         });
 
-    await gateOm.ExecuteActionAsync("gate:child", "pipeline_action");
+    await gateOm.ExecuteOperationAsync("gate:child", "pipeline_operation");
     Assert(pipeline.SequenceEqual(["before:old", "child", "parent:old", "mutation:old", "after:old"]),
-        "action, inherited parent, returned mutations and interceptors must all use the outer registry snapshot");
+        "operation, inherited parent, returned mutations and interceptors must all use the outer registry snapshot");
 }
 
 HarnessDiagnostics.Start("runtime registry clear lifecycle");
@@ -1478,13 +1478,13 @@ using (var clearDb = new CozoDb(engine: "mem", path: ""))
     var clearOm = new CozoOm(clearStore);
     var peerOm = new CozoOm(new CozoDbOmStore(clearDb));
     await clearOm.InitSchemaAsync();
-    await clearOm.DefineTypeAsync("ClearOwner", "Registry clear owner");
-    await clearOm.CreateEntityAsync("clear:1", "ClearOwner", "Clear target");
-    await clearOm.DefineAttributeAsync("ClearOwner", "score", OmValueType.Number);
+    await clearOm.DefineClassAsync("ClearOwner", "Registry clear owner");
+    await clearOm.CreateObjectAsync("clear:1", "ClearOwner", "Clear target");
+    await clearOm.DefineFieldAsync("ClearOwner", "score", OmValueType.Number);
     await clearOm.DefineConstraintAsync("ClearOwner", "custom_guard", "custom", "Clear lifecycle validator");
     await clearOm.DefineConstraintAsync("ClearOwner", "conditional_guard", "conditional", "Clear lifecycle when/then");
-    await clearOm.DefineComputedAsync("ClearOwner", "score", "Clear lifecycle computed");
-    await clearOm.DefineActionAsync("ClearOwner", "work", "Clear lifecycle action");
+    await clearOm.DefineComputedPropAsync("ClearOwner", "score", "Clear lifecycle computedProp");
+    await clearOm.DefineOperationAsync("ClearOwner", "work", "Clear lifecycle operation");
     await clearOm.DefineMutationAsync("ClearOwner", "work_mutation", "Clear lifecycle mutation");
     await clearOm.AddInterceptorAsync("ClearOwner", "work", "before", 3, "Clear lifecycle before");
     await clearOm.AddInterceptorAsync("ClearOwner", "work", "after", 4, "Clear lifecycle after");
@@ -1492,8 +1492,8 @@ using (var clearDb = new CozoDb(engine: "mem", path: ""))
     const string validatorBindingId = "clear:constraint:validator";
     const string whenBindingId = "clear:constraint:when";
     const string thenBindingId = "clear:constraint:then";
-    const string computedBindingId = "clear:computed";
-    const string actionBindingId = "clear:action";
+    const string computedBindingId = "clear:computedProp";
+    const string actionBindingId = "clear:operation";
     const string mutationBindingId = "clear:mutation";
     const string beforeBindingId = "clear:interceptor:before:3";
     const string afterBindingId = "clear:interceptor:after:4";
@@ -1519,14 +1519,14 @@ using (var clearDb = new CozoDb(engine: "mem", path: ""))
         BehaviorBindingLogic.NonInterceptorPhase,
         BehaviorBindingLogic.NonInterceptorSeq);
     var computedKey = new BehaviorBindingKey(
-        BehaviorKind.Computed,
+        BehaviorKind.ComputedProp,
         "ClearOwner",
         "score",
         BehaviorCallbackSlot.Compute,
         BehaviorBindingLogic.NonInterceptorPhase,
         BehaviorBindingLogic.NonInterceptorSeq);
     var actionKey = new BehaviorBindingKey(
-        BehaviorKind.Action,
+        BehaviorKind.Operation,
         "ClearOwner",
         "work",
         BehaviorCallbackSlot.Handler,
@@ -1574,23 +1574,23 @@ using (var clearDb = new CozoDb(engine: "mem", path: ""))
         _ => ValueTask.FromResult(true),
         thenBindingId,
         _ => ValueTask.FromResult(true));
-    clearOm.Runtime.Registry.RegisterComputed(
+    clearOm.Runtime.Registry.RegisterComputedProp(
         "ClearOwner",
         "score",
         computedBindingId,
         _ => ValueTask.FromResult<object?>(42));
     var pipeline = new List<string>();
     var actionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-    var releaseAction = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-    clearOm.Runtime.Registry.RegisterAction(
+    var releaseOperation = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    clearOm.Runtime.Registry.RegisterOperation(
         "ClearOwner",
         "work",
         actionBindingId,
         async (_, _) =>
         {
-            pipeline.Add("action");
+            pipeline.Add("operation");
             actionStarted.SetResult();
-            await releaseAction.Task;
+            await releaseOperation.Task;
             return [new MutationSpec("work_mutation")];
         });
     clearOm.Runtime.Registry.RegisterMutation(
@@ -1638,12 +1638,12 @@ using (var clearDb = new CozoDb(engine: "mem", path: ""))
         _ => ValueTask.FromResult(true),
         thenBindingId,
         _ => ValueTask.FromResult(true));
-    peerOm.Runtime.Registry.RegisterComputed(
+    peerOm.Runtime.Registry.RegisterComputedProp(
         "ClearOwner",
         "score",
         computedBindingId,
         _ => ValueTask.FromResult<object?>(84));
-    peerOm.Runtime.Registry.RegisterAction(
+    peerOm.Runtime.Registry.RegisterOperation(
         "ClearOwner",
         "work",
         actionBindingId,
@@ -1693,12 +1693,12 @@ using (var clearDb = new CozoDb(engine: "mem", path: ""))
     Assert(callbacksBeforeClear.Select(callback => (callback.BindingId!, callback.Slot))
                .ToHashSet().SetEquals(expectedLifecycleBindings)
            && callbacksBeforeClear.All(callback => callback.Readiness == BehaviorReadiness.Ready),
-        "validator, when/then constraint, computed, action, mutation and interceptor slots must all be ready before registry clear");
+        "validator, when/then constraint, computedProp, operation, mutation and interceptor slots must all be ready before registry clear");
 
-    var inFlight = clearOm.ExecuteActionAsync("clear:1", "work");
+    var inFlight = clearOm.ExecuteOperationAsync("clear:1", "work");
     await actionStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-    Assert(pipeline.SequenceEqual(["before", "action"]),
-        "the in-flight action must capture and begin the old pipeline before clear");
+    Assert(pipeline.SequenceEqual(["before", "operation"]),
+        "the in-flight operation must capture and begin the old pipeline before clear");
 
     clearStore.FailWhenScriptContains = "";
     clearStore.FailBeginTransaction = true;
@@ -1708,10 +1708,10 @@ using (var clearDb = new CozoDb(engine: "mem", path: ""))
     Assert(ReferenceEquals(clearOm.Runtime.Registry.CaptureSnapshot(), CozoOmRegistrySnapshot.Empty),
         "clear must atomically publish the canonical empty registry snapshot without querying CozoDB");
 
-    releaseAction.SetResult();
+    releaseOperation.SetResult();
     await inFlight.WaitAsync(TimeSpan.FromSeconds(2));
-    Assert(pipeline.SequenceEqual(["before", "action", "mutation", "after"]),
-        "an in-flight action, mutation and interceptor pipeline must finish on its captured pre-clear snapshot");
+    Assert(pipeline.SequenceEqual(["before", "operation", "mutation", "after"]),
+        "an in-flight operation, mutation and interceptor pipeline must finish on its captured pre-clear snapshot");
 
     var catalogAfterClear = await clearOm.GetBehaviorCatalogAsync();
     var bindingsAfterClear = await BehaviorBindingLogic.ListAsync(clearOm.Runtime);
@@ -1725,16 +1725,16 @@ using (var clearDb = new CozoDb(engine: "mem", path: ""))
     Assert(callbacksAfterClear.Select(callback => (callback.BindingId!, callback.Slot))
                .ToHashSet().SetEquals(expectedLifecycleBindings)
            && callbacksAfterClear.All(callback => callback.Readiness == BehaviorReadiness.Unresolved),
-        "the same clear must make validator, when/then constraint, computed, action, mutation and interceptor slots unresolved");
+        "the same clear must make validator, when/then constraint, computedProp, operation, mutation and interceptor slots unresolved");
     await ExpectUnresolvedAsync(
-        () => clearOm.ExecuteActionAsync("clear:1", "work"),
-        BehaviorCatalogKind.Action,
+        () => clearOm.ExecuteOperationAsync("clear:1", "work"),
+        BehaviorCatalogKind.Operation,
         "ClearOwner",
-        "action:ClearOwner/work",
+        "operation:ClearOwner/work",
         BehaviorCatalogCallbackSlot.Handler,
         actionBindingId);
 
-    await peerOm.ExecuteActionAsync("clear:1", "work");
+    await peerOm.ExecuteOperationAsync("clear:1", "work");
     Assert(peerRuns == 1
            && (await peerOm.GetBehaviorCatalogAsync()).Behaviors.SelectMany(entry => entry.Callbacks)
                .All(callback => callback.Readiness == BehaviorReadiness.Ready),
@@ -1744,7 +1744,7 @@ using (var clearDb = new CozoDb(engine: "mem", path: ""))
     Assert(ReferenceEquals(clearOm.Runtime.Registry.CaptureSnapshot(), CozoOmRegistrySnapshot.Empty),
         "clearing an already empty registry must be idempotent");
 
-    clearOm.Runtime.Registry.RegisterAction(
+    clearOm.Runtime.Registry.RegisterOperation(
         "ClearOwner",
         "work",
         actionBindingId,
@@ -1796,8 +1796,8 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
 {
     var importOm = new CozoOm(importDb);
     await importOm.InitSchemaAsync();
-    await importOm.DefineTypeAsync("ImportOwner", "Behavior import owner");
-    await importOm.CreateEntityAsync("import:1", "ImportOwner", "Imported entity");
+    await importOm.DefineClassAsync("ImportOwner", "Behavior import owner");
+    await importOm.CreateObjectAsync("import:1", "ImportOwner", "Imported entity");
 
     var importCatalog = new BehaviorCatalog([
         new BehaviorCatalogEntry(
@@ -1812,29 +1812,29 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
                 new(BehaviorCatalogCallbackSlot.Validator, "import:constraint:validator", BehaviorReadiness.Ready),
             ]),
         new BehaviorCatalogEntry(
-            BehaviorCatalogKind.Computed, "ImportOwner", "portable_computed", null, null, "portable computed", null, null,
-            [new(BehaviorCatalogCallbackSlot.Compute, "import:computed", BehaviorReadiness.Ready)]),
+            BehaviorCatalogKind.ComputedProp, "ImportOwner", "portable_computed_prop", null, null, "portable computedProp", null, null,
+            [new(BehaviorCatalogCallbackSlot.Compute, "import:computedProp", BehaviorReadiness.Ready)]),
         new BehaviorCatalogEntry(
-            BehaviorCatalogKind.Action, "ImportOwner", "portable_action", null, null, "portable action", null, null,
-            [new(BehaviorCatalogCallbackSlot.Handler, "import:action", BehaviorReadiness.Ready)]),
+            BehaviorCatalogKind.Operation, "ImportOwner", "portable_operation", null, null, "portable operation", null, null,
+            [new(BehaviorCatalogCallbackSlot.Handler, "import:operation", BehaviorReadiness.Ready)]),
         new BehaviorCatalogEntry(
             BehaviorCatalogKind.Mutation, "ImportOwner", "portable_mutation", null, null, "portable mutation", null, null,
             [new(BehaviorCatalogCallbackSlot.Executor, "import:mutation", BehaviorReadiness.Ready)]),
         new BehaviorCatalogEntry(
-            BehaviorCatalogKind.Interceptor, "ImportOwner", "portable_action", null, null, "portable before", "before", 7,
+            BehaviorCatalogKind.Interceptor, "ImportOwner", "portable_operation", null, null, "portable before", "before", 7,
             [new(BehaviorCatalogCallbackSlot.Handler, "import:interceptor:7", BehaviorReadiness.Ready)]),
     ]);
     var importJson = Encoding.UTF8.GetString(BehaviorManifestJsonCodec.Encode(importCatalog));
-    var mutableActions = new List<BehaviorActionCallbackBinding>
+    var mutableActions = new List<BehaviorOperationCallbackBinding>
     {
-        new("import:action", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([])),
+        new("import:operation", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([])),
     };
     var importConstraintWhenRan = false;
     var mixedCallbacks = new BehaviorCallbackBindingSet(
         constraints: [new("import:constraint:when", _ => { importConstraintWhenRan = true; return ValueTask.FromResult(true); })],
         validators: [new("import:constraint:validator", _ => ValueTask.FromResult<string?>(null))],
-        computed: [new("import:computed", _ => ValueTask.FromResult<object?>(42))],
-        actions: mutableActions,
+        computedProp: [new("import:computedProp", _ => ValueTask.FromResult<object?>(42))],
+        operations: mutableActions,
         mutations: [new("import:mutation", (_, _) => ValueTask.CompletedTask)],
         interceptors: [new("import:interceptor:7", _ => ValueTask.CompletedTask)]);
     mutableActions.Clear();
@@ -1845,8 +1845,8 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
            && permissive.Diagnostics.Any(diagnostic => diagnostic.Code == "OMI1201"),
         "default import should apply all metadata and return exact unresolved diagnostics for absent typed callbacks");
     var imported = await importOm.GetBehaviorCatalogAsync();
-    Assert(imported.Behaviors.Count(entry => entry.OwnerType == "ImportOwner") == 6
-           && imported.Behaviors.Where(entry => entry.OwnerType == "ImportOwner").Select(entry => entry.Kind).Distinct().Count() == 5,
+    Assert(imported.Behaviors.Count(entry => entry.OwnerClass == "ImportOwner") == 6
+           && imported.Behaviors.Where(entry => entry.OwnerClass == "ImportOwner").Select(entry => entry.Kind).Distinct().Count() == 5,
         "default import should persist both legal constraint shapes and all five behavior kinds");
     Assert(imported.Behaviors.SelectMany(entry => entry.Callbacks)
             .Single(callback => callback.BindingId == "import:constraint:then").Readiness == BehaviorReadiness.Unresolved
@@ -1855,11 +1855,11 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
                .All(callback => callback.Readiness == BehaviorReadiness.Ready),
         "manifest ready projection must be ignored; only exact supplied typed callbacks become ready");
     await ExpectExceptionAsync<BehaviorUnresolvedException>(
-        () => importOm.ValidateEntityAsync("import:1"),
+        () => importOm.ValidateObjectAsync("import:1"),
         "a permissively imported unresolved constraint must fail closed at the existing execution gate");
     Assert(!importConstraintWhenRan,
         "all imported constraint slots must be pre-resolved before any user callback runs");
-    await importOm.ExecuteActionAsync("import:1", "portable_action");
+    await importOm.ExecuteOperationAsync("import:1", "portable_operation");
 
     var importedConditionalWhenRan = false;
     var importedConditionalThenRan = false;
@@ -1871,8 +1871,8 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
             new("import:constraint:then", _ => { importedConditionalThenRan = true; return ValueTask.FromResult(true); }),
         ],
         validators: [new("import:constraint:validator", _ => { importedCustomValidatorRan = true; return ValueTask.FromResult<string?>(null); })],
-        computed: [new("import:computed", _ => ValueTask.FromResult<object?>(43))],
-        actions: [new("import:action", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]))],
+        computedProp: [new("import:computedProp", _ => ValueTask.FromResult<object?>(43))],
+        operations: [new("import:operation", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]))],
         mutations: [new("import:mutation", (_, _) => ValueTask.CompletedTask)],
         interceptors: [new("import:interceptor:7", _ => ValueTask.CompletedTask)]);
 
@@ -1881,7 +1881,7 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
         new
         {
             Name = "invalid_conditional_missing_then",
-            ConstraintType = "conditional",
+            ConstraintKind = "conditional",
             Callbacks = new[]
             {
                 new BehaviorCallbackBinding(BehaviorCatalogCallbackSlot.When, "import:constraint:when", BehaviorReadiness.Ready),
@@ -1892,7 +1892,7 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
         new
         {
             Name = "invalid_cross_entity_validator_only",
-            ConstraintType = "cross-entity",
+            ConstraintKind = "cross-entity",
             Callbacks = new[]
             {
                 new BehaviorCallbackBinding(BehaviorCatalogCallbackSlot.Validator, "import:constraint:validator", BehaviorReadiness.Ready),
@@ -1903,7 +1903,7 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
         new
         {
             Name = "invalid_computed_dep_extra_validator",
-            ConstraintType = "computed-dep",
+            ConstraintKind = "computedProp-dep",
             Callbacks = new[]
             {
                 new BehaviorCallbackBinding(BehaviorCatalogCallbackSlot.When, "import:constraint:when", BehaviorReadiness.Ready),
@@ -1916,7 +1916,7 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
         new
         {
             Name = "invalid_custom_missing_validator",
-            ConstraintType = "custom",
+            ConstraintKind = "custom",
             Callbacks = Array.Empty<BehaviorCallbackBinding>(),
             Missing = "validator",
             Extra = "none",
@@ -1924,7 +1924,7 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
         new
         {
             Name = "invalid_custom_extra_when_then",
-            ConstraintType = "custom",
+            ConstraintKind = "custom",
             Callbacks = new[]
             {
                 new BehaviorCallbackBinding(BehaviorCatalogCallbackSlot.When, "import:constraint:when", BehaviorReadiness.Ready),
@@ -1942,7 +1942,7 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
                 BehaviorCatalogKind.Constraint,
                 "ImportOwner",
                 invalidShape.Name,
-                invalidShape.ConstraintType,
+                invalidShape.ConstraintKind,
                 "invalid constraint shape",
                 null,
                 null,
@@ -1965,7 +1965,7 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
                && defaultDiagnostic is
                {
                    Kind: BehaviorCatalogKind.Constraint,
-                   OwnerType: "ImportOwner",
+                   OwnerClass: "ImportOwner",
                    BehaviorName: var diagnosticName,
                    Slot: null,
                }
@@ -2016,7 +2016,7 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
         {
             Name = "unknown-kind",
             Json = """
-                {"version":1,"behaviors":[{"kind":"mystery","ownerType":"ImportOwner","name":"unknown_kind","constraintType":null,"message":null,"description":null,"interceptorPhase":null,"interceptorSeq":null,"callbacks":[]}]}
+                {"version":1,"behaviors":[{"kind":"mystery","ownerClass":"ImportOwner","name":"unknown_kind","constraintKind":null,"message":null,"description":null,"interceptorPhase":null,"interceptorSeq":null,"callbacks":[]}]}
                 """,
             Expected = new (string Code, string Path, string Message)[]
             {
@@ -2030,29 +2030,29 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
                 {
                   "version": 1,
                   "behaviors": [
-                    { "kind": "constraint", "ownerType": "ImportOwner", "name": "invalid_constraint_metadata", "constraintType": null, "message": "allowed", "description": "forbidden", "interceptorPhase": "before", "interceptorSeq": 0, "callbacks": [] },
-                    { "kind": "computed", "ownerType": "ImportOwner", "name": "invalid_computed_metadata", "constraintType": "custom", "message": "forbidden", "description": "allowed", "interceptorPhase": null, "interceptorSeq": null, "callbacks": [] },
-                    { "kind": "action", "ownerType": "ImportOwner", "name": "invalid_action_metadata", "constraintType": "custom", "message": "forbidden", "description": "allowed", "interceptorPhase": null, "interceptorSeq": null, "callbacks": [] },
-                    { "kind": "mutation", "ownerType": "ImportOwner", "name": "invalid_mutation_metadata", "constraintType": "custom", "message": "forbidden", "description": "allowed", "interceptorPhase": "after", "interceptorSeq": 2, "callbacks": [] },
-                    { "kind": "interceptor", "ownerType": "ImportOwner", "name": "invalid_interceptor_metadata", "constraintType": "custom", "message": "forbidden", "description": "allowed", "interceptorPhase": "after", "interceptorSeq": 3, "callbacks": [] }
+                    { "kind": "constraint", "ownerClass": "ImportOwner", "name": "invalid_constraint_metadata", "constraintKind": null, "message": "allowed", "description": "forbidden", "interceptorPhase": "before", "interceptorSeq": 0, "callbacks": [] },
+                    { "kind": "computedProp", "ownerClass": "ImportOwner", "name": "invalid_computed_metadata", "constraintKind": "custom", "message": "forbidden", "description": "allowed", "interceptorPhase": null, "interceptorSeq": null, "callbacks": [] },
+                    { "kind": "operation", "ownerClass": "ImportOwner", "name": "invalid_operation_metadata", "constraintKind": "custom", "message": "forbidden", "description": "allowed", "interceptorPhase": null, "interceptorSeq": null, "callbacks": [] },
+                    { "kind": "mutation", "ownerClass": "ImportOwner", "name": "invalid_mutation_metadata", "constraintKind": "custom", "message": "forbidden", "description": "allowed", "interceptorPhase": "after", "interceptorSeq": 2, "callbacks": [] },
+                    { "kind": "interceptor", "ownerClass": "ImportOwner", "name": "invalid_interceptor_metadata", "constraintKind": "custom", "message": "forbidden", "description": "allowed", "interceptorPhase": "after", "interceptorSeq": 3, "callbacks": [] }
                   ]
                 }
                 """,
             Expected = new (string Code, string Path, string Message)[]
             {
-                ("OMM1203", "$.behaviors[0].constraintType", "Property 'constraintType' must be a string for behavior kind 'constraint'."),
+                ("OMM1203", "$.behaviors[0].constraintKind", "Property 'constraintKind' must be a string for behavior kind 'constraint'."),
                 ("OMM1203", "$.behaviors[0].description", "Property 'description' must be null for behavior kind 'constraint'."),
                 ("OMM1203", "$.behaviors[0].interceptorPhase", "Property 'interceptorPhase' must be null for behavior kind 'constraint'."),
                 ("OMM1203", "$.behaviors[0].interceptorSeq", "Property 'interceptorSeq' must be null for behavior kind 'constraint'."),
-                ("OMM1203", "$.behaviors[1].constraintType", "Property 'constraintType' must be null for behavior kind 'computed'."),
-                ("OMM1203", "$.behaviors[1].message", "Property 'message' must be null for behavior kind 'computed'."),
-                ("OMM1203", "$.behaviors[2].constraintType", "Property 'constraintType' must be null for behavior kind 'action'."),
-                ("OMM1203", "$.behaviors[2].message", "Property 'message' must be null for behavior kind 'action'."),
-                ("OMM1203", "$.behaviors[3].constraintType", "Property 'constraintType' must be null for behavior kind 'mutation'."),
+                ("OMM1203", "$.behaviors[1].constraintKind", "Property 'constraintKind' must be null for behavior kind 'computedProp'."),
+                ("OMM1203", "$.behaviors[1].message", "Property 'message' must be null for behavior kind 'computedProp'."),
+                ("OMM1203", "$.behaviors[2].constraintKind", "Property 'constraintKind' must be null for behavior kind 'operation'."),
+                ("OMM1203", "$.behaviors[2].message", "Property 'message' must be null for behavior kind 'operation'."),
+                ("OMM1203", "$.behaviors[3].constraintKind", "Property 'constraintKind' must be null for behavior kind 'mutation'."),
                 ("OMM1203", "$.behaviors[3].interceptorPhase", "Property 'interceptorPhase' must be null for behavior kind 'mutation'."),
                 ("OMM1203", "$.behaviors[3].interceptorSeq", "Property 'interceptorSeq' must be null for behavior kind 'mutation'."),
                 ("OMM1203", "$.behaviors[3].message", "Property 'message' must be null for behavior kind 'mutation'."),
-                ("OMM1203", "$.behaviors[4].constraintType", "Property 'constraintType' must be null for behavior kind 'interceptor'."),
+                ("OMM1203", "$.behaviors[4].constraintKind", "Property 'constraintKind' must be null for behavior kind 'interceptor'."),
                 ("OMM1203", "$.behaviors[4].message", "Property 'message' must be null for behavior kind 'interceptor'."),
             },
         },
@@ -2060,19 +2060,19 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
         {
             Name = "invalid-behavior-key",
             Json = """
-                {"version":1,"behaviors":[{"kind":"action","ownerType":"ImportOwner","name":"invalid_key","constraintType":null,"message":null,"description":null,"interceptorPhase":"before","interceptorSeq":0,"callbacks":[{"slot":"handler","bindingId":"invalid:key","readiness":"ready"}]}]}
+                {"version":1,"behaviors":[{"kind":"operation","ownerClass":"ImportOwner","name":"invalid_key","constraintKind":null,"message":null,"description":null,"interceptorPhase":"before","interceptorSeq":0,"callbacks":[{"slot":"handler","bindingId":"invalid:key","readiness":"ready"}]}]}
                 """,
             Expected = new (string Code, string Path, string Message)[]
             {
-                ("OMM1203", "$.behaviors[0].interceptorPhase", "Property 'interceptorPhase' must be null for behavior kind 'action'."),
-                ("OMM1203", "$.behaviors[0].interceptorSeq", "Property 'interceptorSeq' must be null for behavior kind 'action'."),
+                ("OMM1203", "$.behaviors[0].interceptorPhase", "Property 'interceptorPhase' must be null for behavior kind 'operation'."),
+                ("OMM1203", "$.behaviors[0].interceptorSeq", "Property 'interceptorSeq' must be null for behavior kind 'operation'."),
             },
         },
         new
         {
             Name = "invalid-interceptor-key",
             Json = """
-                {"version":1,"behaviors":[{"kind":"interceptor","ownerType":"ImportOwner","name":"invalid_interceptor_key","constraintType":null,"message":null,"description":"allowed","interceptorPhase":"during","interceptorSeq":-1,"callbacks":[]}]}
+                {"version":1,"behaviors":[{"kind":"interceptor","ownerClass":"ImportOwner","name":"invalid_interceptor_key","constraintKind":null,"message":null,"description":"allowed","interceptorPhase":"during","interceptorSeq":-1,"callbacks":[]}]}
                 """,
             Expected = new (string Code, string Path, string Message)[]
             {
@@ -2083,35 +2083,35 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
         {
             Name = "invalid-slot-key",
             Json = """
-                {"version":1,"behaviors":[{"kind":"action","ownerType":"ImportOwner","name":"invalid_slot","constraintType":null,"message":null,"description":null,"interceptorPhase":null,"interceptorSeq":null,"callbacks":[{"slot":"compute","bindingId":"invalid:slot","readiness":"ready"}]}]}
+                {"version":1,"behaviors":[{"kind":"operation","ownerClass":"ImportOwner","name":"invalid_slot","constraintKind":null,"message":null,"description":null,"interceptorPhase":null,"interceptorSeq":null,"callbacks":[{"slot":"compute","bindingId":"invalid:slot","readiness":"ready"}]}]}
                 """,
             Expected = new (string Code, string Path, string Message)[]
             {
-                ("OMM1202", "$.behaviors[0].callbacks[0]", "Callback slot 'compute' is invalid for behavior kind 'action'."),
+                ("OMM1202", "$.behaviors[0].callbacks[0]", "Callback slot 'compute' is invalid for behavior kind 'operation'."),
             },
         },
         new
         {
             Name = "duplicate-exact-interceptor-key",
             Json = """
-                {"version":1,"behaviors":[{"kind":"interceptor","ownerType":"ImportOwner","name":"portable_action","constraintType":null,"message":null,"description":"duplicate","interceptorPhase":"before","interceptorSeq":7,"callbacks":[{"slot":"handler","bindingId":"duplicate:handler","readiness":"ready"}]},{"kind":"interceptor","ownerType":"ImportOwner","name":"portable_action","constraintType":null,"message":null,"description":"duplicate","interceptorPhase":"before","interceptorSeq":7,"callbacks":[{"slot":"handler","bindingId":"duplicate:handler","readiness":"ready"}]}]}
+                {"version":1,"behaviors":[{"kind":"interceptor","ownerClass":"ImportOwner","name":"portable_operation","constraintKind":null,"message":null,"description":"duplicate","interceptorPhase":"before","interceptorSeq":7,"callbacks":[{"slot":"handler","bindingId":"duplicate:handler","readiness":"ready"}]},{"kind":"interceptor","ownerClass":"ImportOwner","name":"portable_operation","constraintKind":null,"message":null,"description":"duplicate","interceptorPhase":"before","interceptorSeq":7,"callbacks":[{"slot":"handler","bindingId":"duplicate:handler","readiness":"ready"}]}]}
                 """,
             Expected = new (string Code, string Path, string Message)[]
             {
-                ("OMM1301", "$.behaviors[1].callbacks[0]", "Callback binding key 'interceptor:ImportOwner/portable_action/before/7/handler' is duplicated or conflicting."),
-                ("OMM1302", "$.behaviors[1]", "Behavior key 'interceptor:ImportOwner/portable_action/before/7' is duplicated or conflicting."),
+                ("OMM1301", "$.behaviors[1].callbacks[0]", "Callback binding key 'interceptor:ImportOwner/portable_operation/before/7/handler' is duplicated or conflicting."),
+                ("OMM1302", "$.behaviors[1]", "Behavior key 'interceptor:ImportOwner/portable_operation/before/7' is duplicated or conflicting."),
             },
         },
         new
         {
             Name = "conflicting-exact-interceptor-key",
             Json = """
-                {"version":1,"behaviors":[{"kind":"interceptor","ownerType":"ImportOwner","name":"portable_action","constraintType":null,"message":null,"description":"first","interceptorPhase":"before","interceptorSeq":7,"callbacks":[{"slot":"handler","bindingId":"conflict:first","readiness":"ready"}]},{"kind":"interceptor","ownerType":"ImportOwner","name":"portable_action","constraintType":null,"message":null,"description":"second","interceptorPhase":"before","interceptorSeq":7,"callbacks":[{"slot":"handler","bindingId":"conflict:second","readiness":"ready"}]}]}
+                {"version":1,"behaviors":[{"kind":"interceptor","ownerClass":"ImportOwner","name":"portable_operation","constraintKind":null,"message":null,"description":"first","interceptorPhase":"before","interceptorSeq":7,"callbacks":[{"slot":"handler","bindingId":"conflict:first","readiness":"ready"}]},{"kind":"interceptor","ownerClass":"ImportOwner","name":"portable_operation","constraintKind":null,"message":null,"description":"second","interceptorPhase":"before","interceptorSeq":7,"callbacks":[{"slot":"handler","bindingId":"conflict:second","readiness":"ready"}]}]}
                 """,
             Expected = new (string Code, string Path, string Message)[]
             {
-                ("OMM1301", "$.behaviors[1].callbacks[0]", "Callback binding key 'interceptor:ImportOwner/portable_action/before/7/handler' is duplicated or conflicting."),
-                ("OMM1302", "$.behaviors[1]", "Behavior key 'interceptor:ImportOwner/portable_action/before/7' is duplicated or conflicting."),
+                ("OMM1301", "$.behaviors[1].callbacks[0]", "Callback binding key 'interceptor:ImportOwner/portable_operation/before/7/handler' is duplicated or conflicting."),
+                ("OMM1302", "$.behaviors[1]", "Behavior key 'interceptor:ImportOwner/portable_operation/before/7' is duplicated or conflicting."),
             },
         },
     };
@@ -2127,7 +2127,7 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
                && result.Diagnostics.All(diagnostic => diagnostic is
                {
                    Kind: null,
-                   OwnerType: null,
+                   OwnerClass: null,
                    BehaviorName: null,
                    Slot: null,
                    BindingId: null,
@@ -2266,7 +2266,7 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
     importedConditionalWhenRan = false;
     importedConditionalThenRan = false;
     importedCustomValidatorRan = false;
-    var restoredValidation = await importOm.ValidateEntityAsync("import:1");
+    var restoredValidation = await importOm.ValidateObjectAsync("import:1");
     Assert(restoredValidation.Valid
            && importedConditionalWhenRan
            && importedConditionalThenRan
@@ -2296,8 +2296,8 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
         .Select(entry => entry is
         {
             Kind: BehaviorCatalogKind.Interceptor,
-            OwnerType: "ImportOwner",
-            Name: "portable_action",
+            OwnerClass: "ImportOwner",
+            Name: "portable_operation",
             Phase: "before",
             Seq: 7,
         }
@@ -2333,17 +2333,17 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
     Assert(!conflictReader.IsCompleted,
         "catalog readers must remain gated while a concurrent registry write forces import compensation");
 
-    Func<OmActionContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>> concurrentAction =
+    Func<OmOperationContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>> concurrentOperation =
         (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]);
-    importOm.Runtime.Registry.RegisterAction(
+    importOm.Runtime.Registry.RegisterOperation(
         "ImportOwner",
-        "portable_action",
-        "concurrent:action",
-        concurrentAction);
+        "portable_operation",
+        "concurrent:operation",
+        concurrentOperation);
     var concurrentWriterSnapshot = importOm.Runtime.Registry.CaptureSnapshot();
-    Assert(concurrentWriterSnapshot.Actions.TryGetValue(("ImportOwner", "portable_action"), out var concurrentRegistration)
-           && concurrentRegistration.BindingId == "concurrent:action"
-           && ReferenceEquals(concurrentRegistration.Callback, concurrentAction),
+    Assert(concurrentWriterSnapshot.Operations.TryGetValue(("ImportOwner", "portable_operation"), out var concurrentRegistration)
+           && concurrentRegistration.BindingId == "concurrent:operation"
+           && ReferenceEquals(concurrentRegistration.Callback, concurrentOperation),
         "the synchronous registry writer must publish without waiting for the async behavior gate");
 
     releaseConflictPublish.SetResult();
@@ -2355,9 +2355,9 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
     var publicationConflictPost = await CaptureBehaviorStateAsync(importOm);
     var conflictedActionReadiness = publicationConflictPost.Readiness.Single(entry => entry is
     {
-        Kind: BehaviorCatalogKind.Action,
-        OwnerType: "ImportOwner",
-        Name: "portable_action",
+        Kind: BehaviorCatalogKind.Operation,
+        OwnerClass: "ImportOwner",
+        Name: "portable_operation",
         Slot: BehaviorCatalogCallbackSlot.Handler,
     });
     Assert(conflictException.Message == "Behavior registry publication failed; persistent state was restored."
@@ -2370,12 +2370,12 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
     Assert(publicationConflictPost.Metadata.SequenceEqual(publicationConflictPre.Metadata)
            && publicationConflictPost.Bindings.SequenceEqual(publicationConflictPre.Bindings)
            && ReferenceEquals(publicationConflictPost.RegistrySnapshot, concurrentWriterSnapshot)
-           && publicationConflictPost.RegistrySnapshot.Actions.TryGetValue(("ImportOwner", "portable_action"), out var preservedRegistration)
-           && preservedRegistration.BindingId == "concurrent:action"
-           && ReferenceEquals(preservedRegistration.Callback, concurrentAction)
+           && publicationConflictPost.RegistrySnapshot.Operations.TryGetValue(("ImportOwner", "portable_operation"), out var preservedRegistration)
+           && preservedRegistration.BindingId == "concurrent:operation"
+           && ReferenceEquals(preservedRegistration.Callback, concurrentOperation)
            && conflictedActionReadiness is
            {
-               BindingId: "import:action",
+               BindingId: "import:operation",
                Readiness: BehaviorReadiness.Unresolved,
            },
         "publication conflict compensation must restore persistent state, preserve the concurrent writer and derive unresolved readiness from its actual identity");
@@ -2383,24 +2383,24 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
            && CaptureBehaviorReadiness(conflictReaderCatalog).SequenceEqual(publicationConflictPost.Readiness),
         "the gated reader must resume only after compensation and observe persistent old bindings with the preserved concurrent registry identity");
 
-    var originalAction = fullCallbacks.Actions.Single(binding => binding.BindingId == "import:action");
-    importOm.Runtime.Registry.RegisterAction(
+    var originalOperation = fullCallbacks.Operations.Single(binding => binding.BindingId == "import:operation");
+    importOm.Runtime.Registry.RegisterOperation(
         "ImportOwner",
-        "portable_action",
-        originalAction.BindingId,
-        originalAction.Callback);
-    var reboundAction = (await importOm.GetBehaviorCatalogAsync()).Behaviors.Single(entry => entry is
+        "portable_operation",
+        originalOperation.BindingId,
+        originalOperation.Callback);
+    var reboundOperation = (await importOm.GetBehaviorCatalogAsync()).Behaviors.Single(entry => entry is
     {
-        Kind: BehaviorCatalogKind.Action,
-        OwnerType: "ImportOwner",
-        Name: "portable_action",
+        Kind: BehaviorCatalogKind.Operation,
+        OwnerClass: "ImportOwner",
+        Name: "portable_operation",
     });
-    Assert(reboundAction.Callbacks.Single().Readiness == BehaviorReadiness.Ready,
+    Assert(reboundOperation.Callbacks.Single().Readiness == BehaviorReadiness.Ready,
         "restoring the persistent binding identity after the conflict should derive ready from the new registry snapshot");
 
     var sparseCatalog = new BehaviorCatalog([
         new BehaviorCatalogEntry(
-            BehaviorCatalogKind.Interceptor, "ImportOwner", "portable_action", null, null, "sparse eleven", "before", 11,
+            BehaviorCatalogKind.Interceptor, "ImportOwner", "portable_operation", null, null, "sparse eleven", "before", 11,
             [new(BehaviorCatalogCallbackSlot.Handler, "import:interceptor:11", BehaviorReadiness.Ready)]),
     ]);
     var sparseCallbacks = new BehaviorCallbackBindingSet(
@@ -2409,12 +2409,12 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
         Encoding.UTF8.GetString(BehaviorManifestJsonCodec.Encode(sparseCatalog)),
         sparseCallbacks,
         new BehaviorImportOptions(RequireReady: true));
-    await importOm.AddInterceptorAsync("ImportOwner", "portable_action", "before", _ => ValueTask.CompletedTask, "after sparse import");
+    await importOm.AddInterceptorAsync("ImportOwner", "portable_operation", "before", _ => ValueTask.CompletedTask, "after sparse import");
     var sparseState = await CaptureBehaviorStateAsync(importOm);
     var sparseEntries = (await importOm.GetBehaviorCatalogAsync()).Behaviors
         .Where(entry => entry.Kind == BehaviorCatalogKind.Interceptor
-                        && entry.OwnerType == "ImportOwner"
-                        && entry.Name == "portable_action"
+                        && entry.OwnerClass == "ImportOwner"
+                        && entry.Name == "portable_operation"
                         && entry.InterceptorPhase == "before")
         .OrderBy(entry => entry.InterceptorSeq)
         .ToArray();
@@ -2439,8 +2439,8 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
                Key:
                {
                    BehaviorKind: BehaviorKind.Interceptor,
-                   OwnerType: "ImportOwner",
-                   BehaviorName: "portable_action",
+                   OwnerClass: "ImportOwner",
+                   BehaviorName: "portable_operation",
                    CallbackSlot: BehaviorCallbackSlot.Handler,
                    Phase: "before",
                    Seq: 11,
@@ -2450,31 +2450,31 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
            && !sparseState.Bindings.Any(row => row.Key is
            {
                BehaviorKind: BehaviorKind.Interceptor,
-               OwnerType: "ImportOwner",
-               BehaviorName: "portable_action",
+               OwnerClass: "ImportOwner",
+               BehaviorName: "portable_operation",
                Phase: "before",
                Seq: 12,
            })
-           && importOm.Runtime.Registry.TryGetInterceptor("ImportOwner", "portable_action", "before", 11, out var interceptorEleven)
+           && importOm.Runtime.Registry.TryGetInterceptor("ImportOwner", "portable_operation", "before", 11, out var interceptorEleven)
            && interceptorEleven.BindingId == "import:interceptor:11"
            && interceptorEleven.Description == "sparse eleven"
-           && importOm.Runtime.Registry.TryGetInterceptor("ImportOwner", "portable_action", "before", 12, out var interceptorTwelve)
+           && importOm.Runtime.Registry.TryGetInterceptor("ImportOwner", "portable_operation", "before", 12, out var interceptorTwelve)
            && interceptorTwelve.BindingId is null
            && interceptorTwelve.Description == "after sparse import",
-        "sparse interceptor import must preserve exact owner/action/phase/seq metadata, binding and registry identity, then allocate max plus one without overwriting");
+        "sparse interceptor import must preserve exact owner/operation/phase/seq metadata, binding and registry identity, then allocate max plus one without overwriting");
 
     var unresolvedSparseCatalog = new BehaviorCatalog([
         new BehaviorCatalogEntry(
-            BehaviorCatalogKind.Interceptor, "ImportOwner", "portable_action", null, null, "unresolved sparse twenty-one", "before", 21,
+            BehaviorCatalogKind.Interceptor, "ImportOwner", "portable_operation", null, null, "unresolved sparse twenty-one", "before", 21,
             [new(BehaviorCatalogCallbackSlot.Handler, "import:interceptor:21", BehaviorReadiness.Unresolved)]),
     ]);
     var unresolvedSparseResult = await importOm.ImportBehaviorManifestJsonAsync(
         Encoding.UTF8.GetString(BehaviorManifestJsonCodec.Encode(unresolvedSparseCatalog)));
-    await importOm.AddInterceptorAsync("ImportOwner", "portable_action", "before", _ => ValueTask.CompletedTask, "after unresolved sparse import");
+    await importOm.AddInterceptorAsync("ImportOwner", "portable_operation", "before", _ => ValueTask.CompletedTask, "after unresolved sparse import");
     var unresolvedSparseEntries = (await importOm.GetBehaviorCatalogAsync()).Behaviors
         .Where(entry => entry.Kind == BehaviorCatalogKind.Interceptor
-                        && entry.OwnerType == "ImportOwner"
-                        && entry.Name == "portable_action"
+                        && entry.OwnerClass == "ImportOwner"
+                        && entry.Name == "portable_operation"
                         && entry.InterceptorPhase == "before")
         .OrderBy(entry => entry.InterceptorSeq)
         .ToArray();
@@ -2495,8 +2495,8 @@ using (var importDb = new CozoDb(engine: "mem", path: ""))
                BindingId: null,
                Readiness: BehaviorReadiness.Unbound,
            }
-           && !importOm.Runtime.Registry.TryGetInterceptor("ImportOwner", "portable_action", "before", 21, out _)
-           && importOm.Runtime.Registry.TryGetInterceptor("ImportOwner", "portable_action", "before", 22, out var unresolvedSparseNative)
+           && !importOm.Runtime.Registry.TryGetInterceptor("ImportOwner", "portable_operation", "before", 21, out _)
+           && importOm.Runtime.Registry.TryGetInterceptor("ImportOwner", "portable_operation", "before", 22, out var unresolvedSparseNative)
            && unresolvedSparseNative.BindingId is null
            && unresolvedSparseNative.Description == "after unresolved sparse import",
         "native interceptor allocation must consider unresolved imported metadata sequences, not only ready registry entries");
@@ -2509,7 +2509,7 @@ try
 {
     const string restartOwner = "RestartImportBase";
     const string restartChild = "RestartImportChild";
-    const string restartEntityId = "restart:child";
+    const string restartObjectId = "restart:child";
 
     BehaviorCatalog RestartCatalog(Func<string, BehaviorReadiness> readiness) => new([
         new BehaviorCatalogEntry(
@@ -2522,16 +2522,16 @@ try
             BehaviorCatalogKind.Constraint, restartOwner, "restart_custom", "custom", "restart custom", null, null, null,
             [new(BehaviorCatalogCallbackSlot.Validator, "restart:constraint:validator", readiness("restart:constraint:validator"))]),
         new BehaviorCatalogEntry(
-            BehaviorCatalogKind.Computed, restartOwner, "restart_computed", null, null, "restart computed", null, null,
-            [new(BehaviorCatalogCallbackSlot.Compute, "restart:computed", readiness("restart:computed"))]),
+            BehaviorCatalogKind.ComputedProp, restartOwner, "restart_computed_prop", null, null, "restart computedProp", null, null,
+            [new(BehaviorCatalogCallbackSlot.Compute, "restart:computedProp", readiness("restart:computedProp"))]),
         new BehaviorCatalogEntry(
-            BehaviorCatalogKind.Action, restartOwner, "restart_action", null, null, "restart action", null, null,
-            [new(BehaviorCatalogCallbackSlot.Handler, "restart:action", readiness("restart:action"))]),
+            BehaviorCatalogKind.Operation, restartOwner, "restart_operation", null, null, "restart operation", null, null,
+            [new(BehaviorCatalogCallbackSlot.Handler, "restart:operation", readiness("restart:operation"))]),
         new BehaviorCatalogEntry(
             BehaviorCatalogKind.Mutation, restartOwner, "restart_mutation", null, null, "restart mutation", null, null,
             [new(BehaviorCatalogCallbackSlot.Executor, "restart:mutation", readiness("restart:mutation"))]),
         new BehaviorCatalogEntry(
-            BehaviorCatalogKind.Interceptor, restartOwner, "restart_action", null, null, "restart after", "after", 7,
+            BehaviorCatalogKind.Interceptor, restartOwner, "restart_operation", null, null, "restart after", "after", 7,
             [new(BehaviorCatalogCallbackSlot.Handler, "restart:interceptor:after:7", readiness("restart:interceptor:after:7"))]),
     ]);
 
@@ -2562,24 +2562,24 @@ try
                 return ValueTask.FromResult<string?>(null);
             }),
         ],
-        computed:
+        computedProp:
         [
-            new("restart:computed", _ =>
+            new("restart:computedProp", _ =>
             {
-                events.Add("computed");
-                return ValueTask.FromResult<object?>("restart-computed-value");
+                events.Add("computedProp");
+                return ValueTask.FromResult<object?>("restart-computedProp-value");
             }),
         ],
-        actions:
+        operations:
         [
-            new("restart:action", (_, _) =>
+            new("restart:operation", (_, _) =>
             {
-                events.Add("action");
+                events.Add("operation");
                 return ValueTask.FromResult<IReadOnlyList<MutationSpec>>(
                 [
                     new MutationSpec(
                         "restart_mutation",
-                        new Dictionary<string, object?> { ["value"] = "action-mutated" }),
+                        new Dictionary<string, object?> { ["value"] = "operation-mutated" }),
                 ]);
             }),
         ],
@@ -2588,7 +2588,7 @@ try
             new("restart:mutation", async (ctx, parameters) =>
             {
                 events.Add("mutation");
-                await ctx.SetPropertyAsync("restart_effect", parameters["value"]);
+                await ctx.SetFieldValueAsync("restart_effect", parameters["value"]);
             }),
         ],
         interceptors: includeInterceptor
@@ -2615,11 +2615,11 @@ try
     {
         var persistentImportOm = new CozoOm(persistentImportDb);
         await persistentImportOm.InitSchemaAsync();
-        await persistentImportOm.DefineTypeAsync(restartOwner, "Restart import base");
-        await persistentImportOm.DefineTypeAsync(restartChild, "Restart import child", restartOwner);
-        await persistentImportOm.DefineAttributeAsync(restartOwner, "restart_effect", OmValueType.String);
-        await persistentImportOm.CreateEntityAsync(restartEntityId, restartChild, "Restart import child entity");
-        await persistentImportOm.SetPropertyAsync(restartEntityId, "restart_effect", "initial");
+        await persistentImportOm.DefineClassAsync(restartOwner, "Restart import base");
+        await persistentImportOm.DefineClassAsync(restartChild, "Restart import child", restartOwner);
+        await persistentImportOm.DefineFieldAsync(restartOwner, "restart_effect", OmValueType.String);
+        await persistentImportOm.CreateObjectAsync(restartObjectId, restartChild, "Restart import child entity");
+        await persistentImportOm.SetFieldValueAsync(restartObjectId, "restart_effect", "initial");
 
         var beforeImport = await persistentImportOm.GetBehaviorCatalogAsync();
         Assert(
@@ -2639,21 +2639,21 @@ try
             _ => BehaviorReadiness.Ready,
             "post-import catalog");
 
-        var postImportValidation = await persistentImportOm.ValidateEntityAsync(restartEntityId);
+        var postImportValidation = await persistentImportOm.ValidateObjectAsync(restartObjectId);
         Assert(postImportValidation.Valid
                && postImportEvents.SequenceEqual(["constraint:when", "constraint:then", "constraint:validator"]),
             "post-import validation must execute conditional when+then and custom validator callbacks");
         postImportEvents.Clear();
-        Assert(AsString(await persistentImportOm.GetPropertyAsync(restartEntityId, "restart_computed")) == "restart-computed-value"
-               && postImportEvents.SequenceEqual(["computed"]),
-            "post-import inherited computed lookup must execute the imported callback");
+        Assert(AsString(await persistentImportOm.GetFieldValueAsync(restartObjectId, "restart_computed_prop")) == "restart-computedProp-value"
+               && postImportEvents.SequenceEqual(["computedProp"]),
+            "post-import inherited computedProp lookup must execute the imported callback");
         postImportEvents.Clear();
-        await persistentImportOm.ExecuteActionAsync(restartEntityId, "restart_action");
-        var postImportEffect = AsString(await persistentImportOm.GetPropertyAsync(restartEntityId, "restart_effect"));
+        await persistentImportOm.ExecuteOperationAsync(restartObjectId, "restart_operation");
+        var postImportEffect = AsString(await persistentImportOm.GetFieldValueAsync(restartObjectId, "restart_effect"));
         Assert(postImportEvents.SequenceEqual(
-                   ["action", "mutation", "constraint:when", "constraint:then", "constraint:validator", "interceptor:after:7"])
-               && postImportEffect == "action-mutated",
-            $"post-import inherited action must execute its mutation and exact after/7 interceptor; events={string.Join(",", postImportEvents)} effect={postImportEffect}");
+                   ["operation", "mutation", "constraint:when", "constraint:then", "constraint:validator", "interceptor:after:7"])
+               && postImportEffect == "operation-mutated",
+            $"post-import inherited operation must execute its mutation and exact after/7 interceptor; events={string.Join(",", postImportEvents)} effect={postImportEffect}");
     }
     using (var reopenedImportDb = new CozoDb(engine: "sqlite", path: importPersistencePath))
     {
@@ -2665,44 +2665,44 @@ try
             "post-restart catalog");
 
         await ExpectUnresolvedAsync(
-            async () => { await ConstraintLogic.ValidateConstraintsAsync(reopenedImportOm.Runtime, restartEntityId, ["conditional"]); },
+            async () => { await ConstraintLogic.ValidateConstraintsAsync(reopenedImportOm.Runtime, restartObjectId, ["conditional"]); },
             BehaviorCatalogKind.Constraint,
             restartOwner,
             $"constraint:{restartOwner}/restart_conditional",
             BehaviorCatalogCallbackSlot.When,
             "restart:constraint:when");
         await ExpectUnresolvedAsync(
-            async () => { await ConstraintLogic.ValidateConstraintsAsync(reopenedImportOm.Runtime, restartEntityId, ["custom"]); },
+            async () => { await ConstraintLogic.ValidateConstraintsAsync(reopenedImportOm.Runtime, restartObjectId, ["custom"]); },
             BehaviorCatalogKind.Constraint,
             restartOwner,
             $"constraint:{restartOwner}/restart_custom",
             BehaviorCatalogCallbackSlot.Validator,
             "restart:constraint:validator");
         await ExpectUnresolvedAsync(
-            async () => { await reopenedImportOm.GetPropertyAsync(restartEntityId, "restart_computed"); },
-            BehaviorCatalogKind.Computed,
+            async () => { await reopenedImportOm.GetFieldValueAsync(restartObjectId, "restart_computed_prop"); },
+            BehaviorCatalogKind.ComputedProp,
             restartOwner,
-            $"computed:{restartOwner}/restart_computed",
+            $"computedProp:{restartOwner}/restart_computed_prop",
             BehaviorCatalogCallbackSlot.Compute,
-            "restart:computed");
+            "restart:computedProp");
         await ExpectUnresolvedAsync(
-            () => reopenedImportOm.ExecuteActionAsync(restartEntityId, "restart_action"),
-            BehaviorCatalogKind.Action,
+            () => reopenedImportOm.ExecuteOperationAsync(restartObjectId, "restart_operation"),
+            BehaviorCatalogKind.Operation,
             restartOwner,
-            $"action:{restartOwner}/restart_action",
+            $"operation:{restartOwner}/restart_operation",
             BehaviorCatalogCallbackSlot.Handler,
-            "restart:action");
+            "restart:operation");
         await ExpectUnresolvedAsync(
             () => reopenedImportOm.ExecuteMutationsAsync(
-                restartEntityId,
+                restartObjectId,
                 [new MutationSpec("restart_mutation", new Dictionary<string, object?> { ["value"] = "must-not-commit" })]),
             BehaviorCatalogKind.Mutation,
             restartOwner,
             $"mutation:{restartOwner}/restart_mutation",
             BehaviorCatalogCallbackSlot.Executor,
             "restart:mutation");
-        Assert(AsString(await reopenedImportOm.GetPropertyAsync(restartEntityId, "restart_effect")) == "action-mutated",
-            "post-restart fail-closed action and mutation paths must not commit effects");
+        Assert(AsString(await reopenedImportOm.GetFieldValueAsync(restartObjectId, "restart_effect")) == "operation-mutated",
+            "post-restart fail-closed operation and mutation paths must not commit effects");
 
         var partialEvents = new List<string>();
         var partialRebind = await reopenedImportOm.ImportBehaviorManifestJsonAsync(
@@ -2722,7 +2722,7 @@ try
                 : BehaviorReadiness.Ready,
             "partial-rebind catalog");
         await ExpectUnresolvedAsync(
-            async () => { await ConstraintLogic.ValidateConstraintsAsync(reopenedImportOm.Runtime, restartEntityId, ["conditional"]); },
+            async () => { await ConstraintLogic.ValidateConstraintsAsync(reopenedImportOm.Runtime, restartObjectId, ["conditional"]); },
             BehaviorCatalogKind.Constraint,
             restartOwner,
             $"constraint:{restartOwner}/restart_conditional",
@@ -2731,17 +2731,17 @@ try
         Assert(partialEvents.Count == 0,
             "partial constraint rebind must resolve every slot before executing the ready when callback");
         await ExpectUnresolvedAsync(
-            () => reopenedImportOm.ExecuteActionAsync(restartEntityId, "restart_action"),
+            () => reopenedImportOm.ExecuteOperationAsync(restartObjectId, "restart_operation"),
             BehaviorCatalogKind.Interceptor,
             restartOwner,
-            $"interceptor:{restartOwner}/restart_action/after/7",
+            $"interceptor:{restartOwner}/restart_operation/after/7",
             BehaviorCatalogCallbackSlot.Handler,
             "restart:interceptor:after:7",
             "after",
             7);
         Assert(partialEvents.Count == 0
-               && AsString(await reopenedImportOm.GetPropertyAsync(restartEntityId, "restart_effect")) == "action-mutated",
-            "unresolved inherited interceptor must fail before action, mutation, interceptor callbacks or writes");
+               && AsString(await reopenedImportOm.GetFieldValueAsync(restartObjectId, "restart_effect")) == "operation-mutated",
+            "unresolved inherited interceptor must fail before operation, mutation, interceptor callbacks or writes");
 
         var fullRebindEvents = new List<string>();
         var fullRebind = await reopenedImportOm.ImportBehaviorManifestJsonAsync(
@@ -2755,28 +2755,28 @@ try
             _ => BehaviorReadiness.Ready,
             "full-rebind catalog");
 
-        var reboundValidation = await reopenedImportOm.ValidateEntityAsync(restartEntityId);
+        var reboundValidation = await reopenedImportOm.ValidateObjectAsync(restartObjectId);
         Assert(reboundValidation.Valid
                && fullRebindEvents.SequenceEqual(["constraint:when", "constraint:then", "constraint:validator"]),
             "full rebind must execute conditional when+then and custom validator callbacks");
         fullRebindEvents.Clear();
-        Assert(AsString(await reopenedImportOm.GetPropertyAsync(restartEntityId, "restart_computed")) == "restart-computed-value"
-               && fullRebindEvents.SequenceEqual(["computed"]),
-            "full rebind must execute the inherited computed callback");
+        Assert(AsString(await reopenedImportOm.GetFieldValueAsync(restartObjectId, "restart_computed_prop")) == "restart-computedProp-value"
+               && fullRebindEvents.SequenceEqual(["computedProp"]),
+            "full rebind must execute the inherited computedProp callback");
         fullRebindEvents.Clear();
-        await reopenedImportOm.ExecuteActionAsync(restartEntityId, "restart_action");
-        var fullRebindEffect = AsString(await reopenedImportOm.GetPropertyAsync(restartEntityId, "restart_effect"));
+        await reopenedImportOm.ExecuteOperationAsync(restartObjectId, "restart_operation");
+        var fullRebindEffect = AsString(await reopenedImportOm.GetFieldValueAsync(restartObjectId, "restart_effect"));
         Assert(fullRebindEvents.SequenceEqual(
-                   ["action", "mutation", "constraint:when", "constraint:then", "constraint:validator", "interceptor:after:7"])
-               && fullRebindEffect == "action-mutated",
-            $"full rebind must execute inherited action, returned mutation and exact after/7 interceptor callbacks; events={string.Join(",", fullRebindEvents)} effect={fullRebindEffect}");
+                   ["operation", "mutation", "constraint:when", "constraint:then", "constraint:validator", "interceptor:after:7"])
+               && fullRebindEffect == "operation-mutated",
+            $"full rebind must execute inherited operation, returned mutation and exact after/7 interceptor callbacks; events={string.Join(",", fullRebindEvents)} effect={fullRebindEffect}");
         fullRebindEvents.Clear();
         await reopenedImportOm.ExecuteMutationsAsync(
-            restartEntityId,
+            restartObjectId,
             [new MutationSpec("restart_mutation", new Dictionary<string, object?> { ["value"] = "direct-mutated" })]);
         Assert(fullRebindEvents.SequenceEqual(
                    ["mutation", "constraint:when", "constraint:then", "constraint:validator"])
-               && AsString(await reopenedImportOm.GetPropertyAsync(restartEntityId, "restart_effect")) == "direct-mutated",
+               && AsString(await reopenedImportOm.GetFieldValueAsync(restartObjectId, "restart_effect")) == "direct-mutated",
             "full rebind must execute the representative direct mutation path");
     }
 }
@@ -2787,53 +2787,53 @@ finally
 
 var yamlCatalog = new BehaviorCatalog([
     new BehaviorCatalogEntry(
-        BehaviorCatalogKind.Action,
+        BehaviorCatalogKind.Operation,
         "YamlOwner",
-        "yaml_action",
+        "yaml_operation",
         null,
         null,
         "null",
         null,
         null,
-        [new(BehaviorCatalogCallbackSlot.Handler, "yaml:action", BehaviorReadiness.Ready)]),
+        [new(BehaviorCatalogCallbackSlot.Handler, "yaml:operation", BehaviorReadiness.Ready)]),
     new BehaviorCatalogEntry(
-        BehaviorCatalogKind.Computed,
+        BehaviorCatalogKind.ComputedProp,
         "YamlOwner",
         "yaml_computed",
         null,
         null,
-        "YAML computed",
+        "YAML computedProp",
         null,
         null,
-        [new(BehaviorCatalogCallbackSlot.Compute, "yaml:computed", BehaviorReadiness.Ready)]),
+        [new(BehaviorCatalogCallbackSlot.Compute, "yaml:computedProp", BehaviorReadiness.Ready)]),
 ]);
 var yamlManifest = """
     version: 1
     ignoredBoolean: true
     behaviors:
-      - kind: action
-        ownerType: YamlOwner
-        name: yaml_action
-        constraintType: null
+      - kind: operation
+        ownerClass: YamlOwner
+        name: yaml_operation
+        constraintKind: null
         message: null
         description: "null"
         interceptorPhase: null
         interceptorSeq: null
         callbacks:
           - slot: handler
-            bindingId: yaml:action
+            bindingId: yaml:operation
             readiness: ready
-      - kind: computed
-        ownerType: YamlOwner
+      - kind: computedProp
+        ownerClass: YamlOwner
         name: yaml_computed
-        constraintType: null
+        constraintKind: null
         message: null
-        description: YAML computed
+        description: YAML computedProp
         interceptorPhase: null
         interceptorSeq: null
         callbacks:
           - slot: compute
-            bindingId: yaml:computed
+            bindingId: yaml:computedProp
             readiness: ready
     """;
 var yamlDecoded = BehaviorManifestYamlAdapter.Decode(yamlManifest);
@@ -2847,9 +2847,9 @@ var semanticYaml = """
     version: 1
     behaviors:
       - kind: unknown
-        ownerType: YamlOwner
+        ownerClass: YamlOwner
         name: invalid
-        constraintType: null
+        constraintKind: null
         message: null
         description: null
         interceptorPhase: null
@@ -2857,7 +2857,7 @@ var semanticYaml = """
         callbacks: []
     """;
 var semanticJson = """
-    {"version":1,"behaviors":[{"kind":"unknown","ownerType":"YamlOwner","name":"invalid","constraintType":null,"message":null,"description":null,"interceptorPhase":null,"interceptorSeq":null,"callbacks":[]}]}
+    {"version":1,"behaviors":[{"kind":"unknown","ownerClass":"YamlOwner","name":"invalid","constraintKind":null,"message":null,"description":null,"interceptorPhase":null,"interceptorSeq":null,"callbacks":[]}]}
     """;
 var yamlSemanticDiagnostics = BehaviorManifestYamlAdapter.Decode(semanticYaml).Diagnostics;
 var jsonSemanticDiagnostics = BehaviorManifestJsonCodec.Decode(semanticJson).Diagnostics;
@@ -2868,10 +2868,10 @@ Assert(yamlSemanticDiagnostics.SequenceEqual(jsonSemanticDiagnostics)
 var crossKindMetadataYaml = """
     version: 1
     behaviors:
-      - kind: action
-        ownerType: YamlOwner
+      - kind: operation
+        ownerClass: YamlOwner
         name: invalid_cross_kind
-        constraintType: custom
+        constraintKind: custom
         message: forbidden
         description: allowed
         interceptorPhase: null
@@ -2879,15 +2879,15 @@ var crossKindMetadataYaml = """
         callbacks: []
     """;
 var crossKindMetadataJson = """
-    {"version":1,"behaviors":[{"kind":"action","ownerType":"YamlOwner","name":"invalid_cross_kind","constraintType":"custom","message":"forbidden","description":"allowed","interceptorPhase":null,"interceptorSeq":null,"callbacks":[]}]}
+    {"version":1,"behaviors":[{"kind":"operation","ownerClass":"YamlOwner","name":"invalid_cross_kind","constraintKind":"custom","message":"forbidden","description":"allowed","interceptorPhase":null,"interceptorSeq":null,"callbacks":[]}]}
     """;
 var yamlCrossKindDiagnostics = BehaviorManifestYamlAdapter.Decode(crossKindMetadataYaml).Diagnostics;
 var jsonCrossKindDiagnostics = BehaviorManifestJsonCodec.Decode(crossKindMetadataJson).Diagnostics;
 Assert(yamlCrossKindDiagnostics.SequenceEqual(jsonCrossKindDiagnostics)
        && yamlCrossKindDiagnostics.SequenceEqual(
        [
-           new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[0].constraintType", "Property 'constraintType' must be null for behavior kind 'action'."),
-           new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[0].message", "Property 'message' must be null for behavior kind 'action'."),
+           new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[0].constraintKind", "Property 'constraintKind' must be null for behavior kind 'operation'."),
+           new BehaviorManifestDiagnostic("OMM1203", "$.behaviors[0].message", "Property 'message' must be null for behavior kind 'operation'."),
        ]),
     "equivalent YAML and JSON cross-kind metadata must use the same canonical semantic diagnostics");
 
@@ -2900,23 +2900,23 @@ using (var jsonImportDb = new CozoDb(engine: "mem", path: ""))
     var jsonImportOm = new CozoOm(jsonImportDb);
     await yamlImportOm.InitSchemaAsync();
     await jsonImportOm.InitSchemaAsync();
-    await yamlImportOm.DefineTypeAsync("YamlOwner", "YAML owner");
-    await jsonImportOm.DefineTypeAsync("YamlOwner", "YAML owner");
-    await yamlImportOm.CreateEntityAsync("yaml:1", "YamlOwner", "YAML entity");
-    await jsonImportOm.CreateEntityAsync("yaml:1", "YamlOwner", "YAML entity");
+    await yamlImportOm.DefineClassAsync("YamlOwner", "YAML owner");
+    await jsonImportOm.DefineClassAsync("YamlOwner", "YAML owner");
+    await yamlImportOm.CreateObjectAsync("yaml:1", "YamlOwner", "YAML entity");
+    await jsonImportOm.CreateObjectAsync("yaml:1", "YamlOwner", "YAML entity");
 
     var yamlActionRan = false;
-    var yamlCallbacks = new BehaviorCallbackBindingSet(actions:
+    var yamlCallbacks = new BehaviorCallbackBindingSet(operations:
     [
-        new("yaml:action", (_, _) =>
+        new("yaml:operation", (_, _) =>
         {
             yamlActionRan = true;
             return ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]);
         }),
     ]);
-    var jsonCallbacks = new BehaviorCallbackBindingSet(actions:
+    var jsonCallbacks = new BehaviorCallbackBindingSet(operations:
     [
-        new("yaml:action", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([])),
+        new("yaml:operation", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([])),
     ]);
     var yamlImportResult = await BehaviorManifestYamlAdapter.ImportAsync(
         yamlImportOm,
@@ -2929,20 +2929,20 @@ using (var jsonImportDb = new CozoDb(engine: "mem", path: ""))
     var jsonImportedState = await CaptureBehaviorStateAsync(jsonImportOm);
     var expectedYamlDiagnostic = new BehaviorImportDiagnostic(
         "OMI1201",
-        "computed:YamlOwner/yaml_computed",
-        "Binding 'yaml:computed' has no supplied typed callback.",
-        BehaviorCatalogKind.Computed,
+        "computedProp:YamlOwner/yaml_computed",
+        "Binding 'yaml:computedProp' has no supplied typed callback.",
+        BehaviorCatalogKind.ComputedProp,
         "YamlOwner",
         "yaml_computed",
         BehaviorCatalogCallbackSlot.Compute,
-        "yaml:computed");
+        "yaml:computedProp");
     var expectedYamlUnresolved = new BehaviorUnresolvedDiagnostic(
         "OMR1001",
-        BehaviorCatalogKind.Computed,
+        BehaviorCatalogKind.ComputedProp,
         "YamlOwner",
-        "computed:YamlOwner/yaml_computed",
+        "computedProp:YamlOwner/yaml_computed",
         BehaviorCatalogCallbackSlot.Compute,
-        "yaml:computed");
+        "yaml:computedProp");
     Assert(yamlImportResult.Applied && jsonImportResult.Applied
            && yamlImportResult.Diagnostics.SequenceEqual(jsonImportResult.Diagnostics)
            && yamlImportResult.Diagnostics.SequenceEqual([expectedYamlDiagnostic])
@@ -2968,16 +2968,16 @@ using (var jsonImportDb = new CozoDb(engine: "mem", path: ""))
         yamlCrossKindState,
         await CaptureBehaviorStateAsync(yamlImportOm),
         "YAML cross-kind metadata rejection must leave metadata, binding rows, registry and readiness unchanged");
-    await yamlImportOm.ExecuteActionAsync("yaml:1", "yaml_action");
+    await yamlImportOm.ExecuteOperationAsync("yaml:1", "yaml_operation");
     Assert(yamlActionRan, "a ready callback imported through YAML must execute through the existing typed registry");
 
     var invalidConstraintYaml = """
         version: 1
         behaviors:
           - kind: constraint
-            ownerType: YamlOwner
+            ownerClass: YamlOwner
             name: yaml_invalid_custom
-            constraintType: custom
+            constraintKind: custom
             message: invalid custom shape
             description: null
             interceptorPhase: null
@@ -3002,7 +3002,7 @@ using (var jsonImportDb = new CozoDb(engine: "mem", path: ""))
            && yamlShapeDiagnostic is
            {
                Kind: BehaviorCatalogKind.Constraint,
-               OwnerType: "YamlOwner",
+               OwnerClass: "YamlOwner",
                BehaviorName: "yaml_invalid_custom",
                Path: "constraint:YamlOwner/yaml_invalid_custom.callbacks",
            }
@@ -3010,7 +3010,7 @@ using (var jsonImportDb = new CozoDb(engine: "mem", path: ""))
            && yamlShapeDiagnostic.Message.Contains("extra slots [when]", StringComparison.Ordinal)
            && yamlShapeBefore.SequenceEqual(yamlShapeAfter)
            && ReferenceEquals(yamlShapeRegistryBefore, yamlImportOm.Runtime.Registry.CaptureSnapshot()),
-        "YAML constraint type/slot mismatches must use core preflight and leave catalog and registry unchanged");
+        "YAML constraint kind/slot mismatches must use core preflight and leave catalog and registry unchanged");
 
     var catalogBeforeUnsafeImport = BehaviorManifestJsonCodec.Encode(await yamlImportOm.GetBehaviorCatalogAsync());
     var unsafeImport = await BehaviorManifestYamlAdapter.ImportAsync(
@@ -3108,18 +3108,18 @@ var om = new CozoOm(db);
 await om.InitSchemaAsync();
 await om.InitSchemaAsync();
 
-await om.DefineTypeAsync("Person", "Person");
-await om.DefineTypeAsync("Employee", "Employee", parentType: "Person");
-await om.DefineTypeAsync("Department", "Department");
-await om.DefineTypeAsync("UndirectedSource", "Undirected source");
-await om.DefineTypeAsync("UndirectedTarget", "Undirected target");
-await om.DefineAttributeAsync("Person", "name", OmValueType.String, required: true);
-await om.DefineAttributeAsync("Person", "age", OmValueType.Number);
-await om.DefineRelationAsync("works_in", "Person", "Department");
-await om.DefineRelationAsync("paired_with", "UndirectedSource", "UndirectedTarget", directed: false);
-await om.DefineAttributeAliasAsync("Person", "full_name", "name");
+await om.DefineClassAsync("Person", "Person");
+await om.DefineClassAsync("Employee", "Employee", parentClass: "Person");
+await om.DefineClassAsync("Department", "Department");
+await om.DefineClassAsync("UndirectedSource", "Undirected source");
+await om.DefineClassAsync("UndirectedTarget", "Undirected target");
+await om.DefineFieldAsync("Person", "name", OmValueType.String, required: true);
+await om.DefineFieldAsync("Person", "age", OmValueType.Number);
+await om.DefineRelationDefAsync("works_in", "Person", "Department");
+await om.DefineRelationDefAsync("paired_with", "UndirectedSource", "UndirectedTarget", directed: false);
+await om.DefineFieldAliasAsync("Person", "full_name", "name");
 await om.WriteSchemaSnapshotAsync(2, "base test schema");
-await om.DefineTypeAsync("TransientType", "Should be removed by rollback");
+await om.DefineClassAsync("TransientType", "Should be removed by rollback");
 await om.RollbackSchemaAsync(2, strict: true);
 var migration = await om.ApplySchemaMigrationAsync(new SchemaMigrationSpec(
     "mig:add-project",
@@ -3128,37 +3128,37 @@ var migration = await om.ApplySchemaMigrationAsync(new SchemaMigrationSpec(
     Label: "project schema",
     Steps:
     [
-        JsonSerializer.SerializeToElement(new { kind = "addType", typeName = "Project", description = "Project" }),
-        JsonSerializer.SerializeToElement(new { kind = "addAttribute", typeName = "Project", attrName = "code", valueType = "String", required = true }),
-        JsonSerializer.SerializeToElement(new { kind = "addRelation", relName = "assigned_project", fromType = "Person", toType = "Project" })
+        JsonSerializer.SerializeToElement(new { kind = "addClass", className = "Project", description = "Project" }),
+        JsonSerializer.SerializeToElement(new { kind = "addField", className = "Project", fieldName = "code", valueKind = "String", required = true }),
+        JsonSerializer.SerializeToElement(new { kind = "addRelation", relationName = "assigned_project", fromClass = "Person", toClass = "Project" })
     ]));
 Assert(migration is { FromVersion: 2, ToVersion: 3, StepsApplied: 3 }, "schema migration should report applied steps");
 Assert((await om.GetSchemaStateAsync()).CurrentVersion == 3, "schema migration should advance current version");
-await om.CreateEntityAsync("proj1", "Project", "Project 1");
-await om.SetPropertyAsync("proj1", "code", "P-001");
+await om.CreateObjectAsync("proj1", "Project", "Project 1");
+await om.SetFieldValueAsync("proj1", "code", "P-001");
 
 await ExpectCozoExceptionAsync(
-    () => om.CreateEntityAsync("missing:create", "MissingType", "Missing"),
-    "Type 'MissingType' does not exist",
-    "createEntity should reject unknown type names");
+    () => om.CreateObjectAsync("missing:create", "MissingType", "Missing"),
+    "Class 'MissingType' does not exist",
+    "createObject should reject unknown class names");
 await ExpectCozoExceptionAsync(
-    () => om.UpsertEntityAsync("missing:upsert", "MissingType", "Missing"),
-    "Type 'MissingType' does not exist",
-    "upsertEntity should reject unknown type names");
+    () => om.UpsertObjectAsync("missing:upsert", "MissingType", "Missing"),
+    "Class 'MissingType' does not exist",
+    "upsertObject should reject unknown class names");
 
 await ExpectCozoExceptionAsync(
-    () => om.DefineTypeAsync("Orphan", "Orphan", parentType: "NonExistent"),
-    "Parent type 'NonExistent' does not exist",
-    "defineType should reject missing parent_type");
-await om.DefineTypeAsync("CycleA", "Cycle A");
-await om.DefineTypeAsync("CycleB", "Cycle B", parentType: "CycleA");
+    () => om.DefineClassAsync("Orphan", "Orphan", parentClass: "NonExistent"),
+    "Parent class 'NonExistent' does not exist",
+    "defineClass should reject missing parent_class");
+await om.DefineClassAsync("CycleA", "Cycle A");
+await om.DefineClassAsync("CycleB", "Cycle B", parentClass: "CycleA");
 await ExpectCozoExceptionAsync(
-    () => om.DefineTypeAsync("CycleA", "Cycle A", parentType: "CycleB"),
+    () => om.DefineClassAsync("CycleA", "Cycle A", parentClass: "CycleB"),
     "Circular inheritance detected",
     "defineType should reject circular inheritance");
-await om.DefineTypeAsync("SelfCycle", "Self cycle");
+await om.DefineClassAsync("SelfCycle", "Self cycle");
 await ExpectCozoExceptionAsync(
-    () => om.DefineTypeAsync("SelfCycle", "Self cycle", parentType: "SelfCycle"),
+    () => om.DefineClassAsync("SelfCycle", "Self cycle", parentClass: "SelfCycle"),
     "Circular inheritance detected",
     "defineType should reject self-referencing parent");
 
@@ -3166,269 +3166,269 @@ var employeeAncestors = await om.GetAncestorsAsync("Employee");
 Assert(employeeAncestors.SequenceEqual(["Person"]), "getAncestors should return nearest-to-farthest parent chain");
 var personDescendants = await om.GetDescendantsAsync("Person");
 Assert(personDescendants.Contains("Employee"), "getDescendants should include child types");
-Assert(await om.IsSubtypeOfAsync("Employee", "Person"), "isSubtypeOf should accept inherited type relation");
-var hierarchy = await om.GetTypeHierarchyAsync();
-Assert(hierarchy.Roots.Contains("Person") && hierarchy.Types["Employee"].ParentType == "Person", "getTypeHierarchy should expose roots and parent links");
+Assert(await om.IsSubclassOfAsync("Employee", "Person"), "isSubtypeOf should accept inherited type relation");
+var hierarchy = await om.GetClassHierarchyAsync();
+Assert(hierarchy.Roots.Contains("Person") && hierarchy.Classes["Employee"].ParentClass == "Person", "getClassHierarchy should expose roots and parent links");
 
-await om.DefineTypeAliasAsync("Staff", "Person");
-await om.DefineRelationAliasAsync("member_of", "works_in");
-Assert(await om.ResolveTypeAsync("Staff") == "Person", "resolveType should canonicalize type aliases");
+await om.DefineClassAliasAsync("Staff", "Person");
+await om.DefineRelationDefAliasAsync("member_of", "works_in");
+Assert(await om.ResolveClassAsync("Staff") == "Person", "resolveClass should canonicalize class aliases");
 Assert(await om.ResolveRelationAsync("member_of") == "works_in", "resolveRelation should canonicalize relation aliases");
-Assert(await om.ResolveAttributeAsync("Person", "full_name") == "name", "resolveAttribute should canonicalize attribute aliases");
-await om.CreateEntityAsync("alias-rel-person", "Employee", "Alias Relation Person");
-await om.CreateEntityAsync("alias-rel-dept", "Department", "Alias Relation Department");
-await om.LinkEntitiesAsync("alias-rel-person", "member_of", "alias-rel-dept");
-Assert((await om.GetNeighborsAsync("alias-rel-person", "works_in", OmDirection.Outgoing)).Outgoing.Any(n => n.EntityId == "alias-rel-dept"), "relation alias should work for link writes");
+Assert(await om.ResolveFieldAsync("Person", "full_name") == "name", "resolveField should canonicalize field aliases");
+await om.CreateObjectAsync("alias-rel-person", "Employee", "Alias Relation Person");
+await om.CreateObjectAsync("alias-rel-dept", "Department", "Alias Relation Department");
+await om.CreateRelationLinkAsync("alias-rel-person", "member_of", "alias-rel-dept");
+Assert((await om.GetNeighborsAsync("alias-rel-person", "works_in", OmDirection.Outgoing)).Outgoing.Any(n => n.ObjectId == "alias-rel-dept"), "relation alias should work for link writes");
 
-await om.DefineTypeAsync("AliasCycleEntity", "Alias cycle entity");
-await om.DefineAttributeAliasAsync("AliasCycleEntity", "a", "b");
-await om.DefineAttributeAliasAsync("AliasCycleEntity", "b", "a");
+await om.DefineClassAsync("AliasCycleObject", "Alias cycle object");
+await om.DefineFieldAliasAsync("AliasCycleObject", "a", "b");
+await om.DefineFieldAliasAsync("AliasCycleObject", "b", "a");
 await ExpectCozoExceptionAsync(
-    () => om.ResolveAttributeAsync("AliasCycleEntity", "a"),
+    () => om.ResolveFieldAsync("AliasCycleObject", "a"),
     "cycle",
-    "resolveAttribute should reject alias cycles");
+    "resolveField should reject alias cycles");
 
-await om.DefineTypeAsync("AliasCanonicalType", "Alias canonical type");
-await om.DefineAttributeAsync("AliasCanonicalType", "org_unit", OmValueType.String);
-await om.DefineTypeAliasAsync("AliasStoredType", "AliasCanonicalType");
+await om.DefineClassAsync("AliasCanonicalClass", "Alias canonical class");
+await om.DefineFieldAsync("AliasCanonicalClass", "org_unit", OmValueType.String);
+await om.DefineClassAliasAsync("AliasStoredClass", "AliasCanonicalClass");
 db.Run(
     """
-    ?[id, type_name, label] <- [[$id, $type_name, $label]]
-    :insert om_entity {id => type_name, label}
+    ?[id, class_name, label] <- [[$id, $class_name, $label]]
+    :insert om_object {id => class_name, label}
     """,
-    new { id = "alias:type-view", type_name = "AliasStoredType", label = "Alias Type View" });
-await om.SetPropertyAsync("alias:type-view", "org_unit", "PeopleOps");
-var aliasTypeView = await om.GetEntityViewAsync("alias:type-view");
-Assert(aliasTypeView is not null && aliasTypeView.TypeName == "AliasCanonicalType", "getEntityView should return canonical typeName for alias-stored entities");
+    new { id = "alias:class-view", class_name = "AliasStoredClass", label = "Alias Class View" });
+await om.SetFieldValueAsync("alias:class-view", "org_unit", "PeopleOps");
+var aliasClassView = await om.GetObjectViewAsync("alias:class-view");
+Assert(aliasClassView is not null && aliasClassView.ClassName == "AliasCanonicalClass", "getObjectView should return canonical className for alias-stored objects");
 
 await om.DefineMixinAsync("Auditable", "Auditable mixin");
-await om.DefineAttributeAsync("Auditable", "created_by", OmValueType.String);
-await om.DefineTypeAsync("AuditedAsset", "Audited asset", mixins: ["Auditable"]);
-var auditedDefs = await om.GetAttributeDefinitionsAsync("AuditedAsset");
-Assert(auditedDefs.TryGetValue("created_by", out var createdByDef) && createdByDef.ValueType == OmValueType.String, "mixin attribute should be part of effective definitions");
-await om.DefineTypeAsync("AuditedAsset", "Audited asset updated");
-var auditedDefsAfterRedefine = await om.GetAttributeDefinitionsAsync("AuditedAsset");
-Assert(auditedDefsAfterRedefine.ContainsKey("created_by"), "redefining a type without options should preserve mixins");
-await om.CreateEntityAsync("audited:1", "AuditedAsset", "Audited 1");
-await om.SetPropertyAsync("audited:1", "created_by", "admin");
-Assert(AsString(await om.GetPropertyAsync("audited:1", "created_by")) == "admin", "mixin-contributed attribute should be writable");
+await om.DefineFieldAsync("Auditable", "created_by", OmValueType.String);
+await om.DefineClassAsync("AuditedAsset", "Audited asset", mixins: ["Auditable"]);
+var auditedDefs = await om.GetFieldDefinitionsAsync("AuditedAsset");
+Assert(auditedDefs.TryGetValue("created_by", out var createdByDef) && createdByDef.ValueKind == OmValueType.String, "mixin field should be part of effective definitions");
+await om.DefineClassAsync("AuditedAsset", "Audited asset updated");
+var auditedDefsAfterRedefine = await om.GetFieldDefinitionsAsync("AuditedAsset");
+Assert(auditedDefsAfterRedefine.ContainsKey("created_by"), "redefining a class without options should preserve mixins");
+await om.CreateObjectAsync("audited:1", "AuditedAsset", "Audited 1");
+await om.SetFieldValueAsync("audited:1", "created_by", "admin");
+Assert(AsString(await om.GetFieldValueAsync("audited:1", "created_by")) == "admin", "mixin-contributed field should be writable");
 
-await om.DefineTypeAsync("DescBase", "Description base");
-await om.DefineAttributeAsync("DescBase", "status", OmValueType.String, description: "Base status");
-await om.DefineTypeAsync("DescChild", "Description child", parentType: "DescBase");
-await om.DefineAttributeAsync("DescChild", "status", OmValueType.String, description: "Child status");
-await om.DefineTypeAsync("DescGrandchild", "Description grandchild", parentType: "DescChild");
-Assert((await om.GetAttributeDefinitionsAsync("DescBase"))["status"].Description == "Base status", "attribute descriptions should be stored");
-Assert((await om.GetAttributeDefinitionsAsync("DescGrandchild"))["status"].Description == "Child status", "nearest inherited attribute description should win");
+await om.DefineClassAsync("DescBase", "Description base");
+await om.DefineFieldAsync("DescBase", "status", OmValueType.String, description: "Base status");
+await om.DefineClassAsync("DescChild", "Description child", parentClass: "DescBase");
+await om.DefineFieldAsync("DescChild", "status", OmValueType.String, description: "Child status");
+await om.DefineClassAsync("DescGrandchild", "Description grandchild", parentClass: "DescChild");
+Assert((await om.GetFieldDefinitionsAsync("DescBase"))["status"].Description == "Base status", "field descriptions should be stored");
+Assert((await om.GetFieldDefinitionsAsync("DescGrandchild"))["status"].Description == "Child status", "nearest inherited field description should win");
 
-await om.DefineTypeAsync("OverrideBase", "Override base");
-await om.DefineAttributeAsync("OverrideBase", "name", OmValueType.String, required: true);
-await om.DefineAttributeAsync("OverrideBase", "location", OmValueType.String);
-await om.DefineTypeAsync("OverrideChild", "Override child", parentType: "OverrideBase");
-await om.DefineAttributeAsync("OverrideChild", "location", OmValueType.String, required: true);
-var overrideDefs = await om.GetAttributeDefinitionsAsync("OverrideChild");
-Assert(overrideDefs["location"].Required, "child should be able to tighten optional inherited attr to required");
+await om.DefineClassAsync("OverrideBase", "Override base");
+await om.DefineFieldAsync("OverrideBase", "name", OmValueType.String, required: true);
+await om.DefineFieldAsync("OverrideBase", "location", OmValueType.String);
+await om.DefineClassAsync("OverrideChild", "Override child", parentClass: "OverrideBase");
+await om.DefineFieldAsync("OverrideChild", "location", OmValueType.String, required: true);
+var overrideDefs = await om.GetFieldDefinitionsAsync("OverrideChild");
+Assert(overrideDefs["location"].Required, "child class should be able to tighten optional inherited field to required");
 var loosenRejected = false;
 try
 {
-    await om.DefineAttributeAsync("OverrideChild", "name", OmValueType.String, required: false);
+    await om.DefineFieldAsync("OverrideChild", "name", OmValueType.String, required: false);
 }
 catch (CozoException ex) when (ex.Message.Contains("Cannot loosen required", StringComparison.Ordinal))
 {
     loosenRejected = true;
 }
 
-Assert(loosenRejected, "child should not loosen inherited required attribute");
+Assert(loosenRejected, "child class should not loosen inherited required field");
 var typeChangeRejected = false;
 try
 {
-    await om.DefineAttributeAsync("OverrideChild", "name", OmValueType.Number, required: true);
+    await om.DefineFieldAsync("OverrideChild", "name", OmValueType.Number, required: true);
 }
-catch (CozoException ex) when (ex.Message.Contains("Cannot change value_type", StringComparison.Ordinal))
+catch (CozoException ex) when (ex.Message.Contains("Cannot change value_kind", StringComparison.Ordinal))
 {
     typeChangeRejected = true;
 }
 
-Assert(typeChangeRejected, "child should not change inherited attribute value type");
+Assert(typeChangeRejected, "child class should not change inherited field value kind");
 
-await om.DefineTypeAsync("PreserveParent", "Preserve parent");
-await om.DefineTypeAsync("PreserveChild", "Preserve child", parentType: "PreserveParent");
-await om.DefineTypeAsync("PreserveChild", "Preserve child updated");
-Assert(await om.IsSubtypeOfAsync("PreserveChild", "PreserveParent"), "redefining an existing type without parent should preserve parent_type");
+await om.DefineClassAsync("PreserveParent", "Preserve parent");
+await om.DefineClassAsync("PreserveChild", "Preserve child", parentClass: "PreserveParent");
+await om.DefineClassAsync("PreserveChild", "Preserve child updated");
+Assert(await om.IsSubclassOfAsync("PreserveChild", "PreserveParent"), "redefining an existing class without parent should preserve parent_class");
 
-await om.DefineTypeAsync("AggAsset", "Aggregate asset");
-await om.DefineTypeAsync("AggServer", "Aggregate server", parentType: "AggAsset");
-await om.DefineAttributeAsync("AggAsset", "value", OmValueType.Number);
-await om.CreateEntityAsync("agg:asset", "AggAsset", "Agg Asset");
-await om.SetPropertyAsync("agg:asset", "value", 10);
-await om.CreateEntityAsync("agg:server", "AggServer", "Agg Server");
-await om.SetPropertyAsync("agg:server", "value", 20);
-Assert(await om.AggregateByTypeAsync("AggAsset", "value", "sum") == 30, "aggregateByType should include descendants by default");
-Assert(await om.AggregateByTypeAsync("AggAsset", "value", "avg") == 15, "aggregateByType should support avg");
-Assert(await om.AggregateByTypeAsync("AggAsset", "value", "min") == 10, "aggregateByType should support min");
-Assert(await om.AggregateByTypeAsync("AggAsset", "value", "max") == 20, "aggregateByType should support max");
-Assert(await om.AggregateByTypeAsync("AggAsset", "value", "count") == 2, "aggregateByType should support count");
-Assert(await om.AggregateByTypeAsync("AggAsset", "value", "sum", new FindByTypeOptions(Exact: true)) == 10, "aggregateByType exact mode should only sum exact type rows");
-Assert(await om.AggregateByTypeAsync("AggAsset", "value", "count", new FindByTypeOptions(Exact: true)) == 1, "aggregateByType exact mode should only count exact type rows");
+await om.DefineClassAsync("AggAsset", "Aggregate asset");
+await om.DefineClassAsync("AggServer", "Aggregate server", parentClass: "AggAsset");
+await om.DefineFieldAsync("AggAsset", "value", OmValueType.Number);
+await om.CreateObjectAsync("agg:asset", "AggAsset", "Agg Asset");
+await om.SetFieldValueAsync("agg:asset", "value", 10);
+await om.CreateObjectAsync("agg:server", "AggServer", "Agg Server");
+await om.SetFieldValueAsync("agg:server", "value", 20);
+Assert(await om.AggregateByClassAsync("AggAsset", "value", "sum") == 30, "aggregateByClass should include descendants by default");
+Assert(await om.AggregateByClassAsync("AggAsset", "value", "avg") == 15, "aggregateByClass should support avg");
+Assert(await om.AggregateByClassAsync("AggAsset", "value", "min") == 10, "aggregateByClass should support min");
+Assert(await om.AggregateByClassAsync("AggAsset", "value", "max") == 20, "aggregateByClass should support max");
+Assert(await om.AggregateByClassAsync("AggAsset", "value", "count") == 2, "aggregateByClass should support count");
+Assert(await om.AggregateByClassAsync("AggAsset", "value", "sum", new FindByClassOptions(Exact: true)) == 10, "aggregateByClass exact mode should only sum exact class rows");
+Assert(await om.AggregateByClassAsync("AggAsset", "value", "count", new FindByClassOptions(Exact: true)) == 1, "aggregateByClass exact mode should only count exact class rows");
 
-await om.DefineTypeAsync("AliasFallbackEntity", "Alias fallback entity");
-await om.DefineAttributeAsync("AliasFallbackEntity", "canonical_name", OmValueType.String, required: true);
-await om.DefineAttributeAliasAsync("AliasFallbackEntity", "legacy_name", "canonical_name");
-await om.CreateEntityAsync("alias:fallback", "AliasFallbackEntity", "Alias fallback");
+await om.DefineClassAsync("AliasFallbackEntity", "Alias fallback entity");
+await om.DefineFieldAsync("AliasFallbackEntity", "canonical_name", OmValueType.String, required: true);
+await om.DefineFieldAliasAsync("AliasFallbackEntity", "legacy_name", "canonical_name");
+await om.CreateObjectAsync("alias:fallback", "AliasFallbackEntity", "Alias fallback");
 db.Run(
     """
-    ?[entity_id, attr_name, valid_time, value, tx_time] <- [[$entity_id, $attr_name, "2000-01-01T00:00:00Z", $value, "2000-01-01T00:00:00Z"]]
-    :put om_property {entity_id, attr_name, valid_time => value, tx_time}
+    ?[object_id, field_name, valid_time, value, tx_time] <- [[$object_id, $field_name, "2000-01-01T00:00:00Z", $value, "2000-01-01T00:00:00Z"]]
+    :put om_field_value {object_id, field_name, valid_time => value, tx_time}
     """,
-    new { entity_id = "alias:fallback", attr_name = "legacy_name", value = "Legacy Value" });
-Assert(AsString(await om.GetPropertyAsync("alias:fallback", "canonical_name")) == "Legacy Value", "canonical attr read should fall back to legacy alias-stored row");
-await om.SetPropertyAsync("alias:fallback", "canonical_name", "Canonical Value");
-Assert(AsString(await om.GetPropertyAsync("alias:fallback", "canonical_name")) == "Canonical Value", "canonical attr row should win when both canonical and alias rows exist");
-Assert((await om.ValidateEntityAsync("alias:fallback")).Valid, "required validation should canonicalize alias-stored properties");
+    new { object_id = "alias:fallback", field_name = "legacy_name", value = "Legacy Value" });
+Assert(AsString(await om.GetFieldValueAsync("alias:fallback", "canonical_name")) == "Legacy Value", "canonical field read should fall back to legacy alias-stored row");
+await om.SetFieldValueAsync("alias:fallback", "canonical_name", "Canonical Value");
+Assert(AsString(await om.GetFieldValueAsync("alias:fallback", "canonical_name")) == "Canonical Value", "canonical field row should win when both canonical and alias rows exist");
+Assert((await om.ValidateObjectAsync("alias:fallback")).Valid, "required validation should canonicalize alias-stored field values");
 
-await om.DefineTypeAsync("ValidityHolder", "Validity holder");
-await om.DefineAttributeAsync("ValidityHolder", "valid_from", OmValueType.Validity);
-await om.CreateEntityAsync("validity:1", "ValidityHolder", "Validity 1");
+await om.DefineClassAsync("ValidityHolder", "Validity holder");
+await om.DefineFieldAsync("ValidityHolder", "valid_from", OmValueType.Validity);
+await om.CreateObjectAsync("validity:1", "ValidityHolder", "Validity 1");
 var validityIso = "2026-01-01T00:00:00Z";
-await om.SetPropertyAsync("validity:1", "valid_from", validityIso);
+await om.SetFieldValueAsync("validity:1", "valid_from", validityIso);
 using var validityRows = db.Run(
     """
     ?[ts] :=
-      *om_property{ entity_id: $entity_id, attr_name: $attr_name, value: v },
+      *om_field_value{ object_id: $object_id, field_name: $field_name, value: v },
       ts = to_int(v)
     """,
-    new { entity_id = "validity:1", attr_name = "valid_from" });
-Assert(Rows(validityRows)[0][0].GetInt64() == DateTimeOffset.Parse(validityIso).ToUnixTimeMilliseconds() * 1000, "Validity attribute should be stored as Cozo validity value");
+    new { object_id = "validity:1", field_name = "valid_from" });
+Assert(Rows(validityRows)[0][0].GetInt64() == DateTimeOffset.Parse(validityIso).ToUnixTimeMilliseconds() * 1000, "Validity field should be stored as Cozo validity value");
 
-await om.CreateEntityAsync("p1", "Employee", "Alice");
-await om.CreateEntityAsync("d1", "Department", "Engineering");
-await om.CreateEntityAsync("undir:source", "UndirectedSource", "Undirected Source");
-await om.CreateEntityAsync("undir:target", "UndirectedTarget", "Undirected Target");
-await om.LinkEntitiesAsync("undir:target", "paired_with", "undir:source");
+await om.CreateObjectAsync("p1", "Employee", "Alice");
+await om.CreateObjectAsync("d1", "Department", "Engineering");
+await om.CreateObjectAsync("undir:source", "UndirectedSource", "Undirected Source");
+await om.CreateObjectAsync("undir:target", "UndirectedTarget", "Undirected Target");
+await om.CreateRelationLinkAsync("undir:target", "paired_with", "undir:source");
 Assert((await om.GetNeighborsAsync("undir:target", "paired_with", OmDirection.Outgoing)).Outgoing.Count == 1, "undirected relation should allow reverse endpoint typing");
-var invalidBeforeName = await om.ValidateEntityAsync("p1");
-Assert(!invalidBeforeName.Valid && invalidBeforeName.Errors.Any(e => e.Contains("name", StringComparison.Ordinal)), "required property should be enforced");
+var invalidBeforeName = await om.ValidateObjectAsync("p1");
+Assert(!invalidBeforeName.Valid && invalidBeforeName.Errors.Any(e => e.Contains("name", StringComparison.Ordinal)), "required field value should be enforced");
 
-await om.SetPropertyAsync("p1", "full_name", "Alice");
-await om.SetPropertyAsync("p1", "age", 42);
-Assert(AsString(await om.GetPropertyAsync("p1", "name")) == "Alice", "property read should return current value");
-await om.SetPropertyAsync("p1", "name", "Alice 2024", new WriteOptions(ValidTime: "2024-01-01T00:00:00Z"));
-await om.SetPropertyAsync("p1", "name", "Alice 2025", new WriteOptions(ValidTime: "2025-01-01T00:00:00Z"));
-Assert(AsString(await om.GetPropertyAsOfAsync("p1", "name", "2024-06-01T00:00:00Z")) == "Alice 2024", "property asOf should read historical value");
+await om.SetFieldValueAsync("p1", "full_name", "Alice");
+await om.SetFieldValueAsync("p1", "age", 42);
+Assert(AsString(await om.GetFieldValueAsync("p1", "name")) == "Alice", "field value read should return current value");
+await om.SetFieldValueAsync("p1", "name", "Alice 2024", new WriteOptions(ValidTime: "2024-01-01T00:00:00Z"));
+await om.SetFieldValueAsync("p1", "name", "Alice 2025", new WriteOptions(ValidTime: "2025-01-01T00:00:00Z"));
+Assert(AsString(await om.GetFieldValueAsOfAsync("p1", "name", "2024-06-01T00:00:00Z")) == "Alice 2024", "field value asOf should read historical value");
 
-await om.LinkEntitiesAsync("p1", "works_in", "d1");
+await om.CreateRelationLinkAsync("p1", "works_in", "d1");
 var neighbors = await om.GetNeighborsAsync("p1", "works_in", OmDirection.Outgoing);
-Assert(neighbors.Outgoing.Count == 1 && neighbors.Outgoing[0].EntityId == "d1", "outgoing relation should be visible");
-await om.CreateEntityAsync("p_temporal", "Person", "Temporal");
-await om.SetPropertyAsync("p_temporal", "name", "Temporal");
-await om.CreateEntityAsync("d_temporal", "Department", "Temporal Dept");
-await om.LinkEntitiesAsync("p_temporal", "works_in", "d_temporal", options: new WriteOptions(ValidTime: "2024-01-01T00:00:00Z"));
-Assert((await om.GetNeighborsAsOfAsync("p_temporal", "works_in", "2024-06-01T00:00:00Z", OmDirection.Outgoing)).Outgoing.Count == 1, "edge asOf should see asserted edge");
-await om.UnlinkEntitiesAsync("p_temporal", "works_in", "d_temporal", new WriteOptions(ValidTime: "2025-01-01T00:00:00Z"));
-Assert((await om.GetNeighborsAsOfAsync("p_temporal", "works_in", "2025-06-01T00:00:00Z", OmDirection.Outgoing)).Outgoing.Count == 0, "edge asOf should honor retract");
+Assert(neighbors.Outgoing.Count == 1 && neighbors.Outgoing[0].ObjectId == "d1", "outgoing relation should be visible");
+await om.CreateObjectAsync("p_temporal", "Person", "Temporal");
+await om.SetFieldValueAsync("p_temporal", "name", "Temporal");
+await om.CreateObjectAsync("d_temporal", "Department", "Temporal Dept");
+await om.CreateRelationLinkAsync("p_temporal", "works_in", "d_temporal", options: new WriteOptions(ValidTime: "2024-01-01T00:00:00Z"));
+Assert((await om.GetNeighborsAsOfAsync("p_temporal", "works_in", "2024-06-01T00:00:00Z", OmDirection.Outgoing)).Outgoing.Count == 1, "relation link asOf should see asserted relation link");
+await om.RetractRelationLinkAsync("p_temporal", "works_in", "d_temporal", new WriteOptions(ValidTime: "2025-01-01T00:00:00Z"));
+Assert((await om.GetNeighborsAsOfAsync("p_temporal", "works_in", "2025-06-01T00:00:00Z", OmDirection.Outgoing)).Outgoing.Count == 0, "relation link asOf should honor retract");
 
-await om.DefineTypeAsync("ViewEmployee", "View employee");
-await om.DefineTypeAsync("ViewDepartment", "View department");
-await om.DefineAttributeAsync("ViewEmployee", "department", OmValueType.String);
-await om.DefineAttributeAsync("ViewEmployee", "base_score", OmValueType.Number);
-await om.DefineRelationAsync("view_works_in", "ViewEmployee", "ViewDepartment");
-await om.CreateEntityAsync("view:emp", "ViewEmployee", "View Emp");
-await om.CreateEntityAsync("view:dept", "ViewDepartment", "View Dept");
-await om.SetPropertyAsync("view:emp", "department", "Engineering", new WriteOptions(ValidTime: "2024-01-01T00:00:00Z"));
-await om.SetPropertyAsync("view:emp", "department", "Product", new WriteOptions(ValidTime: "2025-01-01T00:00:00Z"));
-await om.SetPropertyAsync("view:emp", "base_score", 7, new WriteOptions(ValidTime: "2024-01-01T00:00:00Z"));
-await om.LinkEntitiesAsync("view:emp", "view_works_in", "view:dept", options: new WriteOptions(ValidTime: "2024-01-01T00:00:00Z"));
-await om.UnlinkEntitiesAsync("view:emp", "view_works_in", "view:dept", new WriteOptions(ValidTime: "2025-01-01T00:00:00Z"));
-await om.DefineComputedAsync("ViewEmployee", "dept_code");
-om.RegisterComputed("ViewEmployee", "dept_code", async ctx =>
+await om.DefineClassAsync("ViewEmployee", "View employee");
+await om.DefineClassAsync("ViewDepartment", "View department");
+await om.DefineFieldAsync("ViewEmployee", "department", OmValueType.String);
+await om.DefineFieldAsync("ViewEmployee", "base_score", OmValueType.Number);
+await om.DefineRelationDefAsync("view_works_in", "ViewEmployee", "ViewDepartment");
+await om.CreateObjectAsync("view:emp", "ViewEmployee", "View Emp");
+await om.CreateObjectAsync("view:dept", "ViewDepartment", "View Dept");
+await om.SetFieldValueAsync("view:emp", "department", "Engineering", new WriteOptions(ValidTime: "2024-01-01T00:00:00Z"));
+await om.SetFieldValueAsync("view:emp", "department", "Product", new WriteOptions(ValidTime: "2025-01-01T00:00:00Z"));
+await om.SetFieldValueAsync("view:emp", "base_score", 7, new WriteOptions(ValidTime: "2024-01-01T00:00:00Z"));
+await om.CreateRelationLinkAsync("view:emp", "view_works_in", "view:dept", options: new WriteOptions(ValidTime: "2024-01-01T00:00:00Z"));
+await om.RetractRelationLinkAsync("view:emp", "view_works_in", "view:dept", new WriteOptions(ValidTime: "2025-01-01T00:00:00Z"));
+await om.DefineComputedPropAsync("ViewEmployee", "dept_code");
+om.RegisterComputedProp("ViewEmployee", "dept_code", async ctx =>
 {
-    var department = AsString(await ctx.GetPropertyAsync("department"));
+    var department = AsString(await ctx.GetFieldValueAsync("department"));
     return department is null ? null : department[..Math.Min(3, department.Length)].ToUpperInvariant();
 });
-var viewAsOf = await om.GetEntityViewAsOfAsync("view:emp", "2024-06-01T00:00:00Z");
+var viewAsOf = await om.GetObjectViewAsOfAsync("view:emp", "2024-06-01T00:00:00Z");
 Assert(viewAsOf is not null
-       && AsString(viewAsOf.Properties["department"]) == "Engineering"
-       && AsString(viewAsOf.Properties["dept_code"]) == "ENG"
-       && viewAsOf.Outgoing.Any(edge => edge.ToId == "view:dept"),
-    "GetEntityViewAsOfAsync should include historical properties, computed values, and outgoing edges");
-var viewNow = await om.GetEntityViewAsync("view:emp");
+       && AsString(viewAsOf.FieldValues["department"]) == "Engineering"
+       && AsString(viewAsOf.FieldValues["dept_code"]) == "ENG"
+       && viewAsOf.Outgoing.Any(link => link.ToObjectId == "view:dept"),
+    "GetObjectViewAsOfAsync should include historical properties, computedProp values, and outgoing relation links");
+var viewNow = await om.GetObjectViewAsync("view:emp");
 Assert(viewNow is not null
-       && AsString(viewNow.Properties["department"]) == "Product"
+       && AsString(viewNow.FieldValues["department"]) == "Product"
        && viewNow.Outgoing.Count == 0,
-    "GetEntityViewAsync should keep NOW semantics after adding asOf view");
+    "GetObjectViewAsync should keep NOW semantics after adding asOf view");
 
-await om.DefineTypeAsync("SearchAsset", "Search asset");
-await om.DefineTypeAsync("SearchServer", "Search server", parentType: "SearchAsset");
-await om.DefineAttributeAsync("SearchAsset", "status", OmValueType.String);
-await om.DefineAttributeAsync("SearchAsset", "tier", OmValueType.String);
-await om.CreateEntityAsync("search:asset", "SearchAsset", "Search Asset");
-await om.CreateEntityAsync("search:server", "SearchServer", "Search Server");
-await om.SetPropertyAsync("search:asset", "status", "active");
-await om.SetPropertyAsync("search:asset", "tier", "gold");
-await om.SetPropertyAsync("search:server", "status", "active");
-await om.SetPropertyAsync("search:server", "tier", "silver");
-var richSearch = await om.FindByTypeWithPropertiesAsync("SearchAsset", new Dictionary<string, object?> { ["status"] = "active" });
+await om.DefineClassAsync("SearchAsset", "Search asset");
+await om.DefineClassAsync("SearchServer", "Search server", parentClass: "SearchAsset");
+await om.DefineFieldAsync("SearchAsset", "status", OmValueType.String);
+await om.DefineFieldAsync("SearchAsset", "tier", OmValueType.String);
+await om.CreateObjectAsync("search:asset", "SearchAsset", "Search Asset");
+await om.CreateObjectAsync("search:server", "SearchServer", "Search Server");
+await om.SetFieldValueAsync("search:asset", "status", "active");
+await om.SetFieldValueAsync("search:asset", "tier", "gold");
+await om.SetFieldValueAsync("search:server", "status", "active");
+await om.SetFieldValueAsync("search:server", "tier", "silver");
+var richSearch = await om.FindByClassWithFieldValuesAsync("SearchAsset", new Dictionary<string, object?> { ["status"] = "active" });
 Assert(richSearch.Count == 2
-       && richSearch.Any(entry => entry.Id == "search:server" && AsString(entry.Properties["tier"]) == "silver"),
-    "FindByTypeWithPropertiesAsync should filter by property and return canonical properties");
-var exactRichSearch = await om.FindByTypeWithPropertiesAsync("SearchAsset", new Dictionary<string, object?> { ["status"] = "active" }, new FindByTypeOptions(Exact: true));
+       && richSearch.Any(entry => entry.Id == "search:server" && AsString(entry.FieldValues["tier"]) == "silver"),
+    "FindByClassWithFieldValuesAsync should filter by property and return canonical properties");
+var exactRichSearch = await om.FindByClassWithFieldValuesAsync("SearchAsset", new Dictionary<string, object?> { ["status"] = "active" }, new FindByClassOptions(Exact: true));
 Assert(exactRichSearch.Count == 1 && exactRichSearch[0].Id == "search:asset", "rich type search exact mode should exclude descendants");
 
-await om.DefineTypeAsync("ValidationPerson", "Validation person");
-await om.DefineTypeAsync("ValidationDepartment", "Validation department");
-await om.DefineAttributeAsync("ValidationPerson", "name", OmValueType.String, required: true);
-await om.DefineRelationAsync("validation_member_of", "ValidationPerson", "ValidationDepartment");
-await om.CreateEntityAsync("validation:person", "ValidationPerson", "Validation Person");
-await om.CreateEntityAsync("validation:dept", "ValidationDepartment", "Validation Dept");
-var missingRequired = await om.ValidateRequiredPropertiesAsync("validation:person");
-Assert(missingRequired.SequenceEqual(["name"]), "ValidateRequiredPropertiesAsync should return missing canonical attribute names");
+await om.DefineClassAsync("ValidationPerson", "Validation person");
+await om.DefineClassAsync("ValidationDepartment", "Validation department");
+await om.DefineFieldAsync("ValidationPerson", "name", OmValueType.String, required: true);
+await om.DefineRelationDefAsync("validation_member_of", "ValidationPerson", "ValidationDepartment");
+await om.CreateObjectAsync("validation:person", "ValidationPerson", "Validation Person");
+await om.CreateObjectAsync("validation:dept", "ValidationDepartment", "Validation Dept");
+var missingRequired = await om.ValidateRequiredFieldValuesAsync("validation:person");
+Assert(missingRequired.SequenceEqual(["name"]), "ValidateRequiredFieldValuesAsync should return missing canonical attribute names");
 await ExpectCozoExceptionAsync(
-    () => om.ValidatePropertyTypeAsync("validation:person", "name", 123),
+    () => om.ValidateFieldValueTypeAsync("validation:person", "name", 123),
     "expects String",
-    "ValidatePropertyTypeAsync should reject mismatched value type without writing");
+    "ValidateFieldValueTypeAsync should reject mismatched value type without writing");
 await ExpectCozoExceptionAsync(
     () => om.ValidateRelationAsync("validation:dept", "validation_member_of", "validation:person"),
     "cannot link",
     "ValidateRelationAsync should reject invalid endpoint typing without writing");
 await ExpectCozoExceptionAsync(
-    () => om.FinalizeEntityAsync("validation:person"),
+    () => om.FinalizeObjectAsync("validation:person"),
     "Missing required property",
-    "FinalizeEntityAsync should fail incomplete entities");
-await om.SetPropertyAsync("validation:person", "name", "Valid");
-await om.FinalizeEntityAsync("validation:person");
+    "FinalizeObjectAsync should fail incomplete entities");
+await om.SetFieldValueAsync("validation:person", "name", "Valid");
+await om.FinalizeObjectAsync("validation:person");
 
-await om.DefineTypeAsync("BehaviorGuardOwner", "Behavior guard owner");
+await om.DefineClassAsync("BehaviorGuardOwner", "Behavior guard owner");
 var alwaysTrue = new Func<OmValidationContext, ValueTask<bool>>(_ => ValueTask.FromResult(true));
 const string missingBehaviorOwner = "MissingBehaviorOwner";
 
 await ExpectCozoExceptionAsync(
     () => om.DefineConstraintAsync(missingBehaviorOwner, "missing_constraint", "conditional", alwaysTrue, alwaysTrue),
     "does not exist",
-    "constraint definitions should reject a missing owner type");
+    "constraint definitions should reject a missing owner class");
 await ExpectCozoExceptionAsync(
-    () => om.DefineComputedAsync(missingBehaviorOwner, "missing_computed"),
+    () => om.DefineComputedPropAsync(missingBehaviorOwner, "missing_computed_prop"),
     "does not exist",
-    "computed definitions should reject a missing owner type");
+    "computedProp prop definitions should reject a missing owner class");
 await ExpectCozoExceptionAsync(
-    () => om.DefineActionAsync(missingBehaviorOwner, "missing_action", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([])),
+    () => om.DefineOperationAsync(missingBehaviorOwner, "missing_operation", (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([])),
     "does not exist",
-    "action definitions should reject a missing owner type");
+    "operation definitions should reject a missing owner class");
 await ExpectCozoExceptionAsync(
     () => om.DefineMutationAsync(missingBehaviorOwner, "missing_mutation", (_, _) => ValueTask.CompletedTask),
     "does not exist",
-    "mutation definitions should reject a missing owner type");
+    "mutation definitions should reject a missing owner class");
 await ExpectCozoExceptionAsync(
     () => om.AddInterceptorAsync(missingBehaviorOwner, "missing_interceptor", "before", _ => ValueTask.CompletedTask),
     "does not exist",
-    "interceptor definitions should reject a missing owner type");
+    "interceptor definitions should reject a missing owner class");
 Assert(DefinitionCount(db, "constraint", missingBehaviorOwner, "missing_constraint") == 0
-       && DefinitionCount(db, "computed", missingBehaviorOwner, "missing_computed") == 0
-       && DefinitionCount(db, "action", missingBehaviorOwner, "missing_action") == 0
+       && DefinitionCount(db, "computedProp", missingBehaviorOwner, "missing_computed_prop") == 0
+       && DefinitionCount(db, "operation", missingBehaviorOwner, "missing_operation") == 0
        && DefinitionCount(db, "mutation", missingBehaviorOwner, "missing_mutation") == 0
        && DefinitionCount(db, "interceptor", missingBehaviorOwner, "missing_interceptor") == 0,
     "missing behavior owners should leave no persistent metadata");
 Assert(!om.Runtime.Registry.TryGetConstraint(missingBehaviorOwner, "missing_constraint", out _)
-       && !om.Runtime.Registry.TryGetAction(missingBehaviorOwner, "missing_action", out _)
+       && !om.Runtime.Registry.TryGetOperation(missingBehaviorOwner, "missing_operation", out _)
        && !om.Runtime.Registry.TryGetMutation(missingBehaviorOwner, "missing_mutation", out _)
        && om.Runtime.Registry.GetInterceptors(missingBehaviorOwner, "missing_interceptor", "before").Count == 0,
     "missing behavior owners should leave no callback registrations");
@@ -3474,11 +3474,11 @@ await ExpectExceptionAsync<ArgumentNullException>(
         (Func<OmValidationContext, ValueTask<bool>>)null!),
     "constraint definitions should reject a null then callback");
 await ExpectExceptionAsync<ArgumentNullException>(
-    () => om.DefineActionAsync(
+    () => om.DefineOperationAsync(
         "BehaviorGuardOwner",
-        "null_action",
-        (Func<OmActionContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>>)null!),
-    "action definitions should reject a null callback");
+        "null_operation",
+        (Func<OmOperationContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>>)null!),
+    "operation definitions should reject a null callback");
 await ExpectExceptionAsync<ArgumentNullException>(
     () => om.DefineMutationAsync(
         "BehaviorGuardOwner",
@@ -3490,11 +3490,11 @@ await ExpectExceptionAsync<ArgumentNullException>(
         "BehaviorGuardOwner",
         "null_interceptor",
         "before",
-        (Func<OmActionContext, ValueTask>)null!),
+        (Func<OmOperationContext, ValueTask>)null!),
     "interceptor definitions should reject a null callback");
 Assert(DefinitionCount(db, "constraint", "BehaviorGuardOwner", "null_constraint_when") == 0
        && DefinitionCount(db, "constraint", "BehaviorGuardOwner", "null_constraint_then") == 0
-       && DefinitionCount(db, "action", "BehaviorGuardOwner", "null_action") == 0
+       && DefinitionCount(db, "operation", "BehaviorGuardOwner", "null_operation") == 0
        && DefinitionCount(db, "mutation", "BehaviorGuardOwner", "null_mutation") == 0
        && DefinitionCount(db, "interceptor", "BehaviorGuardOwner", "null_interceptor") == 0,
     "null callbacks should be rejected before persistent metadata is written");
@@ -3506,7 +3506,7 @@ using (var failingDb = new CozoDb(engine: "mem", path: ""))
     var failingStore = new ScriptFailingOmStore(new CozoDbOmStore(failingDb));
     var failingOm = new CozoOm(failingStore);
     await failingOm.InitSchemaAsync();
-    await failingOm.DefineTypeAsync("FailingBehaviorOwner", "Failing behavior owner");
+    await failingOm.DefineClassAsync("FailingBehaviorOwner", "Failing behavior owner");
     failingStore.FailWhenScriptContains = ":put om_interceptor_def";
     await ExpectExceptionAsync<InvalidOperationException>(
         () => failingOm.AddInterceptorAsync("FailingBehaviorOwner", "storage_failure", "before", _ => ValueTask.CompletedTask),
@@ -3533,15 +3533,15 @@ const string oldConstraintWhenBindingId = "binding:overwrite:constraint:when";
 const string oldConstraintThenBindingId = "binding:overwrite:constraint:then";
 using (db.Run(
            """
-           ?[type_name, constraint_name, constraint_type, message] <-
-             [[$type_name, $constraint_name, $constraint_type, $message]]
-           :put om_constraint_def {type_name, constraint_name => constraint_type, message}
+           ?[class_name, constraint_name, constraint_kind, message] <-
+             [[$class_name, $constraint_name, $constraint_kind, $message]]
+           :put om_constraint_def {class_name, constraint_name => constraint_kind, message}
            """,
            new
            {
-               type_name = "BehaviorGuardOwner",
+               class_name = "BehaviorGuardOwner",
                constraint_name = "overwrite_constraint",
-               constraint_type = "legacy-unsupported-scope",
+               constraint_kind = "legacy-unsupported-scope",
                message = "old constraint message",
            }))
 {
@@ -3601,42 +3601,42 @@ Assert((await om.GetBehaviorCatalogAsync()).Behaviors
         .Callbacks.All(callback => callback.Readiness == BehaviorReadiness.Ready),
     "constraint overwrite compensation should keep both portable callbacks ready");
 
-var oldAction = new Func<OmActionContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>>(
+var oldOperation = new Func<OmOperationContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>>(
     (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]));
-const string oldActionBindingId = "binding:overwrite:action";
-await om.DefineActionAsync("BehaviorGuardOwner", "overwrite_action", "old action description");
-om.Runtime.Registry.RegisterAction("BehaviorGuardOwner", "overwrite_action", oldActionBindingId, oldAction);
+const string oldActionBindingId = "binding:overwrite:operation";
+await om.DefineOperationAsync("BehaviorGuardOwner", "overwrite_operation", "old operation description");
+om.Runtime.Registry.RegisterOperation("BehaviorGuardOwner", "overwrite_operation", oldActionBindingId, oldOperation);
 await BehaviorBindingLogic.PutAsync(
     om.Runtime,
     new BehaviorBindingRow(
         new BehaviorBindingKey(
-            BehaviorKind.Action,
+            BehaviorKind.Operation,
             "BehaviorGuardOwner",
-            "overwrite_action",
+            "overwrite_operation",
             BehaviorCallbackSlot.Handler,
             BehaviorBindingLogic.NonInterceptorPhase,
             BehaviorBindingLogic.NonInterceptorSeq),
         oldActionBindingId));
 Assert((await om.GetBehaviorCatalogAsync()).Behaviors
-        .Single(entry => entry.Kind == BehaviorCatalogKind.Action && entry.Name == "overwrite_action")
+        .Single(entry => entry.Kind == BehaviorCatalogKind.Operation && entry.Name == "overwrite_operation")
         .Callbacks.Single().Readiness == BehaviorReadiness.Ready,
-    "action overwrite fixture should begin with its portable callback ready");
+    "operation overwrite fixture should begin with its portable callback ready");
 await ExpectExceptionAsync<InvalidOperationException>(
-    () => ConstraintLogic.DefineActionCallbackAsync(
+    () => ConstraintLogic.DefineOperationCallbackAsync(
         om.Runtime,
-        new DefineActionInput("BehaviorGuardOwner", "overwrite_action", "new action description"),
+        new DefineOperationInput("BehaviorGuardOwner", "overwrite_operation", "new operation description"),
         (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]),
-        afterRegistration: () => throw new InvalidOperationException("simulated action registration failure")),
-    "action overwrite should surface callback registration failures");
-Assert(DefinitionPayload(db, "action", "BehaviorGuardOwner", "overwrite_action") == "old action description",
-    "action overwrite failure should restore the previous description");
-Assert(om.Runtime.Registry.TryGetAction("BehaviorGuardOwner", "overwrite_action", out var restoredAction)
-       && ReferenceEquals(restoredAction, oldAction),
-    "action overwrite failure should restore the previous callback");
+        afterRegistration: () => throw new InvalidOperationException("simulated operation registration failure")),
+    "operation overwrite should surface callback registration failures");
+Assert(DefinitionPayload(db, "operation", "BehaviorGuardOwner", "overwrite_operation") == "old operation description",
+    "operation overwrite failure should restore the previous description");
+Assert(om.Runtime.Registry.TryGetOperation("BehaviorGuardOwner", "overwrite_operation", out var restoredOperation)
+       && ReferenceEquals(restoredOperation, oldOperation),
+    "operation overwrite failure should restore the previous callback");
 Assert((await om.GetBehaviorCatalogAsync()).Behaviors
-        .Single(entry => entry.Kind == BehaviorCatalogKind.Action && entry.Name == "overwrite_action")
+        .Single(entry => entry.Kind == BehaviorCatalogKind.Operation && entry.Name == "overwrite_operation")
         .Callbacks.Single().Readiness == BehaviorReadiness.Ready,
-    "action overwrite compensation should preserve the exact binding identity and readiness");
+    "operation overwrite compensation should preserve the exact binding identity and readiness");
 
 var oldMutation = new Func<OmMutationContext, IReadOnlyDictionary<string, object?>, ValueTask>(
     (_, _) => ValueTask.CompletedTask);
@@ -3675,7 +3675,7 @@ Assert((await om.GetBehaviorCatalogAsync()).Behaviors
         .Callbacks.Single().Readiness == BehaviorReadiness.Ready,
     "mutation overwrite compensation should preserve the exact binding identity and readiness");
 
-var oldInterceptor = new Func<OmActionContext, ValueTask>(_ => ValueTask.CompletedTask);
+var oldInterceptor = new Func<OmOperationContext, ValueTask>(_ => ValueTask.CompletedTask);
 const string oldInterceptorBindingId = "binding:overwrite:interceptor:before:0";
 await om.AddInterceptorAsync(
     "BehaviorGuardOwner",
@@ -3735,7 +3735,7 @@ Assert(DefinitionPayload(
            "overwrite_interceptor",
            phase: "before",
            seq: 0) == "old interceptor description",
-    "interceptor overwrite failure should restore metadata at the exact owner/action/phase/seq key");
+    "interceptor overwrite failure should restore metadata at the exact owner/operation/phase/seq key");
 Assert(om.Runtime.Registry.TryGetInterceptor(
            "BehaviorGuardOwner",
            "overwrite_interceptor",
@@ -3744,7 +3744,7 @@ Assert(om.Runtime.Registry.TryGetInterceptor(
            out var restoredInterceptor)
        && ReferenceEquals(restoredInterceptor.Handler, oldInterceptor)
        && restoredInterceptor.Description == "old interceptor description"
-       && restoredInterceptor.OwnerType == "BehaviorGuardOwner"
+       && restoredInterceptor.OwnerClass == "BehaviorGuardOwner"
        && restoredInterceptor.Seq == 0
        && restoredInterceptor.BindingId == oldInterceptorBindingId,
     "interceptor overwrite failure should restore the previous callback and exact binding identity");
@@ -3760,8 +3760,8 @@ using (var rollbackFailingDb = new CozoDb(engine: "mem", path: ""))
     var rollbackFailingStore = new ScriptFailingOmStore(new CozoDbOmStore(rollbackFailingDb));
     var rollbackFailingOm = new CozoOm(rollbackFailingStore);
     await rollbackFailingOm.InitSchemaAsync();
-    await rollbackFailingOm.DefineTypeAsync("RollbackFailureOwner", "Rollback failure owner");
-    await rollbackFailingOm.DefineActionAsync(
+    await rollbackFailingOm.DefineClassAsync("RollbackFailureOwner", "Rollback failure owner");
+    await rollbackFailingOm.DefineOperationAsync(
         "RollbackFailureOwner",
         "rollback_failure",
         (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]),
@@ -3770,14 +3770,14 @@ using (var rollbackFailingDb = new CozoDb(engine: "mem", path: ""))
     AggregateException? combinedFailure = null;
     try
     {
-        await ConstraintLogic.DefineActionCallbackAsync(
+        await ConstraintLogic.DefineOperationCallbackAsync(
             rollbackFailingOm.Runtime,
-            new DefineActionInput("RollbackFailureOwner", "rollback_failure", "new rollback description"),
+            new DefineOperationInput("RollbackFailureOwner", "rollback_failure", "new rollback description"),
             (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]),
             afterRegistration: () =>
             {
-                rollbackFailingStore.FailWhenScriptContains = ":put om_action_def";
-                throw new InvalidOperationException("simulated action registration failure");
+                rollbackFailingStore.FailWhenScriptContains = ":put om_operation_def";
+                throw new InvalidOperationException("simulated operation registration failure");
             });
     }
     catch (AggregateException ex)
@@ -3791,42 +3791,42 @@ using (var rollbackFailingDb = new CozoDb(engine: "mem", path: ""))
         "metadata rollback failure should report both the original registration and compensation failures");
 }
 
-await om.DefineTypeAsync("ComputedBase", "Computed base");
-await om.DefineTypeAsync("ComputedChild", "Computed child", parentType: "ComputedBase");
-await om.DefineComputedAsync("ComputedBase", "risk_score");
-om.RegisterComputed("ComputedBase", "risk_score", _ => ValueTask.FromResult<object?>(1));
-await om.CreateEntityAsync("computed:child", "ComputedChild", "Computed Child");
-Assert(AsNumber(await om.GetPropertyAsync("computed:child", "risk_score")) == 1, "child should inherit parent computed property");
-Assert((await om.GetEntityViewAsync("computed:child"))!.Properties.ContainsKey("risk_score"), "entity view should include inherited computed property");
-await om.DefineComputedAsync("ComputedChild", "risk_score");
-om.RegisterComputed("ComputedChild", "risk_score", _ => ValueTask.FromResult<object?>(2));
-Assert(AsNumber(await om.GetPropertyAsync("computed:child", "risk_score")) == 2, "child computed property should override parent computed property");
+await om.DefineClassAsync("ComputedBase", "ComputedProp base");
+await om.DefineClassAsync("ComputedChild", "ComputedProp child", parentClass: "ComputedBase");
+await om.DefineComputedPropAsync("ComputedBase", "risk_score");
+om.RegisterComputedProp("ComputedBase", "risk_score", _ => ValueTask.FromResult<object?>(1));
+await om.CreateObjectAsync("computedProp:child", "ComputedChild", "ComputedProp Child");
+Assert(AsNumber(await om.GetFieldValueAsync("computedProp:child", "risk_score")) == 1, "child should inherit parent computedProp prop");
+Assert((await om.GetObjectViewAsync("computedProp:child"))!.FieldValues.ContainsKey("risk_score"), "entity view should include inherited computedProp prop");
+await om.DefineComputedPropAsync("ComputedChild", "risk_score");
+om.RegisterComputedProp("ComputedChild", "risk_score", _ => ValueTask.FromResult<object?>(2));
+Assert(AsNumber(await om.GetFieldValueAsync("computedProp:child", "risk_score")) == 2, "child computedProp prop should override parent computedProp prop");
 
-await om.DefineTypeAsync("ConstraintEmployee", "Constraint employee");
-await om.DefineAttributeAsync("ConstraintEmployee", "status", OmValueType.String);
-await om.DefineAttributeAsync("ConstraintEmployee", "end_date", OmValueType.String);
+await om.DefineClassAsync("ConstraintEmployee", "Constraint employee");
+await om.DefineFieldAsync("ConstraintEmployee", "status", OmValueType.String);
+await om.DefineFieldAsync("ConstraintEmployee", "end_date", OmValueType.String);
 await om.DefineConstraintAsync(
     "ConstraintEmployee",
     "active_has_no_end_date",
     "conditional",
-    async ctx => AsString(await ctx.GetPropertyAsync("status")) == "active",
+    async ctx => AsString(await ctx.GetFieldValueAsync("status")) == "active",
     async ctx =>
     {
-        var endDate = AsString(await ctx.GetPropertyAsync("end_date"));
+        var endDate = AsString(await ctx.GetFieldValueAsync("end_date"));
         return string.IsNullOrWhiteSpace(endDate);
     },
     "end_date must be empty when status=active");
-await om.CreateEntityAsync("constraint:emp", "ConstraintEmployee", "Constraint Emp");
-await om.SetPropertyAsync("constraint:emp", "status", "active");
+await om.CreateObjectAsync("constraint:emp", "ConstraintEmployee", "Constraint Emp");
+await om.SetFieldValueAsync("constraint:emp", "status", "active");
 await ExpectCozoExceptionAsync(
-    () => om.SetPropertyAsync("constraint:emp", "end_date", "2026-12-31"),
+    () => om.SetFieldValueAsync("constraint:emp", "end_date", "2026-12-31"),
     "active_has_no_end_date",
     "conditional constraint should reject invalid property writes");
-Assert(await om.GetPropertyAsync("constraint:emp", "end_date") is null, "failed conditional constraint write should rollback property");
+Assert(await om.GetFieldValueAsync("constraint:emp", "end_date") is null, "failed conditional constraint write should rollback property");
 
-await om.DefineTypeAsync("ConstraintDepartment", "Constraint department");
-await om.DefineTypeAsync("ConstraintStaff", "Constraint staff");
-await om.DefineRelationAsync("constraint_heads", "ConstraintDepartment", "ConstraintStaff");
+await om.DefineClassAsync("ConstraintDepartment", "Constraint department");
+await om.DefineClassAsync("ConstraintStaff", "Constraint staff");
+await om.DefineRelationDefAsync("constraint_heads", "ConstraintDepartment", "ConstraintStaff");
 await om.DefineConstraintAsync(
     "ConstraintDepartment",
     "at_most_one_head",
@@ -3834,59 +3834,59 @@ await om.DefineConstraintAsync(
     _ => ValueTask.FromResult(true),
     async ctx => (await ctx.GetNeighborsAsync("constraint_heads", OmDirection.Outgoing)).Outgoing.Count <= 1,
     "department can have at most one head");
-await om.CreateEntityAsync("constraint:dept", "ConstraintDepartment", "Constraint Dept");
-await om.CreateEntityAsync("constraint:staff1", "ConstraintStaff", "Constraint Staff 1");
-await om.CreateEntityAsync("constraint:staff2", "ConstraintStaff", "Constraint Staff 2");
-await om.LinkEntitiesAsync("constraint:dept", "constraint_heads", "constraint:staff1");
+await om.CreateObjectAsync("constraint:dept", "ConstraintDepartment", "Constraint Dept");
+await om.CreateObjectAsync("constraint:staff1", "ConstraintStaff", "Constraint Staff 1");
+await om.CreateObjectAsync("constraint:staff2", "ConstraintStaff", "Constraint Staff 2");
+await om.CreateRelationLinkAsync("constraint:dept", "constraint_heads", "constraint:staff1");
 await ExpectCozoExceptionAsync(
-    () => om.LinkEntitiesAsync("constraint:dept", "constraint_heads", "constraint:staff2"),
+    () => om.CreateRelationLinkAsync("constraint:dept", "constraint_heads", "constraint:staff2"),
     "at_most_one_head",
-    "cross-entity constraint should reject invalid edge writes");
-Assert((await om.GetNeighborsAsync("constraint:dept", "constraint_heads", OmDirection.Outgoing)).Outgoing.Count == 1, "failed cross-entity constraint write should rollback edge");
+    "cross-entity constraint should reject invalid relation link writes");
+Assert((await om.GetNeighborsAsync("constraint:dept", "constraint_heads", OmDirection.Outgoing)).Outgoing.Count == 1, "failed cross-entity constraint write should rollback relation link");
 
-await om.DefineTypeAsync("RiskAsset", "Risk asset");
-await om.DefineAttributeAsync("RiskAsset", "base_risk", OmValueType.Number);
-await om.DefineAttributeAsync("RiskAsset", "requires_review", OmValueType.Bool);
-await om.DefineComputedAsync("RiskAsset", "risk_score");
-om.RegisterComputed("RiskAsset", "risk_score", async ctx => (AsNumber(await ctx.GetPropertyAsync("base_risk")) ?? 0) * 10);
+await om.DefineClassAsync("RiskAsset", "Risk asset");
+await om.DefineFieldAsync("RiskAsset", "base_risk", OmValueType.Number);
+await om.DefineFieldAsync("RiskAsset", "requires_review", OmValueType.Bool);
+await om.DefineComputedPropAsync("RiskAsset", "risk_score");
+om.RegisterComputedProp("RiskAsset", "risk_score", async ctx => (AsNumber(await ctx.GetFieldValueAsync("base_risk")) ?? 0) * 10);
 await om.DefineConstraintAsync(
     "RiskAsset",
     "high_risk_requires_review",
-    "computed-dep",
-    async ctx => (AsNumber(await ctx.GetPropertyAsync("risk_score")) ?? 0) > 80,
-    async ctx => AsBool(await ctx.GetPropertyAsync("requires_review")) == true,
+    "computedProp-dep",
+    async ctx => (AsNumber(await ctx.GetFieldValueAsync("risk_score")) ?? 0) > 80,
+    async ctx => AsBool(await ctx.GetFieldValueAsync("requires_review")) == true,
     "requires_review must be true when risk_score > 80");
-await om.CreateEntityAsync("risk:asset", "RiskAsset", "Risk Asset");
-await om.SetPropertyAsync("risk:asset", "base_risk", 9, new WriteOptions(SkipConstraints: true));
-var riskValidation = await om.ValidateEntityAsync("risk:asset");
-Assert(!riskValidation.Valid && riskValidation.Errors.Any(error => error.Contains("high_risk_requires_review", StringComparison.Ordinal)), "computed-dep constraint should see computed property values");
-await om.SetPropertyAsync("risk:asset", "requires_review", true);
-Assert((await om.ValidateEntityAsync("risk:asset")).Valid, "computed-dep constraint should pass after dependent property is set");
+await om.CreateObjectAsync("risk:asset", "RiskAsset", "Risk Asset");
+await om.SetFieldValueAsync("risk:asset", "base_risk", 9, new WriteOptions(SkipConstraints: true));
+var riskValidation = await om.ValidateObjectAsync("risk:asset");
+Assert(!riskValidation.Valid && riskValidation.Errors.Any(error => error.Contains("high_risk_requires_review", StringComparison.Ordinal)), "computedProp-dep constraint should see computedProp prop values");
+await om.SetFieldValueAsync("risk:asset", "requires_review", true);
+Assert((await om.ValidateObjectAsync("risk:asset")).Valid, "computedProp-dep constraint should pass after dependent property is set");
 
-await om.DefineTypeAsync("InheritedConstraintBase", "Inherited constraint base");
-await om.DefineTypeAsync("InheritedConstraintChild", "Inherited constraint child", parentType: "InheritedConstraintBase");
-await om.DefineAttributeAsync("InheritedConstraintBase", "status", OmValueType.String);
-await om.DefineAttributeAsync("InheritedConstraintBase", "end_date", OmValueType.String);
+await om.DefineClassAsync("InheritedConstraintBase", "Inherited constraint base");
+await om.DefineClassAsync("InheritedConstraintChild", "Inherited constraint child", parentClass: "InheritedConstraintBase");
+await om.DefineFieldAsync("InheritedConstraintBase", "status", OmValueType.String);
+await om.DefineFieldAsync("InheritedConstraintBase", "end_date", OmValueType.String);
 await om.DefineConstraintAsync(
     "InheritedConstraintBase",
     "inherited_active_has_no_end_date",
     "conditional",
-    async ctx => AsString(await ctx.GetPropertyAsync("status")) == "active",
-    async ctx => string.IsNullOrWhiteSpace(AsString(await ctx.GetPropertyAsync("end_date"))),
+    async ctx => AsString(await ctx.GetFieldValueAsync("status")) == "active",
+    async ctx => string.IsNullOrWhiteSpace(AsString(await ctx.GetFieldValueAsync("end_date"))),
     "end_date must be empty when inherited status=active");
-await om.CreateEntityAsync("constraint:child", "InheritedConstraintChild", "Inherited Constraint Child");
-await om.SetPropertyAsync("constraint:child", "status", "active");
+await om.CreateObjectAsync("constraint:child", "InheritedConstraintChild", "Inherited Constraint Child");
+await om.SetFieldValueAsync("constraint:child", "status", "active");
 await ExpectCozoExceptionAsync(
-    () => om.SetPropertyAsync("constraint:child", "end_date", "2026-12-31"),
+    () => om.SetFieldValueAsync("constraint:child", "end_date", "2026-12-31"),
     "inherited_active_has_no_end_date",
     "subtype should inherit parent conditional constraints");
 
-var people = await om.FindByTypeAsync("Person");
-Assert(people.Any(e => e.Id == "p1" && e.TypeName == "Employee"), "parent type query should include child entities");
+var people = await om.FindByClassAsync("Person");
+Assert(people.Any(e => e.Id == "p1" && e.ClassName == "Employee"), "parent type query should include child entities");
 var transientFailed = false;
 try
 {
-    await om.CreateEntityAsync("transient", "TransientType", "Transient");
+    await om.CreateObjectAsync("transient", "TransientType", "Transient");
 }
 catch (CozoException)
 {
@@ -3897,10 +3897,10 @@ Assert(transientFailed, "schema rollback should remove metadata added after snap
 
 await om.DefineConstraintAsync("Person", "reject_bad", "custom", "bad entity");
 om.RegisterValidator("Person", "reject_bad", ctx =>
-    ValueTask.FromResult(ctx.EntityId == "p_bad" ? "custom failed" : null));
-await om.CreateEntityAsync("p_bad", "Person", "Bad");
-await om.SetPropertyAsync("p_bad", "name", "Bad", new WriteOptions(SkipConstraints: true));
-var customValidation = await om.ValidateEntityAsync("p_bad");
+    ValueTask.FromResult(ctx.ObjectId == "p_bad" ? "custom failed" : null));
+await om.CreateObjectAsync("p_bad", "Person", "Bad");
+await om.SetFieldValueAsync("p_bad", "name", "Bad", new WriteOptions(SkipConstraints: true));
+var customValidation = await om.ValidateObjectAsync("p_bad");
 Assert(!customValidation.Valid && customValidation.Errors.Contains("custom failed"), "custom in-memory validator should run");
 
 var actionLog = new List<string>();
@@ -3910,15 +3910,15 @@ await om.DefineMutationAsync(
     async (ctx, parameters) =>
     {
         actionLog.Add("mutation");
-        await ctx.SetPropertyAsync("name", parameters["name"]);
+        await ctx.SetFieldValueAsync("name", parameters["name"]);
     },
-    "Set name from action");
-await om.DefineActionAsync(
+    "Set name from operation");
+await om.DefineOperationAsync(
     "Person",
     "rename",
     (ctx, parameters) =>
     {
-        actionLog.Add("action");
+        actionLog.Add("operation");
         return ValueTask.FromResult<IReadOnlyList<MutationSpec>>(
         [
             new MutationSpec("setNameFromAction", new Dictionary<string, object?> { ["name"] = parameters["name"] })
@@ -3950,40 +3950,40 @@ await om.AddInterceptorAsync(
         return ValueTask.CompletedTask;
     },
     "Record after");
-await om.ExecuteActionAsync("p1", "rename", new Dictionary<string, object?> { ["name"] = "Alice Action" });
-Assert(string.Join(",", actionLog) == "before,action,mutation,after", "action pipeline should run before/action/mutation/after in order");
-Assert(AsString(await om.GetPropertyAsync("p1", "name")) == "Alice Action", "action mutation should update property");
+await om.ExecuteOperationAsync("p1", "rename", new Dictionary<string, object?> { ["name"] = "Alice Operation" });
+Assert(string.Join(",", actionLog) == "before,operation,mutation,after", "operation pipeline should run before/operation/mutation/after in order");
+Assert(AsString(await om.GetFieldValueAsync("p1", "name")) == "Alice Operation", "operation mutation should update property");
 
-await om.DefineTypeAsync("ParentActionRoot", "Parent action root");
-await om.DefineTypeAsync("ParentActionMiddle", "Parent action middle", parentType: "ParentActionRoot");
-await om.DefineTypeAsync("ParentActionLeaf", "Parent action leaf", parentType: "ParentActionMiddle");
-await om.DefineAttributeAsync("ParentActionRoot", "parent_effect", OmValueType.String, required: false);
-await om.DefineAttributeAsync("ParentActionRoot", "child_effect", OmValueType.String, required: false);
-await om.CreateEntityAsync("parent-action:middle", "ParentActionMiddle", "Parent action middle entity");
-await om.CreateEntityAsync("parent-action:leaf", "ParentActionLeaf", "Parent action leaf entity");
-await om.SetPropertyAsync("parent-action:leaf", "parent_effect", "initial-parent");
-await om.SetPropertyAsync("parent-action:leaf", "child_effect", "initial-child");
+await om.DefineClassAsync("ParentOperationRoot", "Parent operation root");
+await om.DefineClassAsync("ParentOperationMiddle", "Parent operation middle", parentClass: "ParentOperationRoot");
+await om.DefineClassAsync("ParentOperationLeaf", "Parent operation leaf", parentClass: "ParentOperationMiddle");
+await om.DefineFieldAsync("ParentOperationRoot", "parent_effect", OmValueType.String, required: false);
+await om.DefineFieldAsync("ParentOperationRoot", "child_effect", OmValueType.String, required: false);
+await om.CreateObjectAsync("parent-operation:middle", "ParentOperationMiddle", "Parent operation middle entity");
+await om.CreateObjectAsync("parent-operation:leaf", "ParentOperationLeaf", "Parent operation leaf entity");
+await om.SetFieldValueAsync("parent-operation:leaf", "parent_effect", "initial-parent");
+await om.SetFieldValueAsync("parent-operation:leaf", "child_effect", "initial-child");
 
 var directParentOwners = new List<string>();
 var directParentInterceptorCount = 0;
-await om.DefineActionAsync(
-    "ParentActionRoot",
+await om.DefineOperationAsync(
+    "ParentOperationRoot",
     "directParent",
     (ctx, _) =>
     {
-        directParentOwners.Add(ctx.ActionOwnerType);
+        directParentOwners.Add(ctx.OperationOwnerClass);
         return ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]);
     });
-await om.DefineActionAsync(
-    "ParentActionMiddle",
+await om.DefineOperationAsync(
+    "ParentOperationMiddle",
     "directParent",
     async (ctx, parameters) =>
     {
-        directParentOwners.Add(ctx.ActionOwnerType);
-        return await ctx.CallParentActionAsync("directParent", parameters);
+        directParentOwners.Add(ctx.OperationOwnerClass);
+        return await ctx.CallParentOperationAsync("directParent", parameters);
     });
 await om.AddInterceptorAsync(
-    "ParentActionRoot",
+    "ParentOperationRoot",
     "directParent",
     "before",
     _ =>
@@ -3991,94 +3991,94 @@ await om.AddInterceptorAsync(
         directParentInterceptorCount++;
         return ValueTask.CompletedTask;
     });
-await om.ExecuteActionAsync("parent-action:middle", "directParent");
-Assert(string.Join(",", directParentOwners) == "ParentActionMiddle,ParentActionRoot",
-    "direct parent calls should advance ActionOwnerType to the matched parent owner");
+await om.ExecuteOperationAsync("parent-operation:middle", "directParent");
+Assert(string.Join(",", directParentOwners) == "ParentOperationMiddle,ParentOperationRoot",
+    "direct parent calls should advance OperationOwnerClass to the matched parent owner");
 Assert(directParentInterceptorCount == 1, "calling a parent handler should not rerun inherited interceptors");
 
-string? nearestInheritedActionOwner = null;
-await om.DefineActionAsync(
-    "ParentActionMiddle",
-    "nearestInheritedAction",
+string? nearestInheritedOperationOwner = null;
+await om.DefineOperationAsync(
+    "ParentOperationMiddle",
+    "nearestInheritedOperation",
     (ctx, _) =>
     {
-        nearestInheritedActionOwner = ctx.ActionOwnerType;
+        nearestInheritedOperationOwner = ctx.OperationOwnerClass;
         return ValueTask.FromResult<IReadOnlyList<MutationSpec>>([]);
     });
-await om.ExecuteActionAsync("parent-action:leaf", "nearestInheritedAction");
-Assert(nearestInheritedActionOwner == "ParentActionMiddle",
-    "a child entity should execute the nearest inherited action registration");
+await om.ExecuteOperationAsync("parent-operation:leaf", "nearestInheritedOperation");
+Assert(nearestInheritedOperationOwner == "ParentOperationMiddle",
+    "a child entity should execute the nearest inherited operation registration");
 
 var inheritedMutationOwners = new List<string>();
 await om.DefineMutationAsync(
-    "ParentActionRoot",
+    "ParentOperationRoot",
     "nearestInheritedMutation",
     (_, _) =>
     {
-        inheritedMutationOwners.Add("ParentActionRoot");
+        inheritedMutationOwners.Add("ParentOperationRoot");
         return ValueTask.CompletedTask;
     });
 await om.DefineMutationAsync(
-    "ParentActionMiddle",
+    "ParentOperationMiddle",
     "nearestInheritedMutation",
     async (ctx, _) =>
     {
-        inheritedMutationOwners.Add("ParentActionMiddle");
-        await ctx.SetPropertyAsync("parent_effect", "nearest-middle-mutation");
+        inheritedMutationOwners.Add("ParentOperationMiddle");
+        await ctx.SetFieldValueAsync("parent_effect", "nearest-middle-mutation");
     });
-await om.DefineActionAsync(
-    "ParentActionLeaf",
+await om.DefineOperationAsync(
+    "ParentOperationLeaf",
     "returnInheritedMutation",
     (_, _) => ValueTask.FromResult<IReadOnlyList<MutationSpec>>([new MutationSpec("nearestInheritedMutation")]));
-await om.ExecuteActionAsync("parent-action:leaf", "returnInheritedMutation");
-Assert(string.Join(",", inheritedMutationOwners) == "ParentActionMiddle",
-    "a child action mutation should resolve to the nearest ancestor registration");
-Assert(AsString(await om.GetPropertyAsync("parent-action:leaf", "parent_effect")) == "nearest-middle-mutation",
-    "the nearest inherited mutation should commit through the child action transaction");
-await om.SetPropertyAsync("parent-action:leaf", "parent_effect", "initial-parent");
+await om.ExecuteOperationAsync("parent-operation:leaf", "returnInheritedMutation");
+Assert(string.Join(",", inheritedMutationOwners) == "ParentOperationMiddle",
+    "a child operation mutation should resolve to the nearest ancestor registration");
+Assert(AsString(await om.GetFieldValueAsync("parent-operation:leaf", "parent_effect")) == "nearest-middle-mutation",
+    "the nearest inherited mutation should commit through the child operation transaction");
+await om.SetFieldValueAsync("parent-operation:leaf", "parent_effect", "initial-parent");
 
 await om.DefineMutationAsync(
-    "ParentActionRoot",
+    "ParentOperationRoot",
     "setParentEffect",
-    async (ctx, parameters) => await ctx.SetPropertyAsync("parent_effect", parameters["value"]));
+    async (ctx, parameters) => await ctx.SetFieldValueAsync("parent_effect", parameters["value"]));
 await om.DefineMutationAsync(
-    "ParentActionLeaf",
+    "ParentOperationLeaf",
     "setChildEffect",
-    async (ctx, parameters) => await ctx.SetPropertyAsync("child_effect", parameters["value"]));
+    async (ctx, parameters) => await ctx.SetFieldValueAsync("child_effect", parameters["value"]));
 await om.DefineMutationAsync(
-    "ParentActionLeaf",
+    "ParentOperationLeaf",
     "failAfterEffects",
-    (_, _) => throw new InvalidOperationException("parent action effect failure"));
+    (_, _) => throw new InvalidOperationException("parent operation effect failure"));
 
 var layeredParentOwners = new List<string>();
 var parentEffectsWereDeferred = false;
-await om.DefineActionAsync(
-    "ParentActionRoot",
+await om.DefineOperationAsync(
+    "ParentOperationRoot",
     "layeredEffects",
     (ctx, parameters) =>
     {
-        layeredParentOwners.Add(ctx.ActionOwnerType);
+        layeredParentOwners.Add(ctx.OperationOwnerClass);
         return ValueTask.FromResult<IReadOnlyList<MutationSpec>>(
         [
             new MutationSpec("setParentEffect", new Dictionary<string, object?> { ["value"] = parameters["parent"] })
         ]);
     });
-await om.DefineActionAsync(
-    "ParentActionMiddle",
+await om.DefineOperationAsync(
+    "ParentOperationMiddle",
     "layeredEffects",
     async (ctx, parameters) =>
     {
-        layeredParentOwners.Add(ctx.ActionOwnerType);
-        return await ctx.CallParentActionAsync("layeredEffects", parameters);
+        layeredParentOwners.Add(ctx.OperationOwnerClass);
+        return await ctx.CallParentOperationAsync("layeredEffects", parameters);
     });
-await om.DefineActionAsync(
-    "ParentActionLeaf",
+await om.DefineOperationAsync(
+    "ParentOperationLeaf",
     "layeredEffects",
     async (ctx, parameters) =>
     {
-        layeredParentOwners.Add(ctx.ActionOwnerType);
-        var parentMutations = await ctx.CallParentActionAsync("layeredEffects", parameters);
-        parentEffectsWereDeferred = AsString(await ctx.GetPropertyAsync("parent_effect")) == "initial-parent";
+        layeredParentOwners.Add(ctx.OperationOwnerClass);
+        var parentMutations = await ctx.CallParentOperationAsync("layeredEffects", parameters);
+        parentEffectsWereDeferred = AsString(await ctx.GetFieldValueAsync("parent_effect")) == "initial-parent";
         return
         [
             .. parentMutations,
@@ -4086,47 +4086,47 @@ await om.DefineActionAsync(
         ];
     });
 
-await om.ExecuteActionAsync(
-    "parent-action:leaf",
+await om.ExecuteOperationAsync(
+    "parent-operation:leaf",
     "layeredEffects",
     new Dictionary<string, object?> { ["parent"] = "parent-applied", ["child"] = "child-applied" });
-Assert(string.Join(",", layeredParentOwners) == "ParentActionLeaf,ParentActionMiddle,ParentActionRoot",
+Assert(string.Join(",", layeredParentOwners) == "ParentOperationLeaf,ParentOperationMiddle,ParentOperationRoot",
     "three-level parent calls should visit each override exactly once");
 Assert(parentEffectsWereDeferred, "parent handlers should return mutations without executing them");
-Assert(AsString(await om.GetPropertyAsync("parent-action:leaf", "parent_effect")) == "parent-applied"
-       && AsString(await om.GetPropertyAsync("parent-action:leaf", "child_effect")) == "child-applied",
-    "outer action execution should apply combined parent and child mutations");
+Assert(AsString(await om.GetFieldValueAsync("parent-operation:leaf", "parent_effect")) == "parent-applied"
+       && AsString(await om.GetFieldValueAsync("parent-operation:leaf", "child_effect")) == "child-applied",
+    "outer operation execution should apply combined parent and child mutations");
 
-await om.DefineActionAsync(
-    "ParentActionLeaf",
+await om.DefineOperationAsync(
+    "ParentOperationLeaf",
     "missingParent",
     async (ctx, parameters) =>
     {
-        await ctx.SetPropertyAsync("child_effect", "missing-parent-should-roll-back");
-        return await ctx.CallParentActionAsync("missingParent", parameters);
+        await ctx.SetFieldValueAsync("child_effect", "missing-parent-should-roll-back");
+        return await ctx.CallParentOperationAsync("missingParent", parameters);
     });
 var missingParentDiagnosed = false;
 try
 {
-    await om.ExecuteActionAsync("parent-action:leaf", "missingParent");
+    await om.ExecuteOperationAsync("parent-operation:leaf", "missingParent");
 }
 catch (InvalidOperationException ex) when (
     ex.Message.Contains("missingParent", StringComparison.Ordinal)
-    && ex.Message.Contains("ParentActionLeaf", StringComparison.Ordinal))
+    && ex.Message.Contains("ParentOperationLeaf", StringComparison.Ordinal))
 {
     missingParentDiagnosed = true;
 }
 
-Assert(missingParentDiagnosed, "missing parent action diagnostics should contain the action and current owner");
-Assert(AsString(await om.GetPropertyAsync("parent-action:leaf", "child_effect")) == "child-applied",
-    "a missing parent action should roll back earlier writes in the outer action transaction");
+Assert(missingParentDiagnosed, "missing parent operation diagnostics should contain the operation and current owner");
+Assert(AsString(await om.GetFieldValueAsync("parent-operation:leaf", "child_effect")) == "child-applied",
+    "a missing parent operation should roll back earlier writes in the outer operation transaction");
 
-await om.DefineActionAsync(
-    "ParentActionLeaf",
+await om.DefineOperationAsync(
+    "ParentOperationLeaf",
     "layeredEffectsThenFail",
     async (ctx, parameters) =>
     {
-        var combined = await ctx.CallParentActionAsync("layeredEffects", parameters);
+        var combined = await ctx.CallParentOperationAsync("layeredEffects", parameters);
         return
         [
             .. combined,
@@ -4135,32 +4135,32 @@ await om.DefineActionAsync(
         ];
     });
 await ExpectExceptionAsync<InvalidOperationException>(
-    () => om.ExecuteActionAsync(
-        "parent-action:leaf",
+    () => om.ExecuteOperationAsync(
+        "parent-operation:leaf",
         "layeredEffectsThenFail",
         new Dictionary<string, object?> { ["parent"] = "rolled-back-parent", ["child"] = "rolled-back-child" }),
     "a later mutation failure should abort parent and child effects");
-Assert(AsString(await om.GetPropertyAsync("parent-action:leaf", "parent_effect")) == "parent-applied"
-       && AsString(await om.GetPropertyAsync("parent-action:leaf", "child_effect")) == "child-applied",
-    "parent and child mutation effects should roll back together when the outer action fails");
+Assert(AsString(await om.GetFieldValueAsync("parent-operation:leaf", "parent_effect")) == "parent-applied"
+       && AsString(await om.GetFieldValueAsync("parent-operation:leaf", "child_effect")) == "child-applied",
+    "parent and child mutation effects should roll back together when the outer operation fails");
 
-await om.DefineTypeAsync("InterceptorOrderParent", "Interceptor order parent");
-await om.DefineTypeAsync("InterceptorOrderChild", "Interceptor order child", parentType: "InterceptorOrderParent");
-await om.DefineAttributeAsync("InterceptorOrderParent", "interceptor_value", OmValueType.String, required: false);
-await om.CreateEntityAsync("interceptor-order:child", "InterceptorOrderChild", "Interceptor order child entity");
-await om.SetPropertyAsync("interceptor-order:child", "interceptor_value", "initial");
+await om.DefineClassAsync("InterceptorOrderParent", "Interceptor order parent");
+await om.DefineClassAsync("InterceptorOrderChild", "Interceptor order child", parentClass: "InterceptorOrderParent");
+await om.DefineFieldAsync("InterceptorOrderParent", "interceptor_value", OmValueType.String, required: false);
+await om.CreateObjectAsync("interceptor-order:child", "InterceptorOrderChild", "Interceptor order child entity");
+await om.SetFieldValueAsync("interceptor-order:child", "interceptor_value", "initial");
 await om.DefineMutationAsync(
     "InterceptorOrderChild",
     "setInterceptorValue",
-    async (ctx, parameters) => await ctx.SetPropertyAsync("interceptor_value", parameters["value"]));
+    async (ctx, parameters) => await ctx.SetFieldValueAsync("interceptor_value", parameters["value"]));
 
 var inheritedInterceptorOrder = new List<string>();
-await om.DefineActionAsync(
+await om.DefineOperationAsync(
     "InterceptorOrderChild",
     "orderedInterceptors",
     (_, _) =>
     {
-        inheritedInterceptorOrder.Add("action");
+        inheritedInterceptorOrder.Add("operation");
         return ValueTask.FromResult<IReadOnlyList<MutationSpec>>(
         [
             new MutationSpec(
@@ -4208,13 +4208,13 @@ await om.AddInterceptorAsync("InterceptorOrderChild", "orderedInterceptors", "af
     inheritedInterceptorOrder.Add("child-after-2");
     return ValueTask.CompletedTask;
 });
-await om.ExecuteActionAsync("interceptor-order:child", "orderedInterceptors");
+await om.ExecuteOperationAsync("interceptor-order:child", "orderedInterceptors");
 Assert(
     string.Join(",", inheritedInterceptorOrder) ==
-    "parent-before-1,parent-before-2,child-before-1,child-before-2,action,parent-after-1,parent-after-2,child-after-1,child-after-2",
+    "parent-before-1,parent-before-2,child-before-1,child-before-2,operation,parent-after-1,parent-after-2,child-after-1,child-after-2",
     "inherited before and after interceptors should preserve parent grouping and owner-local registration order");
-Assert(AsString(await om.GetPropertyAsync("interceptor-order:child", "interceptor_value")) == "ordered",
-    "ordered interceptor action should commit its mutation");
+Assert(AsString(await om.GetFieldValueAsync("interceptor-order:child", "interceptor_value")) == "ordered",
+    "ordered interceptor operation should commit its mutation");
 
 var inheritedBeforeActionRan = false;
 var inheritedBeforeMutationRan = false;
@@ -4224,9 +4224,9 @@ await om.DefineMutationAsync(
     async (ctx, _) =>
     {
         inheritedBeforeMutationRan = true;
-        await ctx.SetPropertyAsync("interceptor_value", "mutation-should-not-run");
+        await ctx.SetFieldValueAsync("interceptor_value", "mutation-should-not-run");
     });
-await om.DefineActionAsync(
+await om.DefineOperationAsync(
     "InterceptorOrderChild",
     "inheritedBeforeFailure",
     (_, _) =>
@@ -4240,16 +4240,16 @@ await om.AddInterceptorAsync(
     "before",
     async ctx =>
     {
-        await ctx.SetPropertyAsync("interceptor_value", "before-should-roll-back");
+        await ctx.SetFieldValueAsync("interceptor_value", "before-should-roll-back");
         throw new InvalidOperationException("inherited before failed");
     });
 await ExpectExceptionAsync<InvalidOperationException>(
-    () => om.ExecuteActionAsync("interceptor-order:child", "inheritedBeforeFailure"),
-    "inherited before interceptor failures should abort action execution");
+    () => om.ExecuteOperationAsync("interceptor-order:child", "inheritedBeforeFailure"),
+    "inherited before interceptor failures should abort operation execution");
 Assert(!inheritedBeforeActionRan && !inheritedBeforeMutationRan,
-    "an inherited before failure should prevent both the action and its mutations from running");
-Assert(AsString(await om.GetPropertyAsync("interceptor-order:child", "interceptor_value")) == "ordered",
-    "an inherited before failure should leave no committed interceptor, action, or mutation effects");
+    "an inherited before failure should prevent both the operation and its mutations from running");
+Assert(AsString(await om.GetFieldValueAsync("interceptor-order:child", "interceptor_value")) == "ordered",
+    "an inherited before failure should leave no committed interceptor, operation, or mutation effects");
 
 var inheritedAfterActionRan = false;
 var inheritedAfterMutationRan = false;
@@ -4259,9 +4259,9 @@ await om.DefineMutationAsync(
     async (ctx, _) =>
     {
         inheritedAfterMutationRan = true;
-        await ctx.SetPropertyAsync("interceptor_value", "after-should-roll-back");
+        await ctx.SetFieldValueAsync("interceptor_value", "after-should-roll-back");
     });
-await om.DefineActionAsync(
+await om.DefineOperationAsync(
     "InterceptorOrderChild",
     "inheritedAfterFailure",
     (_, _) =>
@@ -4275,12 +4275,12 @@ await om.AddInterceptorAsync(
     "after",
     _ => throw new InvalidOperationException("inherited after failed"));
 await ExpectExceptionAsync<InvalidOperationException>(
-    () => om.ExecuteActionAsync("interceptor-order:child", "inheritedAfterFailure"),
-    "inherited after interceptor failures should abort the action transaction");
+    () => om.ExecuteOperationAsync("interceptor-order:child", "inheritedAfterFailure"),
+    "inherited after interceptor failures should abort the operation transaction");
 Assert(inheritedAfterActionRan && inheritedAfterMutationRan,
-    "an inherited after failure should occur after the action and mutation have run");
-Assert(AsString(await om.GetPropertyAsync("interceptor-order:child", "interceptor_value")) == "ordered",
-    "an inherited after failure should roll back the complete action transaction");
+    "an inherited after failure should occur after the operation and mutation have run");
+Assert(AsString(await om.GetFieldValueAsync("interceptor-order:child", "interceptor_value")) == "ordered",
+    "an inherited after failure should roll back the complete operation transaction");
 
 var rollbackActionLog = new List<string>();
 await om.DefineMutationAsync(
@@ -4289,15 +4289,15 @@ await om.DefineMutationAsync(
     async (ctx, parameters) =>
     {
         rollbackActionLog.Add("mutation");
-        await ctx.SetPropertyAsync("name", parameters["name"]);
+        await ctx.SetFieldValueAsync("name", parameters["name"]);
     },
     "Set name before failing after interceptor");
-await om.DefineActionAsync(
+await om.DefineOperationAsync(
     "Person",
     "renameThenFail",
     (_, _) =>
     {
-        rollbackActionLog.Add("action");
+        rollbackActionLog.Add("operation");
         return ValueTask.FromResult<IReadOnlyList<MutationSpec>>(
         [
             new MutationSpec("setNameBeforeFail", new Dictionary<string, object?> { ["name"] = "Should Roll Back" })
@@ -4317,32 +4317,32 @@ await om.AddInterceptorAsync(
 var actionRolledBack = false;
 try
 {
-    await om.ExecuteActionAsync("p1", "renameThenFail");
+    await om.ExecuteOperationAsync("p1", "renameThenFail");
 }
 catch (InvalidOperationException ex) when (ex.Message.Contains("after failed", StringComparison.Ordinal))
 {
     actionRolledBack = true;
 }
 
-Assert(actionRolledBack, "action pipeline should surface after interceptor failure");
-Assert(string.Join(",", rollbackActionLog) == "action,mutation,after", "failing action should run until failing after interceptor");
-Assert(AsString(await om.GetPropertyAsync("p1", "name")) == "Alice Action", "failing action should rollback mutation writes");
+Assert(actionRolledBack, "operation pipeline should surface after interceptor failure");
+Assert(string.Join(",", rollbackActionLog) == "operation,mutation,after", "failing operation should run until failing after interceptor");
+Assert(AsString(await om.GetFieldValueAsync("p1", "name")) == "Alice Operation", "failing operation should rollback mutation writes");
 
-await om.CreateEntityAsync("admin", "Person", "Permission admin");
-await om.CreateEntityAsync("u1", "Person", "Permission user");
-await om.DefineRelationAsync("permission_can_read_person", "Person", "Person");
-await om.DefineRelationAsync("permission_can_inspect_person", "Person", "Person");
-await om.LinkEntitiesAsync("admin", "assigned_project", "proj1");
-await om.LinkEntitiesAsync("u1", "permission_can_read_person", "p1");
-await om.LinkEntitiesAsync("admin", "permission_can_inspect_person", "p1");
-await om.DefineAttributeAsync("Person", "is_admin", OmValueType.Bool);
-await om.SetPropertyAsync("admin", "is_admin", true, new WriteOptions(SkipConstraints: true));
-await om.SetPropertyAsync("u1", "is_admin", false, new WriteOptions(SkipConstraints: true));
+await om.CreateObjectAsync("admin", "Person", "Permission admin");
+await om.CreateObjectAsync("u1", "Person", "Permission user");
+await om.DefineRelationDefAsync("permission_can_read_person", "Person", "Person");
+await om.DefineRelationDefAsync("permission_can_inspect_person", "Person", "Person");
+await om.CreateRelationLinkAsync("admin", "assigned_project", "proj1");
+await om.CreateRelationLinkAsync("u1", "permission_can_read_person", "p1");
+await om.CreateRelationLinkAsync("admin", "permission_can_inspect_person", "p1");
+await om.DefineFieldAsync("Person", "is_admin", OmValueType.Bool);
+await om.SetFieldValueAsync("admin", "is_admin", true, new WriteOptions(SkipConstraints: true));
+await om.SetFieldValueAsync("u1", "is_admin", false, new WriteOptions(SkipConstraints: true));
 await om.SeedPermissionMetadataAsync();
 await PermissionGovernanceParityFixtures.RunAsync();
 
 await om.SeedPermissionMetadataAsync(new PermissionSeedInput(
-    Actions: [new PermissionActionSeed("inspect", "Inspect resource")],
+    Operations: [new PermissionOperationSeed("inspect", "Inspect resource")],
     Policies: [new PermissionPolicySeed("allow_admin_inspect_project", "allow", "inspect", "Project")],
     AbacRules: [new PermissionAbacRuleSeed("allow_admin_inspect_project", "subject.is_admin", "=", "true")],
     PathRules: [new PermissionPathRuleSeed("allow_admin_inspect_project", "assigned_project")]));
@@ -4362,11 +4362,11 @@ await om.DefinePermissionPolicyAsync("deny_person_read", "deny", "read", "Person
 await om.AddPermissionPathRuleAsync("deny_person_read", "permission_can_read_person");
 Assert(!(await om.CheckAccessAsync(new CheckAccessInput("u1", "read", "p1"))).Allow, "deny policy should override allow");
 
-await om.DefineTypeAsync("Order", "Order");
-await om.DefineTypeAsync("Shipment", "Shipment");
-await om.DefineAttributeAsync("Shipment", "carrier", OmValueType.String);
-await om.DefineRelationAsync("has_shipment", "Order", "Shipment");
-await om.CreateEntityAsync("o1", "Order", "Order 1");
+await om.DefineClassAsync("Order", "Order");
+await om.DefineClassAsync("Shipment", "Shipment");
+await om.DefineFieldAsync("Shipment", "carrier", OmValueType.String);
+await om.DefineRelationDefAsync("has_shipment", "Order", "Shipment");
+await om.CreateObjectAsync("o1", "Order", "Order 1");
 await om.DefineExistentialRuleAsync(
     "order_has_shipment",
     new ExistentialRuleSpec(
@@ -4380,89 +4380,89 @@ await om.DefineExistentialRuleAsync(
         "order must have shipment"));
 
 var violations = await om.CheckExistentialRulesAsync();
-Assert(violations.Count == 1 && violations[0].EntityId == "o1", "existential check should report missing edge");
+Assert(violations.Count == 1 && violations[0].ObjectId == "o1", "existential check should report missing relation link");
 
 var chase = await om.ApplyExistentialRulesAsync(new ApplyExistentialRulesInput(MaxIterations: 3));
-Assert(chase.Created.Count == 1 && chase.ReachedFixpoint, "existential materialization should create one Skolem edge and reach fixpoint");
+Assert(chase.Created.Count == 1 && chase.ReachedFixpoint, "existential materialization should create one Skolem relation link and reach fixpoint");
 Assert((await om.CheckExistentialRulesAsync()).Count == 0, "existential materialization should be idempotent after apply");
 Assert((await om.ApplyExistentialRulesAsync(new ApplyExistentialRulesInput(MaxIterations: 3))).Created.Count == 0, "second existential apply should not duplicate Skolem objects");
 
 var shipmentNeighbors = await om.GetNeighborsAsync("o1", "has_shipment", OmDirection.Outgoing);
-Assert(shipmentNeighbors.Outgoing.Count == 1 && shipmentNeighbors.Outgoing[0].TypeName == "Shipment", "Skolem shipment should be linked");
+Assert(shipmentNeighbors.Outgoing.Count == 1 && shipmentNeighbors.Outgoing[0].ClassName == "Shipment", "Skolem shipment should be linked");
 
-await om.DefineTypeAsync("BatchPerson", "Batch person");
-await om.DefineTypeAsync("BatchDepartment", "Batch department");
-await om.DefineAttributeAsync("BatchPerson", "name", OmValueType.String, required: true);
-await om.DefineAttributeAsync("BatchDepartment", "title", OmValueType.String, required: true);
-await om.DefineRelationAsync("batch_works_in", "BatchPerson", "BatchDepartment");
+await om.DefineClassAsync("BatchPerson", "Batch person");
+await om.DefineClassAsync("BatchDepartment", "Batch department");
+await om.DefineFieldAsync("BatchPerson", "name", OmValueType.String, required: true);
+await om.DefineFieldAsync("BatchDepartment", "title", OmValueType.String, required: true);
+await om.DefineRelationDefAsync("batch_works_in", "BatchPerson", "BatchDepartment");
 
 var batchResult = await om.IngestBatchAsync(new OmBatchInput(
-    Entities:
+    Objects:
     [
-        new OmBatchEntity("bp1", "BatchPerson", "Batch Alice"),
-        new OmBatchEntity("bd1", "BatchDepartment", "Batch Engineering")
+        new OmBatchObject("bp1", "BatchPerson", "Batch Alice"),
+        new OmBatchObject("bd1", "BatchDepartment", "Batch Engineering")
     ],
-    Properties:
+    FieldValues:
     [
-        new OmBatchProperty("bp1", "name", "Batch Alice"),
-        new OmBatchProperty("bd1", "title", "Batch Engineering")
+        new OmBatchFieldValue("bp1", "name", "Batch Alice"),
+        new OmBatchFieldValue("bd1", "title", "Batch Engineering")
     ],
-    Edges:
+    RelationLinks:
     [
-        new OmBatchEdge("bp1", "batch_works_in", "bd1", new { source = "test" })
+        new OmBatchRelationLink("bp1", "batch_works_in", "bd1", new { source = "test" })
     ]));
-Assert(batchResult is { Entities: 2, Properties: 2, Edges: 1, ValidatedEntities: 2 }, "batch ingest should return Node-compatible counts");
-Assert(AsString(await om.GetPropertyAsync("bp1", "name")) == "Batch Alice", "batch property should be written");
-Assert((await om.GetNeighborsAsync("bp1", "batch_works_in", OmDirection.Outgoing)).Outgoing.Count == 1, "batch edge should be written");
+Assert(batchResult is { Objects: 2, FieldValues: 2, RelationLinks: 1, ValidatedObjects: 2 }, "batch ingest should return Object-compatible counts");
+Assert(AsString(await om.GetFieldValueAsync("bp1", "name")) == "Batch Alice", "batch property should be written");
+Assert((await om.GetNeighborsAsync("bp1", "batch_works_in", OmDirection.Outgoing)).Outgoing.Count == 1, "batch relation link should be written");
 
 var requiredFailed = false;
 try
 {
-    await om.IngestBatchAsync(new OmBatchInput(Entities: [new OmBatchEntity("bp_missing", "BatchPerson", "Missing required")]));
+    await om.IngestBatchAsync(new OmBatchInput(Objects: [new OmBatchObject("bp_missing", "BatchPerson", "Missing required")]));
 }
 catch (CozoException ex) when (ex.Message.Contains("name", StringComparison.Ordinal))
 {
     requiredFailed = true;
 }
 
-Assert(requiredFailed, "batch ingest should validate touched entities by default");
+Assert(requiredFailed, "batch ingest should validate touched objects by default");
 var batchRolledBack = false;
 try
 {
-    await om.GetEntityTypeAsync("bp_missing");
+    await om.GetObjectClassAsync("bp_missing");
 }
 catch (CozoException)
 {
     batchRolledBack = true;
 }
 
-Assert(batchRolledBack, "failed batch ingest should rollback created entities");
+Assert(batchRolledBack, "failed batch ingest should rollback created objects");
 
 var skippedResult = await om.IngestBatchAsync(
-    new OmBatchInput(Entities: [new OmBatchEntity("bp_skip", "BatchPerson", "Skip required")]),
+    new OmBatchInput(Objects: [new OmBatchObject("bp_skip", "BatchPerson", "Skip required")]),
     new OmBatchOptions(ValidateRequired: false));
-Assert(skippedResult.ValidatedEntities == 1 && (await om.GetEntityTypeAsync("bp_skip")) == "BatchPerson", "batch ingest can skip required validation while preserving Node-compatible count");
+Assert(skippedResult.ValidatedObjects == 1 && (await om.GetObjectClassAsync("bp_skip")) == "BatchPerson", "batch ingest can skip required validation while preserving Object-compatible count");
 
-await om.DefineTypeAsync("AnalyticsNode", "Analytics node");
-await om.DefineAttributeAsync("AnalyticsNode", "risk", OmValueType.Number);
-await om.DefineRelationAsync("analytics_link", "AnalyticsNode", "AnalyticsNode");
+await om.DefineClassAsync("AnalyticsNode", "Analytics node");
+await om.DefineFieldAsync("AnalyticsNode", "risk", OmValueType.Number);
+await om.DefineRelationDefAsync("analytics_link", "AnalyticsNode", "AnalyticsNode");
 await om.IngestBatchAsync(new OmBatchInput(
-    Entities:
+    Objects:
     [
-        new OmBatchEntity("an_root", "AnalyticsNode", "Root"),
-        new OmBatchEntity("an_child", "AnalyticsNode", "Child"),
-        new OmBatchEntity("an_other", "AnalyticsNode", "Other")
+        new OmBatchObject("an_root", "AnalyticsNode", "Root"),
+        new OmBatchObject("an_child", "AnalyticsNode", "Child"),
+        new OmBatchObject("an_other", "AnalyticsNode", "Other")
     ],
-    Properties:
+    FieldValues:
     [
-        new OmBatchProperty("an_root", "risk", 10),
-        new OmBatchProperty("an_child", "risk", 50),
-        new OmBatchProperty("an_other", "risk", 30)
+        new OmBatchFieldValue("an_root", "risk", 10),
+        new OmBatchFieldValue("an_child", "risk", 50),
+        new OmBatchFieldValue("an_other", "risk", 30)
     ],
-    Edges:
+    RelationLinks:
     [
-        new OmBatchEdge("an_root", "analytics_link", "an_child"),
-        new OmBatchEdge("an_root", "analytics_link", "an_other")
+        new OmBatchRelationLink("an_root", "analytics_link", "an_child"),
+        new OmBatchRelationLink("an_root", "analytics_link", "an_other")
     ]));
 
 var impact = await om.ImpactAnalysisAsync(new ImpactAnalysisInput(
@@ -4560,9 +4560,9 @@ file sealed class RunHookOmStore(ICozoOmStore inner) : ICozoOmStore
 
 file sealed record BehaviorMetadataProbe(
     BehaviorCatalogKind Kind,
-    string OwnerType,
+    string OwnerClass,
     string Name,
-    string? ConstraintType,
+    string? ConstraintKind,
     string? Message,
     string? Description,
     string? InterceptorPhase,
@@ -4570,7 +4570,7 @@ file sealed record BehaviorMetadataProbe(
 
 file sealed record BehaviorReadinessProbe(
     BehaviorCatalogKind Kind,
-    string OwnerType,
+    string OwnerClass,
     string Name,
     string? InterceptorPhase,
     int? InterceptorSeq,
@@ -4580,7 +4580,7 @@ file sealed record BehaviorReadinessProbe(
 
 file sealed record RegistryBindingProbe(
     BehaviorCatalogKind Kind,
-    string OwnerType,
+    string OwnerClass,
     string Name,
     BehaviorCatalogCallbackSlot Slot,
     string? Phase,

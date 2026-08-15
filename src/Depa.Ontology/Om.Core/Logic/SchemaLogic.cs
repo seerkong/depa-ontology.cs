@@ -16,33 +16,33 @@ public static class SchemaLogic
 
         var creates = new[]
         {
-            ":create om_type {name => description, parent_type}",
-            ":create om_mixin {name => description}",
-            ":create om_type_mixin {type_name, mixin_name}",
-            ":create om_action_def {type_name, action_name => description}",
-            ":create om_mutation_def {type_name, mutation_name => description}",
-            ":create om_interceptor_def {type_name, action_name, phase, seq => description}",
-            ":create om_constraint_def {type_name, constraint_name => constraint_type, message}",
-            ":create om_computed_def {type_name, attr_name => description}",
-            ":create om_behavior_binding {behavior_kind, owner_type, behavior_name, callback_slot, phase, seq => binding_id}",
-            ":create om_perm_action {action => description}",
-            ":create om_perm_policy {policy_id => effect, action, resource_type, enabled, description}",
+            ":create om_class_def {class_name => description, parent_class}",
+            ":create om_mixin_def {name => description}",
+            ":create om_class_mixin {class_name, mixin_name}",
+            ":create om_operation_def {class_name, operation_name => description}",
+            ":create om_mutation_def {class_name, mutation_name => description}",
+            ":create om_interceptor_def {class_name, operation_name, phase, seq => description}",
+            ":create om_constraint_def {class_name, constraint_name => constraint_kind, message}",
+            ":create om_computed_prop_def {class_name, computed_prop_name => description}",
+            ":create om_behavior_binding {behavior_kind, owner_class, behavior_name, callback_slot, phase, seq => binding_id}",
+            ":create om_perm_operation {operation => description}",
+            ":create om_perm_policy {policy_id => effect, operation, resource_class, enabled, description}",
             ":create om_perm_abac_rule {policy_id, left_ref, op, right_ref}",
             ":create om_perm_path_rule {policy_id, path}",
-            ":create om_attr_def {type_name, attr_name => value_type, required}",
-            ":create om_rel_def {rel_name => from_type, to_type, directed}",
-            ":create om_entity {id => type_name, label}",
-            ":create om_property {entity_id: String, attr_name: String, valid_time: Validity => value, tx_time: String}",
-            ":create om_edge {from_id: String, rel_name: String, to_id: String, valid_time: Validity => props, tx_time: String}",
-            ":create om_attr_desc {type_name, attr_name => description}",
-            ":create om_rel_desc {rel_name => description}",
+            ":create om_field_def {class_name, field_name => value_kind, required}",
+            ":create om_relation_def {relation_name => from_class, to_class, directed}",
+            ":create om_object {id => class_name, label}",
+            ":create om_field_value {object_id: String, field_name: String, valid_time: Validity => value, tx_time: String}",
+            ":create om_relation_link {from_object_id: String, relation_name: String, to_object_id: String, valid_time: Validity => payload, tx_time: String}",
+            ":create om_field_desc {class_name, field_name => description}",
+            ":create om_relation_desc {relation_name => description}",
             ":create om_schema_state {id => current_version, current_checksum}",
             ":create om_schema_version {version => created_at, label, description, parent_version, checksum}",
             ":create om_schema_migration {migration_id => from_version, to_version, applied_at, applied_by, status, error, summary_json}",
             ":create om_schema_snapshot {version => snapshot_json}",
-            ":create om_alias_type {alias => canonical}",
-            ":create om_alias_rel {alias => canonical}",
-            ":create om_alias_attr {type_name, alias_attr => canonical_attr}",
+            ":create om_alias_class {alias => canonical}",
+            ":create om_alias_relation {alias => canonical}",
+            ":create om_alias_field {class_name, alias_field => canonical_field}",
             ":create om_existential_rule_def {rule_name => spec_json, mode, message, enabled}",
         };
 
@@ -433,7 +433,7 @@ public static class SchemaLogic
             }
 
             await RollbackSchemaAsync(txRuntime, input.TargetVersion, strict: false, cancellationToken);
-            var diagnostics = await ValidateRollbackEntitiesAsync(txRuntime, cancellationToken);
+            var diagnostics = await ValidateRollbackObjectsAsync(txRuntime, cancellationToken);
             if (options.Strict && !options.Force && diagnostics.Length > 0)
             {
                 return new SchemaRollbackV2Result(
@@ -480,90 +480,90 @@ public static class SchemaLogic
         bool strict,
         CancellationToken cancellationToken)
     {
-        var kind = ReadStepString(step, "kind", "type");
+        var kind = ReadStepString(step, "kind");
         switch (kind)
         {
-            case "addType":
-                await TypeLogic.DefineTypeAsync(
+            case "addClass":
+                await ClassLogic.DefineClassAsync(
                     runtime,
-                    new DefineTypeInput(
-                        ReadRequiredStepString(step, "typeName", "type_name"),
-                        ReadStepString(step, "description") ?? ReadRequiredStepString(step, "typeName", "type_name"),
-                        ReadStepString(step, "parentType", "parent_type")),
+                    new DefineClassInput(
+                        ReadRequiredStepString(step, "className", "class_name"),
+                        ReadStepString(step, "description") ?? ReadRequiredStepString(step, "className", "class_name"),
+                        ReadStepString(step, "parentClass", "parent_class")),
                     cancellationToken);
                 return;
-            case "addAttribute":
-                await TypeLogic.DefineAttributeAsync(
+            case "addField":
+                await ClassLogic.DefineFieldAsync(
                     runtime,
-                    new DefineAttributeInput(
-                        ReadRequiredStepString(step, "typeName", "type_name"),
-                        ReadRequiredStepString(step, "attrName", "attr_name"),
-                        OmConvert.StoredToValueType(ReadRequiredStepString(step, "valueType", "value_type")),
+                    new DefineFieldInput(
+                        ReadRequiredStepString(step, "className", "class_name"),
+                        ReadRequiredStepString(step, "fieldName", "field_name"),
+                        OmConvert.StoredToValueType(ReadRequiredStepString(step, "valueKind", "value_kind")),
                         ReadStepBool(step, false, "required")),
                     cancellationToken);
                 return;
             case "addRelation":
-                await TypeLogic.DefineRelationAsync(
+                await ClassLogic.DefineRelationDefAsync(
                     runtime,
-                    new DefineRelationInput(
-                        ReadRequiredStepString(step, "relName", "rel_name"),
-                        ReadRequiredStepString(step, "fromType", "from_type"),
-                        ReadRequiredStepString(step, "toType", "to_type"),
+                    new DefineRelationDefInput(
+                        ReadRequiredStepString(step, "relationName", "relation_name"),
+                        ReadRequiredStepString(step, "fromClass", "from_class", "fromClass"),
+                        ReadRequiredStepString(step, "toClass", "to_class", "toClass"),
                         ReadStepBool(step, true, "directed")),
                     cancellationToken);
                 return;
-            case "renameAttribute":
-                await RenameAttributeAsync(runtime, step, cancellationToken);
+            case "renameField":
+                await RenameFieldAsync(runtime, step, cancellationToken);
                 return;
-            case "changeAttribute":
-                await ChangeAttributeAsync(runtime, step, strict, cancellationToken);
+            case "changeField":
+                await ChangeFieldAsync(runtime, step, strict, cancellationToken);
                 return;
             default:
                 throw new CozoException($"Unsupported migration step kind '{kind}'");
         }
     }
 
-    private static async Task RenameAttributeAsync(CozoOmRuntime runtime, JsonElement step, CancellationToken cancellationToken)
+    private static async Task RenameFieldAsync(CozoOmRuntime runtime, JsonElement step, CancellationToken cancellationToken)
     {
-        var typeName = await TypeLogic.ResolveTypeAsync(runtime, ReadRequiredStepString(step, "typeName", "type_name"), cancellationToken);
-        var fromAttr = await TypeLogic.ResolveAttrAsync(runtime, typeName, ReadRequiredStepString(step, "fromAttr", "from_attr"), cancellationToken);
-        var toAttr = OmConvert.RequireName(ReadRequiredStepString(step, "toAttr", "to_attr"), "toAttr");
-        var definitions = await TypeLogic.GetAttributeDefinitionsAsync(runtime, typeName, cancellationToken);
-        if (!definitions.TryGetValue(fromAttr, out var definition))
+        var className = await ClassLogic.ResolveClassAsync(runtime, ReadRequiredStepString(step, "className", "class_name"), cancellationToken);
+        var fromField = await ClassLogic.ResolveFieldAsync(runtime, className, ReadRequiredStepString(step, "fromField", "from_field"), cancellationToken);
+        var toField = OmConvert.RequireName(ReadRequiredStepString(step, "toField", "to_field"), "toField");
+        var definitions = await ClassLogic.GetFieldDefinitionsAsync(runtime, className, cancellationToken);
+        if (!definitions.TryGetValue(fromField, out var definition))
         {
-            throw new CozoException($"Cannot rename missing attribute '{typeName}.{fromAttr}'");
+            throw new CozoException($"Cannot rename missing field '{className}.{fromField}'");
         }
 
-        await TypeLogic.DefineAttributeAsync(runtime, new DefineAttributeInput(typeName, toAttr, definition.ValueType, definition.Required), cancellationToken);
-        await TypeLogic.DefineAttributeAliasAsync(runtime, typeName, fromAttr, toAttr, cancellationToken);
+        await ClassLogic.DefineFieldAsync(runtime, new DefineFieldInput(className, toField, definition.ValueType, definition.Required), cancellationToken);
+        await ClassLogic.DefineFieldAliasAsync(runtime, className, fromField, toField, cancellationToken);
         await runtime.Store.RunAsync(
             """
-            ?[type_name, attr_name] <- [[$type_name, $attr_name]]
-            :rm om_attr_def {type_name, attr_name}
+            ?[class_name, field_name] <- [[$class_name, $field_name]]
+            :rm om_field_def {class_name, field_name}
             """,
-            LogicSupport.Params(("type_name", typeName), ("attr_name", fromAttr)),
+            LogicSupport.Params(("class_name", className), ("field_name", fromField)),
             cancellationToken: cancellationToken);
     }
 
-    private static async Task ChangeAttributeAsync(
+    private static async Task ChangeFieldAsync(
         CozoOmRuntime runtime,
         JsonElement step,
         bool strict,
         CancellationToken cancellationToken)
     {
-        var typeName = await TypeLogic.ResolveTypeAsync(runtime, ReadRequiredStepString(step, "typeName", "type_name"), cancellationToken);
-        var attrName = await TypeLogic.ResolveAttrAsync(runtime, typeName, ReadRequiredStepString(step, "attrName", "attr_name"), cancellationToken);
-        var definitions = await TypeLogic.GetAttributeDefinitionsAsync(runtime, typeName, cancellationToken);
-        if (!definitions.TryGetValue(attrName, out var current))
+        var className = await ClassLogic.ResolveClassAsync(runtime, ReadRequiredStepString(step, "className", "class_name"), cancellationToken);
+        var fieldName = await ClassLogic.ResolveFieldAsync(runtime, className, ReadRequiredStepString(step, "fieldName", "field_name"), cancellationToken);
+        var definitions = await ClassLogic.GetFieldDefinitionsAsync(runtime, className, cancellationToken);
+        if (!definitions.TryGetValue(fieldName, out var current))
         {
-            throw new CozoException($"Cannot change missing attribute '{typeName}.{attrName}'");
+            throw new CozoException($"Cannot change missing field '{className}.{fieldName}'");
         }
 
-        var valueType = OmConvert.StoredToValueType(ReadRequiredStepString(step, "valueType", "value_type"));
+        var valueKind = OmConvert.StoredToValueType(ReadRequiredStepString(step, "valueKind", "value_kind"));
         var required = step.TryGetProperty("required", out _)
             ? ReadStepBool(step, false, "required")
             : current.Required;
-        await TypeLogic.DefineAttributeAsync(runtime, new DefineAttributeInput(typeName, attrName, valueType, required), cancellationToken);
+        await ClassLogic.DefineFieldAsync(runtime, new DefineFieldInput(className, fieldName, valueKind, required), cancellationToken);
     }
 
     private static SchemaMigrationV2Result MigrationRejected(
@@ -591,8 +591,8 @@ public static class SchemaLogic
         {
             try
             {
-                var kind = ReadStepString(step, "kind", "type");
-                if (kind is not ("addType" or "addAttribute" or "addRelation" or "renameAttribute" or "changeAttribute"))
+                var kind = ReadStepString(step, "kind");
+                if (kind is not ("addClass" or "addField" or "addRelation" or "renameField" or "changeField"))
                 {
                     diagnostics.Add(new SchemaDiagnostic(
                         "unsupported_migration_step",
@@ -601,15 +601,15 @@ public static class SchemaLogic
                     continue;
                 }
 
-                if (kind == "changeAttribute" && input.Options.Strict)
+                if (kind == "changeField" && input.Options.Strict)
                 {
-                    await PreflightChangeAttributeAsync(runtime, step, diagnostics, cancellationToken);
+                    await PreflightChangeFieldAsync(runtime, step, diagnostics, cancellationToken);
                 }
-                else if (kind == "addAttribute"
+                else if (kind == "addField"
                          && input.Options.Strict
                          && ReadStepBool(step, false, "required"))
                 {
-                    await PreflightRequiredAttributeAsync(runtime, step, diagnostics, cancellationToken);
+                    await PreflightRequiredFieldAsync(runtime, step, diagnostics, cancellationToken);
                 }
             }
             catch (Exception exception) when (exception is ArgumentException or CozoException or InvalidOperationException)
@@ -621,46 +621,46 @@ public static class SchemaLogic
         return diagnostics;
     }
 
-    private static async Task PreflightChangeAttributeAsync(
+    private static async Task PreflightChangeFieldAsync(
         CozoOmRuntime runtime,
         JsonElement step,
         ICollection<SchemaDiagnostic> diagnostics,
         CancellationToken cancellationToken)
     {
-        var typeName = await TypeLogic.ResolveTypeAsync(runtime, ReadRequiredStepString(step, "typeName", "type_name"), cancellationToken);
-        var attrName = await TypeLogic.ResolveAttrAsync(runtime, typeName, ReadRequiredStepString(step, "attrName", "attr_name"), cancellationToken);
-        var targetValueType = OmConvert.StoredToValueType(ReadRequiredStepString(step, "valueType", "value_type"));
+        var className = await ClassLogic.ResolveClassAsync(runtime, ReadRequiredStepString(step, "className", "class_name"), cancellationToken);
+        var fieldName = await ClassLogic.ResolveFieldAsync(runtime, className, ReadRequiredStepString(step, "fieldName", "field_name"), cancellationToken);
+        var targetValueType = OmConvert.StoredToValueType(ReadRequiredStepString(step, "valueKind", "value_kind"));
         if (targetValueType == OmValueType.Unknown)
         {
-            throw new CozoException($"Unsupported target value type for '{typeName}.{attrName}'.");
+            throw new CozoException($"Unsupported target value kind for '{className}.{fieldName}'.");
         }
 
-        var entities = await runtime.Store.RunAsync(
+        var objects = await runtime.Store.RunAsync(
             """
-            ?[id, type_name] :=
-              *om_entity{ id, type_name, label: _label }
+            ?[id, class_name] :=
+              *om_object{ id, class_name, label: _label }
             :sort id
             """,
             cancellationToken: cancellationToken);
-        foreach (var row in entities.Rows)
+        foreach (var row in objects.Rows)
         {
-            var entityId = JsonRows.StringAt(row, 0) ?? string.Empty;
-            var entityType = await TypeLogic.ResolveTypeAsync(runtime, JsonRows.StringAt(row, 1) ?? string.Empty, cancellationToken);
-            var applies = entityType == typeName || (await TypeLogic.GetAncestorsAsync(runtime, entityType, cancellationToken)).Contains(typeName);
+            var objectId = JsonRows.StringAt(row, 0) ?? string.Empty;
+            var objectClass = await ClassLogic.ResolveClassAsync(runtime, JsonRows.StringAt(row, 1) ?? string.Empty, cancellationToken);
+            var applies = objectClass == className || (await ClassLogic.GetAncestorsAsync(runtime, objectClass, cancellationToken)).Contains(className);
             if (!applies) continue;
 
-            var properties = await EntityLogic.GetAllPropertiesAsync(runtime, entityId, cancellationToken);
-            if (!properties.TryGetValue(attrName, out var value))
+            var fieldValues = await ObjectLogic.GetAllFieldValuesAsync(runtime, objectId, cancellationToken);
+            if (!fieldValues.TryGetValue(fieldName, out var value))
             {
                 if (step.TryGetProperty("required", out var requiredElement) && ReadStepBool(step, false, "required") && requiredElement.ValueKind != JsonValueKind.Null)
                 {
                     diagnostics.Add(new SchemaDiagnostic(
-                        "required_property_missing",
+                        "required_field_value_missing",
                         SchemaDiagnosticSeverity.Error,
-                        $"Entity '{entityId}' lacks required property '{attrName}'.",
-                        "om_attr_def",
-                        $"{typeName}:{attrName}",
-                        entityId));
+                        $"Object '{objectId}' lacks required field value '{fieldName}'.",
+                        "om_field_def",
+                        $"{className}:{fieldName}",
+                        objectId));
                 }
 
                 continue;
@@ -672,61 +672,61 @@ public static class SchemaLogic
                 && targetValueType != actualValueType)
             {
                 diagnostics.Add(new SchemaDiagnostic(
-                    "attribute_value_type_incompatible",
+                    "field_value_kind_incompatible",
                     SchemaDiagnosticSeverity.Error,
-                    $"Entity '{entityId}' property '{attrName}' is {actualValueType}, not {targetValueType}.",
-                    "om_attr_def",
-                    $"{typeName}:{attrName}",
-                    entityId));
+                    $"Object '{objectId}' field value '{fieldName}' is {actualValueType}, not {targetValueType}.",
+                    "om_field_def",
+                    $"{className}:{fieldName}",
+                    objectId));
             }
         }
     }
 
-    private static async Task PreflightRequiredAttributeAsync(
+    private static async Task PreflightRequiredFieldAsync(
         CozoOmRuntime runtime,
         JsonElement step,
         ICollection<SchemaDiagnostic> diagnostics,
         CancellationToken cancellationToken)
     {
-        var requestedType = ReadRequiredStepString(step, "typeName", "type_name");
-        var typeName = await TryResolveTypeAsync(runtime, requestedType, cancellationToken) ?? requestedType;
-        var attrName = ReadRequiredStepString(step, "attrName", "attr_name");
-        var entities = await runtime.Store.RunAsync(
+        var requestedClass = ReadRequiredStepString(step, "className", "class_name");
+        var className = await TryResolveClassAsync(runtime, requestedClass, cancellationToken) ?? requestedClass;
+        var fieldName = ReadRequiredStepString(step, "fieldName", "field_name");
+        var objects = await runtime.Store.RunAsync(
             """
-            ?[id, type_name] :=
-              *om_entity{ id, type_name, label: _label }
+            ?[id, class_name] :=
+              *om_object{ id, class_name, label: _label }
             :sort id
             """,
             cancellationToken: cancellationToken);
-        foreach (var row in entities.Rows)
+        foreach (var row in objects.Rows)
         {
-            var entityId = JsonRows.StringAt(row, 0) ?? string.Empty;
-            var entityType = await TypeLogic.ResolveTypeAsync(runtime, JsonRows.StringAt(row, 1) ?? string.Empty, cancellationToken);
-            var applies = entityType == typeName || (await TypeLogic.GetAncestorsAsync(runtime, entityType, cancellationToken)).Contains(typeName);
+            var objectId = JsonRows.StringAt(row, 0) ?? string.Empty;
+            var objectClass = await ClassLogic.ResolveClassAsync(runtime, JsonRows.StringAt(row, 1) ?? string.Empty, cancellationToken);
+            var applies = objectClass == className || (await ClassLogic.GetAncestorsAsync(runtime, objectClass, cancellationToken)).Contains(className);
             if (!applies) continue;
 
-            var properties = await EntityLogic.GetAllPropertiesAsync(runtime, entityId, cancellationToken);
-            if (!properties.ContainsKey(attrName))
+            var fieldValues = await ObjectLogic.GetAllFieldValuesAsync(runtime, objectId, cancellationToken);
+            if (!fieldValues.ContainsKey(fieldName))
             {
                 diagnostics.Add(new SchemaDiagnostic(
-                    "required_property_missing",
+                    "required_field_value_missing",
                     SchemaDiagnosticSeverity.Error,
-                    $"Entity '{entityId}' lacks new required property '{attrName}'.",
-                    "om_attr_def",
-                    $"{typeName}:{attrName}",
-                    entityId));
+                    $"Object '{objectId}' lacks new required field value '{fieldName}'.",
+                    "om_field_def",
+                    $"{className}:{fieldName}",
+                    objectId));
             }
         }
     }
 
-    private static async Task<string?> TryResolveTypeAsync(
+    private static async Task<string?> TryResolveClassAsync(
         CozoOmRuntime runtime,
-        string typeName,
+        string className,
         CancellationToken cancellationToken)
     {
         try
         {
-            return await TypeLogic.ResolveTypeAsync(runtime, typeName, cancellationToken);
+            return await ClassLogic.ResolveClassAsync(runtime, className, cancellationToken);
         }
         catch (CozoException)
         {
@@ -734,33 +734,33 @@ public static class SchemaLogic
         }
     }
 
-    private static async Task<SchemaDiagnostic[]> ValidateRollbackEntitiesAsync(
+    private static async Task<SchemaDiagnostic[]> ValidateRollbackObjectsAsync(
         CozoOmRuntime runtime,
         CancellationToken cancellationToken)
     {
-        var entities = await runtime.Store.RunAsync(
+        var objects = await runtime.Store.RunAsync(
             """
             ?[id] :=
-              *om_entity{ id, type_name: _type_name, label: _label }
+              *om_object{ id, class_name: _class_name, label: _label }
             :sort id
             """,
             cancellationToken: cancellationToken);
         var diagnostics = new List<SchemaDiagnostic>();
-        foreach (var row in entities.Rows)
+        foreach (var row in objects.Rows)
         {
-            var entityId = JsonRows.StringAt(row, 0) ?? string.Empty;
+            var objectId = JsonRows.StringAt(row, 0) ?? string.Empty;
             try
             {
-                var validation = await ConstraintLogic.ValidateEntityAsync(runtime, entityId, cancellationToken);
+                var validation = await ConstraintLogic.ValidateObjectAsync(runtime, objectId, cancellationToken);
                 diagnostics.AddRange(validation.Errors.Select(error => new SchemaDiagnostic(
-                    "rollback_entity_invalid",
+                    "rollback_object_invalid",
                     SchemaDiagnosticSeverity.Error,
                     error,
-                    EntityId: entityId)));
+                    ObjectId: objectId)));
             }
             catch (Exception exception) when (exception is CozoException or InvalidOperationException)
             {
-                diagnostics.Add(new SchemaDiagnostic("rollback_entity_invalid", SchemaDiagnosticSeverity.Error, exception.Message, EntityId: entityId));
+                diagnostics.Add(new SchemaDiagnostic("rollback_object_invalid", SchemaDiagnosticSeverity.Error, exception.Message, ObjectId: objectId));
             }
         }
 
@@ -845,26 +845,26 @@ public static class SchemaLogic
     {
         var parts = new Dictionary<string, object?>
         {
-            ["om_type"] = await ReadRowsAsync(runtime, "om_type", "name, description, parent_type", cancellationToken),
-            ["om_mixin"] = await ReadRowsAsync(runtime, "om_mixin", "name, description", cancellationToken),
-            ["om_type_mixin"] = await ReadRowsAsync(runtime, "om_type_mixin", "type_name, mixin_name", cancellationToken),
-            ["om_attr_def"] = await ReadRowsAsync(runtime, "om_attr_def", "type_name, attr_name, value_type, required", cancellationToken),
-            ["om_rel_def"] = await ReadRowsAsync(runtime, "om_rel_def", "rel_name, from_type, to_type, directed", cancellationToken),
-            ["om_attr_desc"] = await ReadRowsAsync(runtime, "om_attr_desc", "type_name, attr_name, description", cancellationToken),
-            ["om_rel_desc"] = await ReadRowsAsync(runtime, "om_rel_desc", "rel_name, description", cancellationToken),
-            ["om_constraint_def"] = await ReadRowsAsync(runtime, "om_constraint_def", "type_name, constraint_name, constraint_type, message", cancellationToken),
-            ["om_computed_def"] = await ReadRowsAsync(runtime, "om_computed_def", "type_name, attr_name, description", cancellationToken),
-            ["om_action_def"] = await ReadRowsAsync(runtime, "om_action_def", "type_name, action_name, description", cancellationToken),
-            ["om_mutation_def"] = await ReadRowsAsync(runtime, "om_mutation_def", "type_name, mutation_name, description", cancellationToken),
-            ["om_interceptor_def"] = await ReadRowsAsync(runtime, "om_interceptor_def", "type_name, action_name, phase, seq, description", cancellationToken),
-            ["om_behavior_binding"] = await ReadRowsAsync(runtime, "om_behavior_binding", "behavior_kind, owner_type, behavior_name, callback_slot, phase, seq, binding_id", cancellationToken),
-            ["om_perm_action"] = await ReadRowsAsync(runtime, "om_perm_action", "action, description", cancellationToken),
-            ["om_perm_policy"] = await ReadRowsAsync(runtime, "om_perm_policy", "policy_id, effect, action, resource_type, enabled, description", cancellationToken),
+            ["om_class_def"] = await ReadRowsAsync(runtime, "om_class_def", "class_name, description, parent_class", cancellationToken),
+            ["om_mixin_def"] = await ReadRowsAsync(runtime, "om_mixin_def", "name, description", cancellationToken),
+            ["om_class_mixin"] = await ReadRowsAsync(runtime, "om_class_mixin", "class_name, mixin_name", cancellationToken),
+            ["om_field_def"] = await ReadRowsAsync(runtime, "om_field_def", "class_name, field_name, value_kind, required", cancellationToken),
+            ["om_relation_def"] = await ReadRowsAsync(runtime, "om_relation_def", "relation_name, from_class, to_class, directed", cancellationToken),
+            ["om_field_desc"] = await ReadRowsAsync(runtime, "om_field_desc", "class_name, field_name, description", cancellationToken),
+            ["om_relation_desc"] = await ReadRowsAsync(runtime, "om_relation_desc", "relation_name, description", cancellationToken),
+            ["om_constraint_def"] = await ReadRowsAsync(runtime, "om_constraint_def", "class_name, constraint_name, constraint_kind, message", cancellationToken),
+            ["om_computed_prop_def"] = await ReadRowsAsync(runtime, "om_computed_prop_def", "class_name, computed_prop_name, description", cancellationToken),
+            ["om_operation_def"] = await ReadRowsAsync(runtime, "om_operation_def", "class_name, operation_name, description", cancellationToken),
+            ["om_mutation_def"] = await ReadRowsAsync(runtime, "om_mutation_def", "class_name, mutation_name, description", cancellationToken),
+            ["om_interceptor_def"] = await ReadRowsAsync(runtime, "om_interceptor_def", "class_name, operation_name, phase, seq, description", cancellationToken),
+            ["om_behavior_binding"] = await ReadRowsAsync(runtime, "om_behavior_binding", "behavior_kind, owner_class, behavior_name, callback_slot, phase, seq, binding_id", cancellationToken),
+            ["om_perm_operation"] = await ReadRowsAsync(runtime, "om_perm_operation", "operation, description", cancellationToken),
+            ["om_perm_policy"] = await ReadRowsAsync(runtime, "om_perm_policy", "policy_id, effect, operation, resource_class, enabled, description", cancellationToken),
             ["om_perm_abac_rule"] = await ReadRowsAsync(runtime, "om_perm_abac_rule", "policy_id, left_ref, op, right_ref", cancellationToken),
             ["om_perm_path_rule"] = await ReadRowsAsync(runtime, "om_perm_path_rule", "policy_id, path", cancellationToken),
-            ["om_alias_type"] = await ReadRowsAsync(runtime, "om_alias_type", "alias, canonical", cancellationToken),
-            ["om_alias_rel"] = await ReadRowsAsync(runtime, "om_alias_rel", "alias, canonical", cancellationToken),
-            ["om_alias_attr"] = await ReadRowsAsync(runtime, "om_alias_attr", "type_name, alias_attr, canonical_attr", cancellationToken),
+            ["om_alias_class"] = await ReadRowsAsync(runtime, "om_alias_class", "alias, canonical", cancellationToken),
+            ["om_alias_relation"] = await ReadRowsAsync(runtime, "om_alias_relation", "alias, canonical", cancellationToken),
+            ["om_alias_field"] = await ReadRowsAsync(runtime, "om_alias_field", "class_name, alias_field, canonical_field", cancellationToken),
             ["om_existential_rule_def"] = await ReadRowsAsync(runtime, "om_existential_rule_def", "rule_name, spec_json, mode, message, enabled", cancellationToken),
         };
 
@@ -897,7 +897,7 @@ public static class SchemaLogic
         var relations = await runtime.Store.RunAsync("::relations", cancellationToken: cancellationToken);
         var names = relations.Rows
             .Select(row => row.Count > 0 ? JsonRows.StringAt(row, 0) : null)
-            .Where(name => name is "om_property" or "om_edge")
+            .Where(name => name is "om_field_value" or "om_relation_link")
             .Select(name => name!)
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
@@ -923,29 +923,29 @@ public static class SchemaLogic
         IReadOnlyList<string> relations,
         CancellationToken cancellationToken)
     {
-        if (relations.Contains("om_property", StringComparer.Ordinal))
+        if (relations.Contains("om_field_value", StringComparer.Ordinal))
         {
             await runtime.Store.RunAsync(
                 """
-                ?[entity_id, attr_name, valid_time, value, tx_time] :=
-                  *om_property{ entity_id, attr_name, value },
+                ?[object_id, field_name, valid_time, value, tx_time] :=
+                  *om_field_value{ object_id, field_name, value },
                   valid_time = "ASSERT",
                   tx_time = $tx_time
-                :replace om_property {entity_id: String, attr_name: String, valid_time: Validity => value, tx_time: String}
+                :replace om_field_value {object_id: String, field_name: String, valid_time: Validity => value, tx_time: String}
                 """,
                 LogicSupport.Params(("tx_time", runtime.Options.TimeProvider.GetUtcNow().UtcDateTime.ToString("O"))),
                 cancellationToken: cancellationToken);
         }
 
-        if (relations.Contains("om_edge", StringComparer.Ordinal))
+        if (relations.Contains("om_relation_link", StringComparer.Ordinal))
         {
             await runtime.Store.RunAsync(
                 """
-                ?[from_id, rel_name, to_id, valid_time, props, tx_time] :=
-                  *om_edge{ from_id, rel_name, to_id, props },
+                ?[from_object_id, relation_name, to_object_id, valid_time, payload, tx_time] :=
+                  *om_relation_link{ from_object_id, relation_name, to_object_id, payload },
                   valid_time = "ASSERT",
                   tx_time = $tx_time
-                :replace om_edge {from_id: String, rel_name: String, to_id: String, valid_time: Validity => props, tx_time: String}
+                :replace om_relation_link {from_object_id: String, relation_name: String, to_object_id: String, valid_time: Validity => payload, tx_time: String}
                 """,
                 LogicSupport.Params(("tx_time", runtime.Options.TimeProvider.GetUtcNow().UtcDateTime.ToString("O"))),
                 cancellationToken: cancellationToken);
@@ -1040,26 +1040,26 @@ public static class SchemaLogic
 
     private static readonly RelationSnapshotSpec[] RollbackRelations =
     [
-        new("om_type", ["name", "description", "parent_type"], ["name"]),
-        new("om_mixin", ["name", "description"], ["name"]),
-        new("om_type_mixin", ["type_name", "mixin_name"], ["type_name", "mixin_name"]),
-        new("om_attr_def", ["type_name", "attr_name", "value_type", "required"], ["type_name", "attr_name"]),
-        new("om_rel_def", ["rel_name", "from_type", "to_type", "directed"], ["rel_name"]),
-        new("om_attr_desc", ["type_name", "attr_name", "description"], ["type_name", "attr_name"]),
-        new("om_rel_desc", ["rel_name", "description"], ["rel_name"]),
-        new("om_constraint_def", ["type_name", "constraint_name", "constraint_type", "message"], ["type_name", "constraint_name"]),
-        new("om_computed_def", ["type_name", "attr_name", "description"], ["type_name", "attr_name"]),
-        new("om_action_def", ["type_name", "action_name", "description"], ["type_name", "action_name"]),
-        new("om_mutation_def", ["type_name", "mutation_name", "description"], ["type_name", "mutation_name"]),
-        new("om_interceptor_def", ["type_name", "action_name", "phase", "seq", "description"], ["type_name", "action_name", "phase", "seq"]),
-        new("om_behavior_binding", ["behavior_kind", "owner_type", "behavior_name", "callback_slot", "phase", "seq", "binding_id"], ["behavior_kind", "owner_type", "behavior_name", "callback_slot", "phase", "seq"]),
-        new("om_perm_action", ["action", "description"], ["action"]),
-        new("om_perm_policy", ["policy_id", "effect", "action", "resource_type", "enabled", "description"], ["policy_id"]),
+        new("om_class_def", ["class_name", "description", "parent_class"], ["class_name"]),
+        new("om_mixin_def", ["name", "description"], ["name"]),
+        new("om_class_mixin", ["class_name", "mixin_name"], ["class_name", "mixin_name"]),
+        new("om_field_def", ["class_name", "field_name", "value_kind", "required"], ["class_name", "field_name"]),
+        new("om_relation_def", ["relation_name", "from_class", "to_class", "directed"], ["relation_name"]),
+        new("om_field_desc", ["class_name", "field_name", "description"], ["class_name", "field_name"]),
+        new("om_relation_desc", ["relation_name", "description"], ["relation_name"]),
+        new("om_constraint_def", ["class_name", "constraint_name", "constraint_kind", "message"], ["class_name", "constraint_name"]),
+        new("om_computed_prop_def", ["class_name", "computed_prop_name", "description"], ["class_name", "computed_prop_name"]),
+        new("om_operation_def", ["class_name", "operation_name", "description"], ["class_name", "operation_name"]),
+        new("om_mutation_def", ["class_name", "mutation_name", "description"], ["class_name", "mutation_name"]),
+        new("om_interceptor_def", ["class_name", "operation_name", "phase", "seq", "description"], ["class_name", "operation_name", "phase", "seq"]),
+        new("om_behavior_binding", ["behavior_kind", "owner_class", "behavior_name", "callback_slot", "phase", "seq", "binding_id"], ["behavior_kind", "owner_class", "behavior_name", "callback_slot", "phase", "seq"]),
+        new("om_perm_operation", ["operation", "description"], ["operation"]),
+        new("om_perm_policy", ["policy_id", "effect", "operation", "resource_class", "enabled", "description"], ["policy_id"]),
         new("om_perm_abac_rule", ["policy_id", "left_ref", "op", "right_ref"], ["policy_id", "left_ref", "op", "right_ref"]),
         new("om_perm_path_rule", ["policy_id", "path"], ["policy_id", "path"]),
-        new("om_alias_type", ["alias", "canonical"], ["alias"]),
-        new("om_alias_rel", ["alias", "canonical"], ["alias"]),
-        new("om_alias_attr", ["type_name", "alias_attr", "canonical_attr"], ["type_name", "alias_attr"]),
+        new("om_alias_class", ["alias", "canonical"], ["alias"]),
+        new("om_alias_relation", ["alias", "canonical"], ["alias"]),
+        new("om_alias_field", ["class_name", "alias_field", "canonical_field"], ["class_name", "alias_field"]),
         new("om_existential_rule_def", ["rule_name", "spec_json", "mode", "message", "enabled"], ["rule_name"]),
     ];
 }

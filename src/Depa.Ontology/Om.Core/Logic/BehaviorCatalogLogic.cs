@@ -31,9 +31,9 @@ internal static class BehaviorCatalogLogic
         await AddConstraintsAsync(runtime, registrySnapshot, bindings, entries, cancellationToken);
         await AddDefinitionsAsync(
             runtime,
-            "om_computed_def",
-            "type_name: owner, attr_name: name, description",
-            BehaviorKind.Computed,
+            "om_computed_prop_def",
+            "class_name: owner, computed_prop_name: name, description",
+            BehaviorKind.ComputedProp,
             BehaviorCallbackSlot.Compute,
             entries,
             bindings,
@@ -41,9 +41,9 @@ internal static class BehaviorCatalogLogic
             cancellationToken);
         await AddDefinitionsAsync(
             runtime,
-            "om_action_def",
-            "type_name: owner, action_name: name, description",
-            BehaviorKind.Action,
+            "om_operation_def",
+            "class_name: owner, operation_name: name, description",
+            BehaviorKind.Operation,
             BehaviorCallbackSlot.Handler,
             entries,
             bindings,
@@ -52,7 +52,7 @@ internal static class BehaviorCatalogLogic
         await AddDefinitionsAsync(
             runtime,
             "om_mutation_def",
-            "type_name: owner, mutation_name: name, description",
+            "class_name: owner, mutation_name: name, description",
             BehaviorKind.Mutation,
             BehaviorCallbackSlot.Executor,
             entries,
@@ -63,7 +63,7 @@ internal static class BehaviorCatalogLogic
 
         return new BehaviorCatalog(entries
             .OrderBy(entry => entry.Kind)
-            .ThenBy(entry => entry.OwnerType, StringComparer.Ordinal)
+            .ThenBy(entry => entry.OwnerClass, StringComparer.Ordinal)
             .ThenBy(entry => entry.Name, StringComparer.Ordinal)
             .ThenBy(entry => entry.InterceptorPhase ?? "", StringComparer.Ordinal)
             .ThenBy(entry => entry.InterceptorSeq ?? BehaviorBindingLogic.NonInterceptorSeq)
@@ -78,20 +78,20 @@ internal static class BehaviorCatalogLogic
         CancellationToken cancellationToken)
     {
         var result = await runtime.Store.RunAsync(
-            "?[type_name, constraint_name, constraint_type, message] := *om_constraint_def{type_name, constraint_name, constraint_type, message}",
+            "?[class_name, constraint_name, constraint_kind, message] := *om_constraint_def{class_name, constraint_name, constraint_kind, message}",
             cancellationToken: cancellationToken);
 
         foreach (var row in result.Rows)
         {
             var owner = JsonRows.StringAt(row, 0) ?? "";
             var name = JsonRows.StringAt(row, 1) ?? "";
-            var constraintType = JsonRows.StringAt(row, 2) ?? "";
-            var slots = string.Equals(constraintType, "custom", StringComparison.OrdinalIgnoreCase)
+            var constraintKind = JsonRows.StringAt(row, 2) ?? "";
+            var slots = string.Equals(constraintKind, "custom", StringComparison.OrdinalIgnoreCase)
                 ? new HashSet<BehaviorCallbackSlot> { BehaviorCallbackSlot.Validator }
                 : new HashSet<BehaviorCallbackSlot> { BehaviorCallbackSlot.When, BehaviorCallbackSlot.Then };
             foreach (var binding in bindings.Keys.Where(key =>
                          key.BehaviorKind == BehaviorKind.Constraint
-                         && key.OwnerType == owner
+                         && key.OwnerClass == owner
                          && key.BehaviorName == name))
             {
                 slots.Add(binding.CallbackSlot);
@@ -101,7 +101,7 @@ internal static class BehaviorCatalogLogic
                 BehaviorCatalogKind.Constraint,
                 owner,
                 name,
-                constraintType,
+                constraintKind,
                 JsonRows.StringAt(row, 3) ?? "",
                 null,
                 null,
@@ -164,7 +164,7 @@ internal static class BehaviorCatalogLogic
         CancellationToken cancellationToken)
     {
         var result = await runtime.Store.RunAsync(
-            "?[type_name, action_name, phase, seq, description] := *om_interceptor_def{type_name, action_name, phase, seq, description}",
+            "?[class_name, operation_name, phase, seq, description] := *om_interceptor_def{class_name, operation_name, phase, seq, description}",
             cancellationToken: cancellationToken);
         foreach (var row in result.Rows)
         {
@@ -213,8 +213,8 @@ internal static class BehaviorCatalogLogic
     private static BehaviorCatalogKind ToCatalogKind(BehaviorKind kind) => kind switch
     {
         BehaviorKind.Constraint => BehaviorCatalogKind.Constraint,
-        BehaviorKind.Computed => BehaviorCatalogKind.Computed,
-        BehaviorKind.Action => BehaviorCatalogKind.Action,
+        BehaviorKind.ComputedProp => BehaviorCatalogKind.ComputedProp,
+        BehaviorKind.Operation => BehaviorCatalogKind.Operation,
         BehaviorKind.Mutation => BehaviorCatalogKind.Mutation,
         BehaviorKind.Interceptor => BehaviorCatalogKind.Interceptor,
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown behavior kind"),

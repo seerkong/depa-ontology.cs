@@ -1,0 +1,37 @@
+<object #ontology_om.core_contract {
+  kind = "object"
+  fact_grade = "authoritative_fact"
+  single_writer = "Depa.Ontology.Om.Core"
+  behaviors = ["behavior://cozo-dotnet-om/requirements/class-object-field-contract" "behavior://cozo-dotnet-om/requirements/class-object-field-storage"]
+} [
+  <desc ?>本体 OM 核心契约使用 Class/Object/Field/FieldValue 表达类别、对象、字段定义与对象字段值；旧 Type/Entity/Attribute/Property 不再作为公开或持久化契约。</?>
+  <types ?types>
+  interface OmClassDef {
+    className: string
+    description: string
+    parentClass?: string | null
+  }
+
+  interface OmObject {
+    objectId: string
+    className: string
+    label: string
+  }
+
+  interface OmFieldDef {
+    className: string
+    fieldName: string
+    valueKind: OmValueKind
+    required: boolean
+  }
+
+  interface OmFieldValue {
+    objectId: string
+    fieldName: string
+    validTime: string
+    value: unknown
+    txTime: string
+  }
+  </?types>
+  <fact-source ?>唯一写入者是 ontology core 的 OM schema/API/logic；knowledge-base 和 examples 只能通过新 API 或新表名投影使用。</?>
+]>

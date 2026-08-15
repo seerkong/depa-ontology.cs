@@ -1,0 +1,21 @@
+<behavior-patch capability="cozo-dotnet-om" version="1">
+  <upsert selector="behavior://cozo-dotnet-om/requirements/renamed-relation-computed-operation-contract">
+    <requirement id="renamed-relation-computed-operation-contract">
+      <statement>系统 SHALL expose the ontology OM relation, computed property, and class operation model through RelationDef, RelationLink, ComputedProp, and Operation vocabulary without legacy compatibility aliases.</statement>
+      <suite id="storage-contract" name="Storage contract">
+        <case id="renamed-current-tables">
+          <given>ontology schema is initialized</given>
+          <when>current OM schema tables are created, snapshotted, diffed, and queried</when>
+          <then>system SHALL use `om_relation_def`, `om_relation_desc`, `om_relation_link`, `om_alias_relation`, `om_computed_prop_def`, `om_operation_def`, and `om_perm_operation` for the active storage contract</then>
+        </case>
+      </suite>
+      <suite id="api-contract" name="API contract">
+        <case id="renamed-public-language-without-compat-aliases">
+          <given>application code consumes `CozoOm` public APIs and DTOs</given>
+          <when>relation links, computed props, operations, and permission operations are defined or executed</when>
+          <then>system SHALL expose RelationDef, RelationLink, ComputedProp, and Operation vocabulary and SHALL NOT expose legacy relation/computed/operation compatibility APIs</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

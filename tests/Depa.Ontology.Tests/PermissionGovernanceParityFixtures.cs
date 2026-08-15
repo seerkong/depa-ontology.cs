@@ -12,20 +12,20 @@ internal static class PermissionGovernanceParityFixtures
         using var db = new CozoDb(engine: "mem", path: "");
         var om = new CozoOm(db);
         await om.InitSchemaAsync();
-        await om.DefineTypeAsync("PermissionUser", "Permission user");
-        await om.DefineTypeAsync("PermissionAsset", "Permission asset");
-        await om.DefineTypeAsync("PermissionBridge", "Permission bridge");
-        await om.DefineRelationAsync("permission_owns", "PermissionUser", "PermissionAsset");
-        await om.DefineRelationAsync("permission_delegates", "PermissionUser", "PermissionBridge");
-        await om.DefineRelationAsync("permission_grants", "PermissionBridge", "PermissionAsset");
-        await om.DefineRelationAliasAsync("permission_delegates_alias", "permission_delegates");
-        await om.DefineAttributeAsync("PermissionUser", "role", OmValueType.String);
-        await om.DefineAttributeAsync("PermissionUser", "clearance", OmValueType.Number);
-        await om.DefineAttributeAsync("PermissionUser", "active", OmValueType.Bool);
-        await om.DefineAttributeAsync("PermissionAsset", "classification", OmValueType.String);
-        await om.CreateEntityAsync("permission:user", "PermissionUser", "Permission user");
-        await om.CreateEntityAsync("permission:asset", "PermissionAsset", "Permission asset");
-        await om.CreateEntityAsync("permission:bridge", "PermissionBridge", "Permission bridge");
+        await om.DefineClassAsync("PermissionUser", "Permission user");
+        await om.DefineClassAsync("PermissionAsset", "Permission asset");
+        await om.DefineClassAsync("PermissionBridge", "Permission bridge");
+        await om.DefineRelationDefAsync("permission_owns", "PermissionUser", "PermissionAsset");
+        await om.DefineRelationDefAsync("permission_delegates", "PermissionUser", "PermissionBridge");
+        await om.DefineRelationDefAsync("permission_grants", "PermissionBridge", "PermissionAsset");
+        await om.DefineRelationDefAliasAsync("permission_delegates_alias", "permission_delegates");
+        await om.DefineFieldAsync("PermissionUser", "role", OmValueType.String);
+        await om.DefineFieldAsync("PermissionUser", "clearance", OmValueType.Number);
+        await om.DefineFieldAsync("PermissionUser", "active", OmValueType.Bool);
+        await om.DefineFieldAsync("PermissionAsset", "classification", OmValueType.String);
+        await om.CreateObjectAsync("permission:user", "PermissionUser", "Permission user");
+        await om.CreateObjectAsync("permission:asset", "PermissionAsset", "Permission asset");
+        await om.CreateObjectAsync("permission:bridge", "PermissionBridge", "Permission bridge");
         var schemaSnapshot = await om.WriteSchemaSnapshotAsync(1, "permission evaluator baseline");
 
         await om.SeedPermissionMetadataAsync(new PermissionSeedInput(
@@ -57,14 +57,14 @@ internal static class PermissionGovernanceParityFixtures
                 new PermissionPolicySeed("permission:stable:z", "allow", "stable", "PermissionAsset"),
                 new PermissionPolicySeed("permission:stable:a", "allow", "stable", "PermissionAsset"),
                 new PermissionPolicySeed("permission:legacy-subject-project", "allow", "legacy-subject-project", "PermissionAsset"),
-                new PermissionPolicySeed("permission:wildcard-action:allow", "allow", "*", "PermissionAsset"),
-                new PermissionPolicySeed("permission:wildcard-action:deny", "deny", "*", "PermissionAsset"),
-                new PermissionPolicySeed("permission:wildcard-action:explicit", "allow", "wildcard-action", "PermissionAsset"),
+                new PermissionPolicySeed("permission:wildcard-operation:allow", "allow", "*", "PermissionAsset"),
+                new PermissionPolicySeed("permission:wildcard-operation:deny", "deny", "*", "PermissionAsset"),
+                new PermissionPolicySeed("permission:wildcard-operation:explicit", "allow", "wildcard-operation", "PermissionAsset"),
                 new PermissionPolicySeed("permission:wildcard-resource:allow", "allow", "wildcard-resource-only", "*"),
                 new PermissionPolicySeed("permission:wildcard-resource:deny", "deny", "wildcard-resource", "*"),
                 new PermissionPolicySeed("permission:wildcard-resource:explicit", "allow", "wildcard-resource", "PermissionAsset"),
                 new PermissionPolicySeed("permission:compat-subject-id", "allow", "compat-subject-id", "PermissionAsset"),
-                new PermissionPolicySeed("permission:compat-action", "allow", "compat-action", "PermissionAsset"),
+                new PermissionPolicySeed("permission:compat-operation", "allow", "compat-operation", "PermissionAsset"),
                 new PermissionPolicySeed("permission:compat-resource-id", "allow", "compat-resource-id", "PermissionAsset"),
                 new PermissionPolicySeed("permission:compat-resource-field", "allow", "compat-resource-field", "PermissionAsset"),
             ],
@@ -89,7 +89,7 @@ internal static class PermissionGovernanceParityFixtures
                 new PermissionAbacRuleSeed("permission:invalid-operator", "subject.type", "contains", "PermissionUser"),
                 new PermissionAbacRuleSeed("permission:invalid-reference", "subject.", "==", "PermissionUser"),
                 new PermissionAbacRuleSeed("permission:compat-subject-id", "subject.id", "==", "permission:user"),
-                new PermissionAbacRuleSeed("permission:compat-action", "action", "==", "compat-action"),
+                new PermissionAbacRuleSeed("permission:compat-operation", "operation", "==", "compat-operation"),
                 new PermissionAbacRuleSeed("permission:compat-resource-id", "resource.id", "==", "permission:asset"),
                 new PermissionAbacRuleSeed("permission:compat-resource-field", "resource.field", "==", "classification"),
             ],
@@ -122,14 +122,14 @@ internal static class PermissionGovernanceParityFixtures
                 new PermissionPathRuleSeed("permission:stable:z", "permission_owns"),
                 new PermissionPathRuleSeed("permission:stable:a", "permission_owns"),
                 new PermissionPathRuleSeed("permission:legacy-subject-project", "subject->project"),
-                new PermissionPathRuleSeed("permission:wildcard-action:allow", "permission_owns"),
-                new PermissionPathRuleSeed("permission:wildcard-action:deny", "permission_owns"),
-                new PermissionPathRuleSeed("permission:wildcard-action:explicit", "permission_owns"),
+                new PermissionPathRuleSeed("permission:wildcard-operation:allow", "permission_owns"),
+                new PermissionPathRuleSeed("permission:wildcard-operation:deny", "permission_owns"),
+                new PermissionPathRuleSeed("permission:wildcard-operation:explicit", "permission_owns"),
                 new PermissionPathRuleSeed("permission:wildcard-resource:allow", "permission_owns"),
                 new PermissionPathRuleSeed("permission:wildcard-resource:deny", "permission_owns"),
                 new PermissionPathRuleSeed("permission:wildcard-resource:explicit", "permission_owns"),
                 new PermissionPathRuleSeed("permission:compat-subject-id", "permission_owns"),
-                new PermissionPathRuleSeed("permission:compat-action", "permission_owns"),
+                new PermissionPathRuleSeed("permission:compat-operation", "permission_owns"),
                 new PermissionPathRuleSeed("permission:compat-resource-id", "permission_owns"),
                 new PermissionPathRuleSeed("permission:compat-resource-field", "permission_owns"),
             ]));
@@ -197,7 +197,7 @@ internal static class PermissionGovernanceParityFixtures
                 && !FieldIsHidden(unmatchedHide.Explanation, "unmatched"),
             "an unmatched policy must not project a field hide result");
 
-        await om.LinkEntitiesAsync("permission:user", "permission_owns", "permission:asset", options: new WriteOptions(ValidTime: "2024-01-01T00:00:00Z"));
+        await om.CreateRelationLinkAsync("permission:user", "permission_owns", "permission:asset", options: new WriteOptions(ValidTime: "2024-01-01T00:00:00Z"));
         HarnessDiagnostics.Start("permission governance witness and empty-path checks");
         var witnessed = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "witness", "permission:asset"));
         Require(witnessed.Allow, "strict permission fixture: a directed permission_owns witness must allow");
@@ -207,8 +207,8 @@ internal static class PermissionGovernanceParityFixtures
                 && witnessed.PolicyEvaluations[0].Witness.Hops.Length == 1,
             "typed permission witness must agree with the explained canonical hop");
 
-        await om.LinkEntitiesAsync("permission:user", "permission_delegates", "permission:bridge");
-        await om.LinkEntitiesAsync("permission:bridge", "permission_grants", "permission:asset");
+        await om.CreateRelationLinkAsync("permission:user", "permission_delegates", "permission:bridge");
+        await om.CreateRelationLinkAsync("permission:bridge", "permission_grants", "permission:asset");
         var arrowAlias = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "arrow-alias", "permission:asset"));
         var wrongDirection = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "wrong-direction", "permission:asset"));
         var emptySelf = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "empty-self", "permission:user"));
@@ -224,21 +224,21 @@ internal static class PermissionGovernanceParityFixtures
         var repeatedWitness = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "first-witness", "permission:asset"));
         Require(firstWitness.Allow
                 && firstWitness.PolicyEvaluations[0].Witness.Hops.Length == 1
-                && firstWitness.PolicyEvaluations[0].Witness.Hops[0].RelName == "permission_owns"
+                && firstWitness.PolicyEvaluations[0].Witness.Hops[0].RelationName == "permission_owns"
                 && firstWitness.Explanation.GetRawText() == repeatedWitness.Explanation.GetRawText(),
             "the shortest canonical complete witness must be selected deterministically");
 
-        await om.UnlinkEntitiesAsync("permission:user", "permission_owns", "permission:asset", new WriteOptions(ValidTime: "2025-01-01T00:00:00Z"));
+        await om.RetractRelationLinkAsync("permission:user", "permission_owns", "permission:asset", new WriteOptions(ValidTime: "2025-01-01T00:00:00Z"));
         var historicalGraph = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "temporal-graph", "permission:asset", "2024-06-01T00:00:00Z"));
         var retractedGraph = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "temporal-graph", "permission:asset", "2025-06-01T00:00:00Z"));
         Require(historicalGraph.Allow && !retractedGraph.Allow,
             $"strict permission fixture: AsOf graph witness must allow before retract and deny after it; historical={historicalGraph.Allow}, retracted={retractedGraph.Allow}");
 
-        await om.LinkEntitiesAsync("permission:user", "permission_owns", "permission:asset", options: new WriteOptions(ValidTime: "2026-01-01T00:00:00Z"));
-        await om.SetPropertyAsync("permission:user", "role", "admin", new WriteOptions(ValidTime: "2024-01-01T00:00:00Z"));
-        await om.SetPropertyAsync("permission:user", "clearance", 7);
-        await om.SetPropertyAsync("permission:user", "active", true);
-        await om.SetPropertyAsync("permission:asset", "classification", "internal");
+        await om.CreateRelationLinkAsync("permission:user", "permission_owns", "permission:asset", options: new WriteOptions(ValidTime: "2026-01-01T00:00:00Z"));
+        await om.SetFieldValueAsync("permission:user", "role", "admin", new WriteOptions(ValidTime: "2024-01-01T00:00:00Z"));
+        await om.SetFieldValueAsync("permission:user", "clearance", 7);
+        await om.SetFieldValueAsync("permission:user", "active", true);
+        await om.SetFieldValueAsync("permission:asset", "classification", "internal");
         var highClearance = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "abac", "permission:asset"));
         Require(highClearance.Allow, "strict permission fixture: witnessed subject.role == admin and clearance >= 5 must allow");
         var entityAware = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "entity-aware", "permission:asset"));
@@ -248,12 +248,12 @@ internal static class PermissionGovernanceParityFixtures
         Require(!missingValue.Allow
                 && missingValue.PolicyEvaluations.Single().AbacDiagnostics.Single().Detail == "missing_value",
             "strict permission fixture: a missing ABAC property must fail closed with deterministic detail");
-        await om.SetPropertyAsync("permission:user", "clearance", 3);
+        await om.SetFieldValueAsync("permission:user", "clearance", 3);
         var lowClearance = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "abac", "permission:asset"));
         Require(!lowClearance.Allow,
             $"strict permission fixture: a matching witnessed deny policy must override allow; explanation={lowClearance.Explanation.GetRawText()}");
 
-        await om.SetPropertyAsync("permission:user", "role", "viewer", new WriteOptions(ValidTime: "2025-01-01T00:00:00Z"));
+        await om.SetFieldValueAsync("permission:user", "role", "viewer", new WriteOptions(ValidTime: "2025-01-01T00:00:00Z"));
         var historicalRole = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "temporal-role", "permission:asset", "2024-06-01T00:00:00Z"));
         var currentRole = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "temporal-role", "permission:asset", "2025-06-01T00:00:00Z"));
         Require(historicalRole.Allow && !currentRole.Allow,
@@ -262,15 +262,15 @@ internal static class PermissionGovernanceParityFixtures
                 && historicalRole.Explanation.GetProperty("asOf").GetString() == historicalRole.AsOf,
             "typed and JSON permission explanations must expose the same normalized AsOf");
 
-        var wildcardActionOnly = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "wildcard-action-only", "permission:asset"));
-        var wildcardActionWithExplicitAllow = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "wildcard-action", "permission:asset"));
+        var wildcardActionOnly = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "wildcard-operation-only", "permission:asset"));
+        var wildcardActionWithExplicitAllow = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "wildcard-operation", "permission:asset"));
         var wildcardResourceOnly = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "wildcard-resource-only", "permission:asset"));
         var wildcardResourceWithExplicitAllow = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "wildcard-resource", "permission:asset"));
         Require(!wildcardActionOnly.Allow
                 && wildcardActionWithExplicitAllow.Allow
                 && !wildcardResourceOnly.Allow
                 && wildcardResourceWithExplicitAllow.Allow,
-            "wildcard action/resource policies must neither grant access nor deny an explicit matching allow");
+            "wildcard operation/resource policies must neither grant access nor deny an explicit matching allow");
 
         HarnessDiagnostics.Start("permission governance field-hide gating checks");
         var fieldHide = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "hide", "permission:asset"));
@@ -308,7 +308,7 @@ internal static class PermissionGovernanceParityFixtures
         var prohibitedReferences = new[]
         {
             await om.CheckAccessAsync(new CheckAccessInput("permission:user", "compat-subject-id", "permission:asset")),
-            await om.CheckAccessAsync(new CheckAccessInput("permission:user", "compat-action", "permission:asset")),
+            await om.CheckAccessAsync(new CheckAccessInput("permission:user", "compat-operation", "permission:asset")),
             await om.CheckAccessAsync(new CheckAccessInput("permission:user", "compat-resource-id", "permission:asset")),
             await om.CheckAccessAsync(new CheckAccessInput("permission:user", "compat-resource-field", "permission:asset", FieldName: "classification")),
         };
@@ -316,7 +316,7 @@ internal static class PermissionGovernanceParityFixtures
                 && result.PolicyEvaluations.Single().AbacDiagnostics.Single().Status == PermissionEvaluationStatus.Invalid
                 && result.PolicyEvaluations.Single().AbacDiagnostics.Single().Detail == "malformed_reference"
                 && result.Explanation.GetRawText().Contains("\"detail\":\"malformed_reference\"", StringComparison.Ordinal)),
-            "subject.id/action/resource.id/resource.field compatibility references must fail closed with matching typed and JSON malformed_reference diagnostics");
+            "subject.id/operation/resource.id/resource.field compatibility references must fail closed with matching typed and JSON malformed_reference diagnostics");
 
         var stableFirst = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "stable", "permission:asset"));
         var stableSecond = await om.CheckAccessAsync(new CheckAccessInput("permission:user", "stable", "permission:asset"));
@@ -353,16 +353,16 @@ internal static class PermissionGovernanceParityFixtures
         throw new InvalidOperationException(message);
     }
 
-    private static bool ContainsWitnessHop(JsonElement explanation, string fromId, string relName, string toId) =>
+    private static bool ContainsWitnessHop(JsonElement explanation, string fromObjectId, string relationName, string toObjectId) =>
         explanation.TryGetProperty("evaluatedPolicies", out var policies)
         && policies.EnumerateArray().Any(policy =>
             policy.TryGetProperty("path", out var path)
             && path.TryGetProperty("witness", out var witness)
             && witness.ValueKind == JsonValueKind.Array
             && witness.EnumerateArray().Any(hop =>
-                hop.TryGetProperty("fromId", out var from) && from.GetString() == fromId
-                && hop.TryGetProperty("relName", out var relation) && relation.GetString() == relName
-                && hop.TryGetProperty("toId", out var to) && to.GetString() == toId));
+                hop.TryGetProperty("fromObjectId", out var from) && from.GetString() == fromObjectId
+                && hop.TryGetProperty("relationName", out var relation) && relation.GetString() == relationName
+                && hop.TryGetProperty("toObjectId", out var to) && to.GetString() == toObjectId));
 
     private static bool FieldIsHidden(JsonElement explanation, string field) =>
         explanation.TryGetProperty("fieldVisibility", out var visibility)

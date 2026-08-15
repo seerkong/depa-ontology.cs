@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="cozo-dotnet-om" version="1">
+  <upsert selector="behavior://cozo-dotnet-om/requirements/class-object-field-contract">
+    <requirement id="class-object-field-contract">
+      <statement>系统 SHALL expose the low-level OM modeling contract with Class, Object, Field, and FieldValue terminology instead of Type, Entity, Attribute, and Property terminology.</statement>
+      <suite id="public-api" name="Public API">
+        <case id="class-field-object-api">
+          <given>调用方使用 ontology core public API 定义类别、字段与对象</given>
+          <when>调用方创建 Class、定义 Field、创建 Object、写入或读取 FieldValue</when>
+          <then>系统 SHALL expose `DefineClassAsync`, `DefineFieldAsync`, `CreateObjectAsync`, `UpsertObjectAsync`, `SetFieldValueAsync`, `GetFieldValueAsync`, `GetFieldValueHistoryAsync`, and `FindByClassAsync` as the canonical API.</then>
+          <and>系统 MUST NOT expose compatibility aliases for the old Type, Entity, Attribute, or Property API names.</and>
+        </case>
+        <case id="class-alias-and-hierarchy-api">
+          <given>调用方使用 class hierarchy 和 field alias 能力</given>
+          <when>调用方定义父类、mixin、class alias 或 field alias</when>
+          <then>系统 SHALL expose Class/Field names such as `GetClassHierarchyAsync`, `ResolveClassAsync`, `DefineClassAliasAsync`, `ResolveFieldAsync`, and `DefineFieldAliasAsync`.</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://cozo-dotnet-om/requirements/class-object-field-storage">
+    <requirement id="class-object-field-storage">
+      <statement>系统 SHALL persist Class, Object, Field, and FieldValue facts in renamed OM relations and columns without legacy table compatibility.</statement>
+      <suite id="storage-schema" name="Storage schema">
+        <case id="renamed-relations">
+          <given>ontology core initializes a fresh Cozo database</given>
+          <when>schema initialization completes</when>
+          <then>系统 SHALL create `om_class_def`, `om_mixin_def`, `om_class_mixin`, `om_field_def`, `om_field_desc`, `om_field_value`, `om_object`, `om_alias_class`, and `om_alias_field` for this track's slice.</then>
+          <and>系统 MUST NOT create or read/write the old `om_type`, `om_mixin`, `om_type_mixin`, `om_attr_def`, `om_attr_desc`, `om_property`, `om_entity`, `om_alias_type`, or `om_alias_attr` tables as compatibility storage.</and>
+        </case>
+        <case id="renamed-columns">
+          <given>Class/Object/Field/FieldValue data is written</given>
+          <when>Cozo rows are inspected or schema evolution diff runs</when>
+          <then>系统 SHALL use names such as `class_name`, `parent_class`, `field_name`, `object_id`, and `value_kind` where these columns describe the renamed OM contract.</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://cozo-dotnet-om/requirements/no-legacy-class-object-field-surface">
+    <requirement id="no-legacy-class-object-field-surface">
+      <statement>系统 SHALL remove old Class/Object/Field/FieldValue predecessor vocabulary from current source, tests, examples, docs, and generated fixtures except in explicitly historical Codument archives.</statement>
+      <suite id="verification" name="Verification">
+        <case id="scan-current-surface">
+          <given>the rename implementation is complete</given>
+          <when>current source, tests, examples, and docs are scanned for old OM public/storage names</when>
+          <then>系统 SHALL find no required current usages of Type, Entity, Attribute, Property API names or their old table/column names for this track's slice.</then>
+          <and>Historical archived Codument records MAY retain legacy names as historical evidence.</and>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

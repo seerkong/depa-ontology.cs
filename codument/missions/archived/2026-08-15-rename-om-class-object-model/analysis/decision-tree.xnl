@@ -1,0 +1,25 @@
+<decision_tree #rename_om_class_object_model {
+  status = "pending"
+  created = "2026-08-14"
+} [
+  <route #request_kind
+    ?>The user asked to continue creating a mission, not a quick implementation or a single track. Because the requested change is a cross-project breaking naming redesign, a mission is the correct Codument container.</?>
+
+  <route #design_readiness
+    ?>The blocking vocabulary choices have been resolved by discussion: Class replaces Type, Object replaces Entity, Field replaces Attribute, FieldValue replaces Property for durable values, ComputedProp is retained for computed members, RelationLink replaces Edge, and Operation replaces Action.</?>
+
+  <route #compatibility
+    ?>The user explicitly requested a thorough redesign with no compatibility. Mission and future tracks must not preserve old API or storage names through aliases or adapters.</?>
+
+  <route #scope_boundary
+    ?>The host ontology core owns the new contract. The dependent knowledge-base project is in scope as a follow-up migration to the new contract, including code, direct Cozo queries, docs, and skill assets, but it is not the authority for naming design.</?>
+
+  <route #knowledge_base_skills
+    ?>The user explicitly added that knowledge-base skills must be covered and modified. The mission therefore treats root business skills, references, prompt contracts, scripts, tests, examples, and versioned agent-skill copies that repeat OM wording as migration targets.</?>
+
+  <route #track_need
+    ?>Implementation should be delegated to linked tracks because the work spans schema, public API, models, behavior/interceptor/permission concepts, tests, docs, and a dependent project.</?>
+
+  <route #replan_trigger
+    ?>Replan if inventory finds an uncovered OM concept, a derived relation result that cannot share RelationLink semantics, or a knowledge-base dependency that needs a separate migration phase.</?>
+]>

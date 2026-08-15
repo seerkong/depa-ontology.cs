@@ -1,0 +1,7 @@
+<decisions #rename_ontology_operation_computedprop_contract [
+  <decision #no_compat { status = "accepted" date = "2026-08-14" }
+    ?>The operation/computed/relation rename is part of the parent mission's breaking redesign. Do not keep old public APIs, table names, or compatibility aliases for action, edge, relation, computed-def, or permission-action vocabulary.</?>
+
+  <decision #complete_internal_cleanup { status = "accepted" date = "2026-08-14" }
+    ?>This ontology-core completion slice should remove remaining TypeLogic, EntityLogic, OmType, OmEntity, OmAttribute, and OmProperty style names where they refer to current OM modeling concepts, because retaining them would make final ontology-core verification ambiguous.</?>
+]>

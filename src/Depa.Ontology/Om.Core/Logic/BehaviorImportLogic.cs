@@ -138,23 +138,23 @@ internal static class BehaviorImportLogic
         var diagnostics = ImmutableArray.CreateBuilder<BehaviorImportDiagnostic>();
         foreach (var entry in catalog.Behaviors)
         {
-            var resolvedOwner = await TypeLogic.ResolveTypeAsync(runtime, entry.OwnerType, cancellationToken).ConfigureAwait(false);
-            if (!string.Equals(resolvedOwner, entry.OwnerType, StringComparison.Ordinal)
-                || !await TypeLogic.TypeExistsAsync(runtime, resolvedOwner, cancellationToken).ConfigureAwait(false))
+            var resolvedOwner = await ClassLogic.ResolveClassAsync(runtime, entry.OwnerClass, cancellationToken).ConfigureAwait(false);
+            if (!string.Equals(resolvedOwner, entry.OwnerClass, StringComparison.Ordinal)
+                || !await ClassLogic.ClassExistsAsync(runtime, resolvedOwner, cancellationToken).ConfigureAwait(false))
             {
-                diagnostics.Add(Diagnostic("OMI1101", entry, null, null, $"Owner type '{entry.OwnerType}' does not exist as a canonical type."));
+                diagnostics.Add(Diagnostic("OMI1101", entry, null, null, $"Owner class '{entry.OwnerClass}' does not exist as a canonical type."));
             }
 
             if (entry.Kind == BehaviorCatalogKind.Constraint)
             {
-                var constraintType = entry.ConstraintType?.Trim().ToLowerInvariant();
-                if (constraintType is not ("conditional" or "cross-entity" or "computed-dep" or "custom"))
+                var constraintKind = entry.ConstraintKind?.Trim().ToLowerInvariant();
+                if (constraintKind is not ("conditional" or "cross-entity" or "computedprop-dep" or "custom"))
                 {
-                    diagnostics.Add(Diagnostic("OMI1102", entry, null, null, $"Constraint type '{entry.ConstraintType}' is unsupported."));
+                    diagnostics.Add(Diagnostic("OMI1102", entry, null, null, $"Constraint kind '{entry.ConstraintKind}' is unsupported."));
                 }
                 else
                 {
-                    ValidateConstraintSlots(entry, constraintType, diagnostics);
+                    ValidateConstraintSlots(entry, constraintKind, diagnostics);
                 }
             }
 
@@ -169,10 +169,10 @@ internal static class BehaviorImportLogic
 
     private static void ValidateConstraintSlots(
         BehaviorCatalogEntry entry,
-        string constraintType,
+        string constraintKind,
         ImmutableArray<BehaviorImportDiagnostic>.Builder diagnostics)
     {
-        var expected = constraintType == "custom"
+        var expected = constraintKind == "custom"
             ? new[] { BehaviorCatalogCallbackSlot.Validator }
             : new[] { BehaviorCatalogCallbackSlot.When, BehaviorCatalogCallbackSlot.Then };
         var actual = entry.Callbacks.Select(callback => callback.Slot).ToHashSet();
@@ -186,10 +186,10 @@ internal static class BehaviorImportLogic
         diagnostics.Add(new BehaviorImportDiagnostic(
             "OMI1104",
             $"{BehaviorKey(entry)}.callbacks",
-            $"Constraint type '{constraintType}' requires exactly callback slots [{FormatSlots(expected)}]; "
+            $"Constraint kind '{constraintKind}' requires exactly callback slots [{FormatSlots(expected)}]; "
             + $"missing slots [{FormatSlots(missing)}]; extra slots [{FormatSlots(extra)}].",
             entry.Kind,
-            entry.OwnerType,
+            entry.OwnerClass,
             entry.Name));
     }
 
@@ -230,21 +230,21 @@ internal static class BehaviorImportLogic
             foreach (var callback in entry.Callbacks)
             {
                 var bindingId = callback.BindingId;
-                var key = (entry.OwnerType, entry.Name);
+                var key = (entry.OwnerClass, entry.Name);
                 switch (entry.Kind)
                 {
-                    case BehaviorCatalogKind.Computed:
-                        snapshot = snapshot with { Computed = snapshot.Computed.Remove(key) };
-                        if (TryResolve(callbacks.Computed, callbacks.AllBindingIds, entry, callback, unresolved, diagnostics, out BehaviorComputedCallbackBinding? computed))
+                    case BehaviorCatalogKind.ComputedProp:
+                        snapshot = snapshot with { ComputedProps = snapshot.ComputedProps.Remove(key) };
+                        if (TryResolve(callbacks.ComputedProps, callbacks.AllBindingIds, entry, callback, unresolved, diagnostics, out BehaviorComputedPropCallbackBinding? computedProp))
                         {
-                            snapshot = snapshot with { Computed = snapshot.Computed.SetItem(key, new(computed!.Callback, bindingId)) };
+                            snapshot = snapshot with { ComputedProps = snapshot.ComputedProps.SetItem(key, new(computedProp!.Callback, bindingId)) };
                         }
                         break;
-                    case BehaviorCatalogKind.Action:
-                        snapshot = snapshot with { Actions = snapshot.Actions.Remove(key) };
-                        if (TryResolve(callbacks.Actions, callbacks.AllBindingIds, entry, callback, unresolved, diagnostics, out BehaviorActionCallbackBinding? action))
+                    case BehaviorCatalogKind.Operation:
+                        snapshot = snapshot with { Operations = snapshot.Operations.Remove(key) };
+                        if (TryResolve(callbacks.Operations, callbacks.AllBindingIds, entry, callback, unresolved, diagnostics, out BehaviorOperationCallbackBinding? operation))
                         {
-                            snapshot = snapshot with { Actions = snapshot.Actions.SetItem(key, new(action!.Callback, bindingId)) };
+                            snapshot = snapshot with { Operations = snapshot.Operations.SetItem(key, new(operation!.Callback, bindingId)) };
                         }
                         break;
                     case BehaviorCatalogKind.Mutation:
@@ -275,7 +275,7 @@ internal static class BehaviorImportLogic
         ImmutableArray<BehaviorUnresolvedDiagnostic>.Builder unresolved,
         ImmutableArray<BehaviorImportDiagnostic>.Builder diagnostics)
     {
-        var key = (entry.OwnerType, entry.Name);
+        var key = (entry.OwnerClass, entry.Name);
         snapshot = snapshot with
         {
             Constraints = snapshot.Constraints.Remove(key),
@@ -343,7 +343,7 @@ internal static class BehaviorImportLogic
         var unresolvedDiagnostic = new BehaviorUnresolvedDiagnostic(
             "OMR1001",
             entry.Kind,
-            entry.OwnerType,
+            entry.OwnerClass,
             BehaviorKey(entry),
             callback.Slot,
             bindingId,
@@ -406,43 +406,43 @@ internal static class BehaviorImportLogic
         entry.Kind switch
         {
             BehaviorCatalogKind.Constraint => runtime.Store.RunAsync(
-                CozoScriptBuilder.InputPut("om_constraint_def", ["type_name", "constraint_name"], ["constraint_type", "message"]),
-                LogicSupport.Params(("type_name", entry.OwnerType), ("constraint_name", entry.Name), ("constraint_type", entry.ConstraintType ?? ""), ("message", entry.Message ?? "")),
+                CozoScriptBuilder.InputPut("om_constraint_def", ["class_name", "constraint_name"], ["constraint_kind", "message"]),
+                LogicSupport.Params(("class_name", entry.OwnerClass), ("constraint_name", entry.Name), ("constraint_kind", entry.ConstraintKind ?? ""), ("message", entry.Message ?? "")),
                 cancellationToken: cancellationToken),
-            BehaviorCatalogKind.Computed => PutDescriptionAsync(runtime, "om_computed_def", "attr_name", entry, cancellationToken),
-            BehaviorCatalogKind.Action => PutDescriptionAsync(runtime, "om_action_def", "action_name", entry, cancellationToken),
+            BehaviorCatalogKind.ComputedProp => PutDescriptionAsync(runtime, "om_computed_prop_def", "computed_prop_name", entry, cancellationToken),
+            BehaviorCatalogKind.Operation => PutDescriptionAsync(runtime, "om_operation_def", "operation_name", entry, cancellationToken),
             BehaviorCatalogKind.Mutation => PutDescriptionAsync(runtime, "om_mutation_def", "mutation_name", entry, cancellationToken),
             BehaviorCatalogKind.Interceptor => runtime.Store.RunAsync(
-                CozoScriptBuilder.InputPut("om_interceptor_def", ["type_name", "action_name", "phase", "seq"], ["description"]),
-                LogicSupport.Params(("type_name", entry.OwnerType), ("action_name", entry.Name), ("phase", entry.InterceptorPhase), ("seq", entry.InterceptorSeq), ("description", entry.Description ?? "")),
+                CozoScriptBuilder.InputPut("om_interceptor_def", ["class_name", "operation_name", "phase", "seq"], ["description"]),
+                LogicSupport.Params(("class_name", entry.OwnerClass), ("operation_name", entry.Name), ("phase", entry.InterceptorPhase), ("seq", entry.InterceptorSeq), ("description", entry.Description ?? "")),
                 cancellationToken: cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(entry.Kind)),
         };
 
     private static Task PutDescriptionAsync(CozoOmRuntime runtime, string relation, string nameColumn, BehaviorCatalogEntry entry, CancellationToken cancellationToken) =>
         runtime.Store.RunAsync(
-            CozoScriptBuilder.InputPut(relation, ["type_name", nameColumn], ["description"]),
-            LogicSupport.Params(("type_name", entry.OwnerType), (nameColumn, entry.Name), ("description", entry.Description ?? "")),
+            CozoScriptBuilder.InputPut(relation, [relation is "om_computed_prop_def" or "om_operation_def" ? "class_name" : "class_name", nameColumn], ["description"]),
+            LogicSupport.Params((relation is "om_computed_prop_def" or "om_operation_def" ? "class_name" : "class_name", entry.OwnerClass), (nameColumn, entry.Name), ("description", entry.Description ?? "")),
             cancellationToken: cancellationToken);
 
     private static Task RemoveMetadataAsync(CozoOmRuntime runtime, BehaviorCatalogEntry entry, CancellationToken cancellationToken)
     {
         var (relation, keys) = entry.Kind switch
         {
-            BehaviorCatalogKind.Constraint => ("om_constraint_def", new[] { "type_name", "constraint_name" }),
-            BehaviorCatalogKind.Computed => ("om_computed_def", new[] { "type_name", "attr_name" }),
-            BehaviorCatalogKind.Action => ("om_action_def", new[] { "type_name", "action_name" }),
-            BehaviorCatalogKind.Mutation => ("om_mutation_def", new[] { "type_name", "mutation_name" }),
-            BehaviorCatalogKind.Interceptor => ("om_interceptor_def", new[] { "type_name", "action_name", "phase", "seq" }),
+            BehaviorCatalogKind.Constraint => ("om_constraint_def", new[] { "class_name", "constraint_name" }),
+            BehaviorCatalogKind.ComputedProp => ("om_computed_prop_def", new[] { "class_name", "computed_prop_name" }),
+            BehaviorCatalogKind.Operation => ("om_operation_def", new[] { "class_name", "operation_name" }),
+            BehaviorCatalogKind.Mutation => ("om_mutation_def", new[] { "class_name", "mutation_name" }),
+            BehaviorCatalogKind.Interceptor => ("om_interceptor_def", new[] { "class_name", "operation_name", "phase", "seq" }),
             _ => throw new ArgumentOutOfRangeException(nameof(entry.Kind)),
         };
         var values = entry.Kind switch
         {
-            BehaviorCatalogKind.Constraint => new object?[] { entry.OwnerType, entry.Name },
-            BehaviorCatalogKind.Computed => [entry.OwnerType, entry.Name],
-            BehaviorCatalogKind.Action => [entry.OwnerType, entry.Name],
-            BehaviorCatalogKind.Mutation => [entry.OwnerType, entry.Name],
-            BehaviorCatalogKind.Interceptor => [entry.OwnerType, entry.Name, entry.InterceptorPhase, entry.InterceptorSeq],
+            BehaviorCatalogKind.Constraint => new object?[] { entry.OwnerClass, entry.Name },
+            BehaviorCatalogKind.ComputedProp => [entry.OwnerClass, entry.Name],
+            BehaviorCatalogKind.Operation => [entry.OwnerClass, entry.Name],
+            BehaviorCatalogKind.Mutation => [entry.OwnerClass, entry.Name],
+            BehaviorCatalogKind.Interceptor => [entry.OwnerClass, entry.Name, entry.InterceptorPhase, entry.InterceptorSeq],
             _ => [],
         };
         var parameters = keys.Select((key, index) => (key, values[index])).ToArray();
@@ -459,8 +459,8 @@ internal static class BehaviorImportLogic
         var slots = entry.Kind switch
         {
             BehaviorCatalogKind.Constraint => new[] { BehaviorCatalogCallbackSlot.When, BehaviorCatalogCallbackSlot.Then, BehaviorCatalogCallbackSlot.Validator },
-            BehaviorCatalogKind.Computed => [BehaviorCatalogCallbackSlot.Compute],
-            BehaviorCatalogKind.Action => [BehaviorCatalogCallbackSlot.Handler],
+            BehaviorCatalogKind.ComputedProp => [BehaviorCatalogCallbackSlot.Compute],
+            BehaviorCatalogKind.Operation => [BehaviorCatalogCallbackSlot.Handler],
             BehaviorCatalogKind.Mutation => [BehaviorCatalogCallbackSlot.Executor],
             BehaviorCatalogKind.Interceptor => [BehaviorCatalogCallbackSlot.Handler],
             _ => [],
@@ -471,7 +471,7 @@ internal static class BehaviorImportLogic
     private static BehaviorBindingKey ToBindingKey(BehaviorCatalogEntry entry, BehaviorCatalogCallbackSlot slot) =>
         new(
             ToInternalKind(entry.Kind),
-            entry.OwnerType,
+            entry.OwnerClass,
             entry.Name,
             ToInternalSlot(slot),
             entry.InterceptorPhase ?? BehaviorBindingLogic.NonInterceptorPhase,
@@ -480,7 +480,7 @@ internal static class BehaviorImportLogic
     private static CozoOmRegistrySnapshot RemoveInterceptor(CozoOmRegistrySnapshot snapshot, BehaviorCatalogEntry entry)
     {
         var source = entry.InterceptorPhase == "before" ? snapshot.BeforeInterceptors : snapshot.AfterInterceptors;
-        var key = (entry.OwnerType, entry.Name);
+        var key = (entry.OwnerClass, entry.Name);
         if (source.TryGetValue(key, out var list))
         {
             var next = list.RemoveAll(item => item.Seq == entry.InterceptorSeq);
@@ -492,13 +492,13 @@ internal static class BehaviorImportLogic
     private static CozoOmRegistrySnapshot AddInterceptor(
         CozoOmRegistrySnapshot snapshot,
         BehaviorCatalogEntry entry,
-        Func<OmActionContext, ValueTask> callback,
+        Func<OmOperationContext, ValueTask> callback,
         string bindingId)
     {
         var source = entry.InterceptorPhase == "before" ? snapshot.BeforeInterceptors : snapshot.AfterInterceptors;
-        var key = (entry.OwnerType, entry.Name);
+        var key = (entry.OwnerClass, entry.Name);
         var list = source.TryGetValue(key, out var existing) ? existing : ImmutableArray<OmInterceptorRegistration>.Empty;
-        list = list.Add(new(callback, entry.InterceptorSeq!.Value, entry.Description ?? "", entry.OwnerType, bindingId));
+        list = list.Add(new(callback, entry.InterceptorSeq!.Value, entry.Description ?? "", entry.OwnerClass, bindingId));
         source = source.SetItem(key, list.OrderBy(item => item.Seq).ToImmutableArray());
         return entry.InterceptorPhase == "before" ? snapshot with { BeforeInterceptors = source } : snapshot with { AfterInterceptors = source };
     }
@@ -509,26 +509,36 @@ internal static class BehaviorImportLogic
         BehaviorCallbackBinding? callback,
         string? bindingId,
         string message) =>
-        new(code, BehaviorKey(entry), message, entry.Kind, entry.OwnerType, entry.Name, callback?.Slot, bindingId ?? callback?.BindingId, entry.InterceptorPhase, entry.InterceptorSeq);
+        new(code, BehaviorKey(entry), message, entry.Kind, entry.OwnerClass, entry.Name, callback?.Slot, bindingId ?? callback?.BindingId, entry.InterceptorPhase, entry.InterceptorSeq);
 
     private static string BehaviorKey(BehaviorCatalogEntry entry) =>
         entry.Kind == BehaviorCatalogKind.Interceptor
-            ? $"interceptor:{entry.OwnerType}/{entry.Name}/{entry.InterceptorPhase}/{entry.InterceptorSeq}"
-            : $"{entry.Kind.ToString().ToLowerInvariant()}:{entry.OwnerType}/{entry.Name}";
+            ? $"interceptor:{entry.OwnerClass}/{entry.Name}/{entry.InterceptorPhase}/{entry.InterceptorSeq}"
+            : $"{KindWire(entry.Kind)}:{entry.OwnerClass}/{entry.Name}";
+
+    private static string KindWire(BehaviorCatalogKind kind) => kind switch
+    {
+        BehaviorCatalogKind.Constraint => "constraint",
+        BehaviorCatalogKind.ComputedProp => "computedProp",
+        BehaviorCatalogKind.Operation => "operation",
+        BehaviorCatalogKind.Mutation => "mutation",
+        BehaviorCatalogKind.Interceptor => "interceptor",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
 
     private static bool SameBehaviorKey(BehaviorCatalogEntry left, BehaviorCatalogEntry right) =>
-        left.Kind == right.Kind && left.OwnerType == right.OwnerType && left.Name == right.Name
+        left.Kind == right.Kind && left.OwnerClass == right.OwnerClass && left.Name == right.Name
         && left.InterceptorPhase == right.InterceptorPhase && left.InterceptorSeq == right.InterceptorSeq;
 
     private static bool SameBehaviorKey(BehaviorBindingKey key, BehaviorCatalogEntry entry) =>
-        ToCatalogKind(key.BehaviorKind) == entry.Kind && key.OwnerType == entry.OwnerType && key.BehaviorName == entry.Name
+        ToCatalogKind(key.BehaviorKind) == entry.Kind && key.OwnerClass == entry.OwnerClass && key.BehaviorName == entry.Name
         && (entry.Kind != BehaviorCatalogKind.Interceptor || key.Phase == entry.InterceptorPhase && key.Seq == entry.InterceptorSeq);
 
     private static BehaviorKind ToInternalKind(BehaviorCatalogKind kind) => kind switch
     {
         BehaviorCatalogKind.Constraint => BehaviorKind.Constraint,
-        BehaviorCatalogKind.Computed => BehaviorKind.Computed,
-        BehaviorCatalogKind.Action => BehaviorKind.Action,
+        BehaviorCatalogKind.ComputedProp => BehaviorKind.ComputedProp,
+        BehaviorCatalogKind.Operation => BehaviorKind.Operation,
         BehaviorCatalogKind.Mutation => BehaviorKind.Mutation,
         BehaviorCatalogKind.Interceptor => BehaviorKind.Interceptor,
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
@@ -537,8 +547,8 @@ internal static class BehaviorImportLogic
     private static BehaviorCatalogKind ToCatalogKind(BehaviorKind kind) => kind switch
     {
         BehaviorKind.Constraint => BehaviorCatalogKind.Constraint,
-        BehaviorKind.Computed => BehaviorCatalogKind.Computed,
-        BehaviorKind.Action => BehaviorCatalogKind.Action,
+        BehaviorKind.ComputedProp => BehaviorCatalogKind.ComputedProp,
+        BehaviorKind.Operation => BehaviorCatalogKind.Operation,
         BehaviorKind.Mutation => BehaviorCatalogKind.Mutation,
         BehaviorKind.Interceptor => BehaviorCatalogKind.Interceptor,
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
@@ -561,8 +571,8 @@ internal static class BehaviorImportLogic
 
         internal Dictionary<string, BehaviorConstraintCallbackBinding> Constraints { get; } = new(StringComparer.Ordinal);
         internal Dictionary<string, BehaviorValidatorCallbackBinding> Validators { get; } = new(StringComparer.Ordinal);
-        internal Dictionary<string, BehaviorComputedCallbackBinding> Computed { get; } = new(StringComparer.Ordinal);
-        internal Dictionary<string, BehaviorActionCallbackBinding> Actions { get; } = new(StringComparer.Ordinal);
+        internal Dictionary<string, BehaviorComputedPropCallbackBinding> ComputedProps { get; } = new(StringComparer.Ordinal);
+        internal Dictionary<string, BehaviorOperationCallbackBinding> Operations { get; } = new(StringComparer.Ordinal);
         internal Dictionary<string, BehaviorMutationCallbackBinding> Mutations { get; } = new(StringComparer.Ordinal);
         internal Dictionary<string, BehaviorInterceptorCallbackBinding> Interceptors { get; } = new(StringComparer.Ordinal);
         internal HashSet<string> AllBindingIds { get; } = new(StringComparer.Ordinal);
@@ -574,12 +584,12 @@ internal static class BehaviorImportLogic
             var diagnostics = ImmutableArray.CreateBuilder<BehaviorImportDiagnostic>();
             Add(set.Constraints, index.Constraints, item => item.BindingId, item => item.Callback, diagnostics);
             Add(set.Validators, index.Validators, item => item.BindingId, item => item.Callback, diagnostics);
-            Add(set.Computed, index.Computed, item => item.BindingId, item => item.Callback, diagnostics);
-            Add(set.Actions, index.Actions, item => item.BindingId, item => item.Callback, diagnostics);
+            Add(set.ComputedProps, index.ComputedProps, item => item.BindingId, item => item.Callback, diagnostics);
+            Add(set.Operations, index.Operations, item => item.BindingId, item => item.Callback, diagnostics);
             Add(set.Mutations, index.Mutations, item => item.BindingId, item => item.Callback, diagnostics);
             Add(set.Interceptors, index.Interceptors, item => item.BindingId, item => item.Callback, diagnostics);
-            foreach (var id in index.Constraints.Keys.Concat(index.Validators.Keys).Concat(index.Computed.Keys)
-                         .Concat(index.Actions.Keys).Concat(index.Mutations.Keys).Concat(index.Interceptors.Keys))
+            foreach (var id in index.Constraints.Keys.Concat(index.Validators.Keys).Concat(index.ComputedProps.Keys)
+                         .Concat(index.Operations.Keys).Concat(index.Mutations.Keys).Concat(index.Interceptors.Keys))
             {
                 index.AllBindingIds.Add(id);
             }

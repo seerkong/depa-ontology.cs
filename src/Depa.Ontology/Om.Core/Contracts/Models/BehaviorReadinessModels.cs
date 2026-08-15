@@ -3,7 +3,7 @@ namespace Depa.Ontology.Contracts.Models;
 public sealed record BehaviorUnresolvedDiagnostic(
     string Code,
     BehaviorCatalogKind Kind,
-    string OwnerType,
+    string OwnerClass,
     string BehaviorKey,
     BehaviorCatalogCallbackSlot Slot,
     string BindingId,

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="rename-ontology-operation-computedprop-contract" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>Breakingly rename ontology OM relation, computed property, and operation behavior/storage contracts.</Goal>
+    <Description>Second mission slice for RelationDef/RelationLink, ComputedProp, Operation, permission operation, and related behavior/interceptor surfaces.</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-08-14T21:21:03Z</CreatedAt>
+    <UpdatedAt>2026-08-14T22:38:02Z</UpdatedAt>
+  </Metadata>
+
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="input" name="modeling-deltas" domain="modeling" path="vfs://./modeling_deltas/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+    <MaterialBundle role="output" name="modeling" domain="codument" path="vfs://@/codument/modeling/"/>
+  </Ports>
+
+  <TaskSpace id="space_rename-ontology-operation-computedprop-contract" name="rename-ontology-operation-computedprop-contract" version="1">
+    <Description>Breakingly rename the remaining ontology core relation/computed/operation contract.</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Contract tests and fixtures" status="DONE" order="0">
+        <Description>Turn tests and fixture expectations toward RelationDef/RelationLink/ComputedProp/Operation.</Description>
+        <SubNodes>
+          <Task id="T1.1" name="Update relation/computed/operation public API tests" status="DONE" order="0" priority="P0"/>
+          <Task id="T1.2" name="Update schema snapshots and direct Cozo fixtures for renamed tables and columns" status="DONE" order="1" priority="P0"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="P2" name="Ontology core implementation" status="DONE" order="1">
+        <Description>Rename public API, models, schema, logic queries, runtime callbacks, and governance surfaces for this slice.</Description>
+        <SubNodes>
+          <Task id="T2.1" name="Rename relation definition/link storage and API surface" status="DONE" order="0" priority="P0"/>
+          <Task id="T2.2" name="Rename computed definition surface to ComputedProp" status="DONE" order="1" priority="P0"/>
+          <Task id="T2.3" name="Rename action/permission/interceptor behavior surface to Operation" status="DONE" order="2" priority="P0"/>
+          <Task id="T2.4" name="Remove remaining internal Type/Entity/Attribute/Property names in current ontology core implementation" status="DONE" order="3" priority="P1"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="P3" name="Examples and docs" status="DONE" order="2">
+        <Description>Update example server, behavior registry, and current docs to stop teaching old relation/action/computed names.</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Update example server and example tests for operation/relation/computed vocabulary" status="DONE" order="0" priority="P1"/>
+          <Task id="T3.2" name="Update current Codument behavior/modeling/docs in scope" status="DONE" order="1" priority="P1"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="P4" name="Verification" status="DONE" order="3">
+        <Description>Build, test, scan, and record evidence for the full ontology-core rename.</Description>
+        <SubNodes>
+          <Task id="T4.1" name="Run ontology and example builds/tests" status="DONE" order="0" priority="P0"/>
+          <Task id="T4.2" name="Scan current ontology core for legacy public/storage/internal OM names" status="DONE" order="1" priority="P0"/>
+          <Task id="T4.3" name="Record implementation report" status="DONE" order="2" priority="P1"/>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="3" on-exhausted="block" verify-round="false"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+
+  <Schedule/>
+
+  <Hooks/>
+</Track>

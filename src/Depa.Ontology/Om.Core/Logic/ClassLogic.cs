@@ -7,31 +7,31 @@ using Depa.Cozo;
 
 namespace Depa.Ontology.Logic;
 
-public static class TypeLogic
+internal static class ClassLogic
 {
-    public static async Task DefineTypeAsync(CozoOmRuntime runtime, DefineTypeInput input, CancellationToken cancellationToken = default)
+    public static async Task DefineClassAsync(CozoOmRuntime runtime, DefineClassInput input, CancellationToken cancellationToken = default)
     {
         var name = OmConvert.RequireName(input.Name, nameof(input.Name));
-        var parent = string.IsNullOrWhiteSpace(input.ParentType)
-            ? await TypeExistsAsync(runtime, name, cancellationToken)
-                ? await GetParentTypeAsync(runtime, name, cancellationToken)
+        var parent = string.IsNullOrWhiteSpace(input.ParentClass)
+            ? await ClassExistsAsync(runtime, name, cancellationToken)
+                ? await GetParentClassAsync(runtime, name, cancellationToken)
                 : null
-            : await ResolveTypeAsync(runtime, input.ParentType!, cancellationToken);
+            : await ResolveClassAsync(runtime, input.ParentClass!, cancellationToken);
         await DefineTypeCoreAsync(runtime, name, input.Description, parent, input.Mixins, cancellationToken);
     }
 
-    public static async Task DefineTypeAsync(CozoOmRuntime runtime, DefineTypePatchInput input, CancellationToken cancellationToken = default)
+    public static async Task DefineClassAsync(CozoOmRuntime runtime, DefineClassPatchInput input, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(input.Parent);
         var name = OmConvert.RequireName(input.Name, nameof(input.Name));
         var parent = input.Parent.Kind switch
         {
-            TypeParentPatchKind.Keep => await TypeExistsAsync(runtime, name, cancellationToken)
-                ? await GetParentTypeAsync(runtime, name, cancellationToken)
+            ClassParentPatchKind.Keep => await ClassExistsAsync(runtime, name, cancellationToken)
+                ? await GetParentClassAsync(runtime, name, cancellationToken)
                 : null,
-            TypeParentPatchKind.Set => await ResolveTypeAsync(runtime, input.Parent.ParentType!, cancellationToken),
-            TypeParentPatchKind.Clear => null,
+            ClassParentPatchKind.Set => await ResolveClassAsync(runtime, input.Parent.ParentClass!, cancellationToken),
+            ClassParentPatchKind.Clear => null,
             _ => throw new ArgumentOutOfRangeException(nameof(input.Parent), input.Parent.Kind, "Unsupported parent patch"),
         };
         await DefineTypeCoreAsync(runtime, name, input.Description, parent, input.Mixins, cancellationToken);
@@ -47,9 +47,9 @@ public static class TypeLogic
     {
         if (parent is not null)
         {
-            if (!await TypeExistsAsync(runtime, parent, cancellationToken))
+            if (!await ClassExistsAsync(runtime, parent, cancellationToken))
             {
-                throw new CozoException($"Parent type '{parent}' does not exist");
+                throw new CozoException($"Parent class '{parent}' does not exist");
             }
 
             var ancestors = await GetAncestorsAsync(runtime, parent, cancellationToken);
@@ -60,21 +60,21 @@ public static class TypeLogic
         }
 
         await runtime.Store.RunAsync(
-            CozoScriptBuilder.InputPut("om_type", ["name"], ["description", "parent_type"]),
-            LogicSupport.Params(("name", name), ("description", description), ("parent_type", parent)),
+            CozoScriptBuilder.InputPut("om_class_def", ["class_name"], ["description", "parent_class"]),
+            LogicSupport.Params(("class_name", name), ("description", description), ("parent_class", parent)),
             cancellationToken: cancellationToken);
 
         if (mixins is not null)
         {
-            var existing = await GetTypeMixinsAsync(runtime, name, cancellationToken);
+            var existing = await GetClassMixinsAsync(runtime, name, cancellationToken);
             foreach (var mixin in existing)
             {
                 await runtime.Store.RunAsync(
                     """
-                    ?[type_name, mixin_name] <- [[$type_name, $mixin_name]]
-                    :rm om_type_mixin {type_name, mixin_name}
+                    ?[class_name, mixin_name] <- [[$class_name, $mixin_name]]
+                    :rm om_class_mixin {class_name, mixin_name}
                     """,
-                    LogicSupport.Params(("type_name", name), ("mixin_name", mixin)),
+                    LogicSupport.Params(("class_name", name), ("mixin_name", mixin)),
                     cancellationToken: cancellationToken);
             }
 
@@ -87,8 +87,8 @@ public static class TypeLogic
                 }
 
                 await runtime.Store.RunAsync(
-                    CozoScriptBuilder.InputPut("om_type_mixin", ["type_name", "mixin_name"], []),
-                    LogicSupport.Params(("type_name", name), ("mixin_name", mixinName)),
+                    CozoScriptBuilder.InputPut("om_class_mixin", ["class_name", "mixin_name"], []),
+                    LogicSupport.Params(("class_name", name), ("mixin_name", mixinName)),
                     cancellationToken: cancellationToken);
             }
         }
@@ -97,118 +97,118 @@ public static class TypeLogic
     public static Task DefineMixinAsync(CozoOmRuntime runtime, DefineMixinInput input, CancellationToken cancellationToken = default)
     {
         return runtime.Store.RunAsync(
-            CozoScriptBuilder.InputPut("om_mixin", ["name"], ["description"]),
+            CozoScriptBuilder.InputPut("om_mixin_def", ["name"], ["description"]),
             LogicSupport.Params(("name", OmConvert.RequireName(input.Name, nameof(input.Name))), ("description", input.Description)),
             cancellationToken: cancellationToken);
     }
 
-    public static async Task DefineAttributeAsync(CozoOmRuntime runtime, DefineAttributeInput input, CancellationToken cancellationToken = default)
+    public static async Task DefineFieldAsync(CozoOmRuntime runtime, DefineFieldInput input, CancellationToken cancellationToken = default)
     {
-        var typeName = await ResolveTypeAsync(runtime, input.TypeName, cancellationToken);
-        var attrName = await ResolveAttrAsync(runtime, typeName, input.AttrName, cancellationToken);
+        var className = await ResolveClassAsync(runtime, input.ClassName, cancellationToken);
+        var fieldName = await ResolveFieldAsync(runtime, className, input.FieldName, cancellationToken);
         var storedType = OmConvert.ValueTypeToStored(input.ValueType);
         if (input.ValueType == OmValueType.Unknown)
         {
-            throw new CozoException($"Unsupported attribute value type '{input.ValueType}'");
+            throw new CozoException($"Unsupported field value kind '{input.ValueType}'");
         }
 
-        var inherited = await GetInheritedAttributeDefinitionsAsync(runtime, typeName, cancellationToken);
-        if (inherited.TryGetValue(attrName, out var inheritedDefinition))
+        var inherited = await GetInheritedFieldDefinitionsAsync(runtime, className, cancellationToken);
+        if (inherited.TryGetValue(fieldName, out var inheritedDefinition))
         {
             if (inheritedDefinition.ValueType != input.ValueType)
             {
-                throw new CozoException($"Cannot change value_type of '{attrName}' (inherited as {inheritedDefinition.ValueType})");
+                throw new CozoException($"Cannot change value_kind of '{fieldName}' (inherited as {inheritedDefinition.ValueType})");
             }
 
             if (inheritedDefinition.Required && !input.Required)
             {
-                throw new CozoException($"Cannot loosen required constraint of '{attrName}' (inherited as required)");
+                throw new CozoException($"Cannot loosen required constraint of '{fieldName}' (inherited as required)");
             }
         }
 
         await runtime.Store.RunAsync(
-            CozoScriptBuilder.InputPut("om_attr_def", ["type_name", "attr_name"], ["value_type", "required"]),
+            CozoScriptBuilder.InputPut("om_field_def", ["class_name", "field_name"], ["value_kind", "required"]),
             LogicSupport.Params(
-                ("type_name", typeName),
-                ("attr_name", attrName),
-                ("value_type", storedType),
+                ("class_name", className),
+                ("field_name", fieldName),
+                ("value_kind", storedType),
                 ("required", input.Required)),
             cancellationToken: cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(input.Description))
         {
             await runtime.Store.RunAsync(
-                CozoScriptBuilder.InputPut("om_attr_desc", ["type_name", "attr_name"], ["description"]),
-                LogicSupport.Params(("type_name", typeName), ("attr_name", attrName), ("description", input.Description)),
+                CozoScriptBuilder.InputPut("om_field_desc", ["class_name", "field_name"], ["description"]),
+                LogicSupport.Params(("class_name", className), ("field_name", fieldName), ("description", input.Description)),
                 cancellationToken: cancellationToken);
         }
     }
 
-    public static async Task DefineRelationAsync(CozoOmRuntime runtime, DefineRelationInput input, CancellationToken cancellationToken = default)
+    public static async Task DefineRelationDefAsync(CozoOmRuntime runtime, DefineRelationDefInput input, CancellationToken cancellationToken = default)
     {
-        var relName = await ResolveRelAsync(runtime, input.RelName, cancellationToken);
-        var fromType = await ResolveTypeAsync(runtime, input.FromType, cancellationToken);
-        var toType = await ResolveTypeAsync(runtime, input.ToType, cancellationToken);
+        var relationName = await ResolveRelationAsync(runtime, input.RelationName, cancellationToken);
+        var fromClass = await ResolveClassAsync(runtime, input.FromClass, cancellationToken);
+        var toClass = await ResolveClassAsync(runtime, input.ToClass, cancellationToken);
 
         await runtime.Store.RunAsync(
-            CozoScriptBuilder.InputPut("om_rel_def", ["rel_name"], ["from_type", "to_type", "directed"]),
+            CozoScriptBuilder.InputPut("om_relation_def", ["relation_name"], ["from_class", "to_class", "directed"]),
             LogicSupport.Params(
-                ("rel_name", relName),
-                ("from_type", fromType),
-                ("to_type", toType),
+                ("relation_name", relationName),
+                ("from_class", fromClass),
+                ("to_class", toClass),
                 ("directed", input.Directed)),
             cancellationToken: cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(input.Description))
         {
             await runtime.Store.RunAsync(
-                CozoScriptBuilder.InputPut("om_rel_desc", ["rel_name"], ["description"]),
-                LogicSupport.Params(("rel_name", relName), ("description", input.Description)),
+                CozoScriptBuilder.InputPut("om_relation_desc", ["relation_name"], ["description"]),
+                LogicSupport.Params(("relation_name", relationName), ("description", input.Description)),
                 cancellationToken: cancellationToken);
         }
     }
 
-    public static Task DefineTypeAliasAsync(CozoOmRuntime runtime, string alias, string canonical, CancellationToken cancellationToken = default)
+    public static Task DefineClassAliasAsync(CozoOmRuntime runtime, string alias, string canonical, CancellationToken cancellationToken = default)
     {
         return runtime.Store.RunAsync(
-            CozoScriptBuilder.InputPut("om_alias_type", ["alias"], ["canonical"]),
+            CozoScriptBuilder.InputPut("om_alias_class", ["alias"], ["canonical"]),
             LogicSupport.Params(
                 ("alias", OmConvert.RequireName(alias, nameof(alias))),
                 ("canonical", OmConvert.RequireName(canonical, nameof(canonical)))),
             cancellationToken: cancellationToken);
     }
 
-    public static Task DefineRelationAliasAsync(CozoOmRuntime runtime, string alias, string canonical, CancellationToken cancellationToken = default)
+    public static Task DefineRelationDefAliasAsync(CozoOmRuntime runtime, string alias, string canonical, CancellationToken cancellationToken = default)
     {
         return runtime.Store.RunAsync(
-            CozoScriptBuilder.InputPut("om_alias_rel", ["alias"], ["canonical"]),
+            CozoScriptBuilder.InputPut("om_alias_relation", ["alias"], ["canonical"]),
             LogicSupport.Params(
                 ("alias", OmConvert.RequireName(alias, nameof(alias))),
                 ("canonical", OmConvert.RequireName(canonical, nameof(canonical)))),
             cancellationToken: cancellationToken);
     }
 
-    public static Task DefineAttributeAliasAsync(CozoOmRuntime runtime, string typeName, string aliasAttr, string canonicalAttr, CancellationToken cancellationToken = default)
+    public static Task DefineFieldAliasAsync(CozoOmRuntime runtime, string className, string aliasAttr, string canonicalAttr, CancellationToken cancellationToken = default)
     {
         return runtime.Store.RunAsync(
-            CozoScriptBuilder.InputPut("om_alias_attr", ["type_name", "alias_attr"], ["canonical_attr"]),
+            CozoScriptBuilder.InputPut("om_alias_field", ["class_name", "alias_field"], ["canonical_field"]),
             LogicSupport.Params(
-                ("type_name", OmConvert.RequireName(typeName, nameof(typeName))),
-                ("alias_attr", OmConvert.RequireName(aliasAttr, nameof(aliasAttr))),
-                ("canonical_attr", OmConvert.RequireName(canonicalAttr, nameof(canonicalAttr)))),
+                ("class_name", OmConvert.RequireName(className, nameof(className))),
+                ("alias_field", OmConvert.RequireName(aliasAttr, nameof(aliasAttr))),
+                ("canonical_field", OmConvert.RequireName(canonicalAttr, nameof(canonicalAttr)))),
             cancellationToken: cancellationToken);
     }
 
-    public static async Task<string> ResolveTypeAsync(CozoOmRuntime runtime, string typeName, CancellationToken cancellationToken = default)
+    public static async Task<string> ResolveClassAsync(CozoOmRuntime runtime, string className, CancellationToken cancellationToken = default)
     {
-        var current = OmConvert.RequireName(typeName, nameof(typeName));
+        var current = OmConvert.RequireName(className, nameof(className));
         var seen = new HashSet<string>(StringComparer.Ordinal);
         while (seen.Add(current))
         {
             var result = await runtime.Store.RunAsync(
                 """
                 ?[canonical] :=
-                  *om_alias_type{ alias: $alias, canonical }
+                  *om_alias_class{ alias: $alias, canonical }
                 :limit 1
                 """,
                 LogicSupport.Params(("alias", current)),
@@ -217,19 +217,19 @@ public static class TypeLogic
             current = JsonRows.StringAt(result.Rows[0], 0) ?? current;
         }
 
-        throw new CozoException($"Type alias cycle detected at '{current}'");
+        throw new CozoException($"Class alias cycle detected at '{current}'");
     }
 
-    public static async Task<string> ResolveRelAsync(CozoOmRuntime runtime, string relName, CancellationToken cancellationToken = default)
+    public static async Task<string> ResolveRelationAsync(CozoOmRuntime runtime, string relationName, CancellationToken cancellationToken = default)
     {
-        var current = OmConvert.RequireName(relName, nameof(relName));
+        var current = OmConvert.RequireName(relationName, nameof(relationName));
         var seen = new HashSet<string>(StringComparer.Ordinal);
         while (seen.Add(current))
         {
             var result = await runtime.Store.RunAsync(
                 """
                 ?[canonical] :=
-                  *om_alias_rel{ alias: $alias, canonical }
+                  *om_alias_relation{ alias: $alias, canonical }
                 :limit 1
                 """,
                 LogicSupport.Params(("alias", current)),
@@ -241,10 +241,10 @@ public static class TypeLogic
         throw new CozoException($"Relation alias cycle detected at '{current}'");
     }
 
-    public static async Task<string> ResolveAttrAsync(CozoOmRuntime runtime, string typeName, string attrName, CancellationToken cancellationToken = default)
+    public static async Task<string> ResolveFieldAsync(CozoOmRuntime runtime, string className, string fieldName, CancellationToken cancellationToken = default)
     {
-        var canonicalType = await ResolveTypeAsync(runtime, typeName, cancellationToken);
-        var current = OmConvert.RequireName(attrName, nameof(attrName));
+        var canonicalType = await ResolveClassAsync(runtime, className, cancellationToken);
+        var current = OmConvert.RequireName(fieldName, nameof(fieldName));
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var aliasScopes = new[] { canonicalType }.Concat(await GetAncestorsAsync(runtime, canonicalType, cancellationToken)).ToArray();
         while (seen.Add(current))
@@ -253,11 +253,11 @@ public static class TypeLogic
             {
                 var result = await runtime.Store.RunAsync(
                     """
-                    ?[canonical_attr] :=
-                      *om_alias_attr{ type_name: $type_name, alias_attr: $alias_attr, canonical_attr }
+                    ?[canonical_field] :=
+                      *om_alias_field{ class_name: $class_name, alias_field: $alias_field, canonical_field }
                     :limit 1
                     """,
-                    LogicSupport.Params(("type_name", scope), ("alias_attr", current)),
+                    LogicSupport.Params(("class_name", scope), ("alias_field", current)),
                     cancellationToken: cancellationToken);
                 if (result.Rows.Count == 0) continue;
                 current = JsonRows.StringAt(result.Rows[0], 0) ?? current;
@@ -270,17 +270,17 @@ public static class TypeLogic
             continue;
         }
 
-        throw new CozoException($"Attribute alias cycle detected at '{current}'");
+        throw new CozoException($"Field alias cycle detected at '{current}'");
     }
 
-    public static async Task<IReadOnlyList<string>> GetAncestorsAsync(CozoOmRuntime runtime, string typeName, CancellationToken cancellationToken = default)
+    public static async Task<IReadOnlyList<string>> GetAncestorsAsync(CozoOmRuntime runtime, string className, CancellationToken cancellationToken = default)
     {
         var result = new List<string>();
-        var current = await ResolveTypeAsync(runtime, typeName, cancellationToken);
+        var current = await ResolveClassAsync(runtime, className, cancellationToken);
         var seen = new HashSet<string>(StringComparer.Ordinal);
         while (seen.Add(current))
         {
-            var parent = await GetParentTypeAsync(runtime, current, cancellationToken);
+            var parent = await GetParentClassAsync(runtime, current, cancellationToken);
             if (string.IsNullOrWhiteSpace(parent)) break;
             result.Add(parent);
             current = parent;
@@ -289,13 +289,13 @@ public static class TypeLogic
         return result;
     }
 
-    public static async Task<IReadOnlyList<string>> GetDescendantsAsync(CozoOmRuntime runtime, string typeName, CancellationToken cancellationToken = default)
+    public static async Task<IReadOnlyList<string>> GetDescendantsAsync(CozoOmRuntime runtime, string className, CancellationToken cancellationToken = default)
     {
-        var root = await ResolveTypeAsync(runtime, typeName, cancellationToken);
+        var root = await ResolveClassAsync(runtime, className, cancellationToken);
         var rows = await runtime.Store.RunAsync(
             """
-            ?[name, parent_type] :=
-              *om_type{ name, description: _d, parent_type }
+            ?[class_name, parent_class] :=
+              *om_class_def{ class_name, description: _d, parent_class }
             """,
             cancellationToken: cancellationToken);
         var children = new Dictionary<string, List<string>>(StringComparer.Ordinal);
@@ -334,29 +334,29 @@ public static class TypeLogic
         return result;
     }
 
-    public static async Task<bool> IsSubtypeOfAsync(CozoOmRuntime runtime, string childType, string parentType, CancellationToken cancellationToken = default)
+    public static async Task<bool> IsSubclassOfAsync(CozoOmRuntime runtime, string childType, string parentClass, CancellationToken cancellationToken = default)
     {
-        var child = await ResolveTypeAsync(runtime, childType, cancellationToken);
-        var parent = await ResolveTypeAsync(runtime, parentType, cancellationToken);
+        var child = await ResolveClassAsync(runtime, childType, cancellationToken);
+        var parent = await ResolveClassAsync(runtime, parentClass, cancellationToken);
         if (child == parent) return true;
         var ancestors = await GetAncestorsAsync(runtime, child, cancellationToken);
         return ancestors.Contains(parent);
     }
 
-    public static async Task<TypeHierarchy> GetTypeHierarchyAsync(CozoOmRuntime runtime, CancellationToken cancellationToken = default)
+    public static async Task<ClassHierarchyRow> GetClassHierarchyRowAsync(CozoOmRuntime runtime, CancellationToken cancellationToken = default)
     {
         var rows = await runtime.Store.RunAsync(
             """
-            ?[name, description, parent_type] :=
-              *om_type{ name, description, parent_type }
-            :sort name
+            ?[class_name, description, parent_class] :=
+              *om_class_def{ class_name, description, parent_class }
+            :sort class_name
             """,
             cancellationToken: cancellationToken);
         var mixinRows = await runtime.Store.RunAsync(
             """
-            ?[type_name, mixin_name] :=
-              *om_type_mixin{ type_name, mixin_name }
-            :sort type_name, mixin_name
+            ?[class_name, mixin_name] :=
+              *om_class_mixin{ class_name, mixin_name }
+            :sort class_name, mixin_name
             """,
             cancellationToken: cancellationToken);
         var mixinsByType = mixinRows.Rows
@@ -373,7 +373,7 @@ public static class TypeLogic
             StringComparer.Ordinal);
         foreach (var node in mutable.Values)
         {
-            if (node.ParentType is not null && mutable.TryGetValue(node.ParentType, out var parent))
+            if (node.ParentClass is not null && mutable.TryGetValue(node.ParentClass, out var parent))
             {
                 parent.Children.Add(node.Name);
             }
@@ -381,76 +381,76 @@ public static class TypeLogic
 
         var final = mutable.ToDictionary(
             p => p.Key,
-            p => new TypeHierarchyNode(p.Value.Name, p.Value.Description, p.Value.ParentType, p.Value.Mixins.Order().ToArray(), p.Value.Children.Order().ToArray()),
+            p => new ClassHierarchyNodeRow(p.Value.Name, p.Value.Description, p.Value.ParentClass, p.Value.Mixins.Order().ToArray(), p.Value.Children.Order().ToArray()),
             StringComparer.Ordinal);
-        var roots = final.Values.Where(n => n.ParentType is null || !final.ContainsKey(n.ParentType)).Select(n => n.Name).Order().ToArray();
-        return new TypeHierarchy(final, roots);
+        var roots = final.Values.Where(n => n.ParentClass is null || !final.ContainsKey(n.ParentClass)).Select(n => n.Name).Order().ToArray();
+        return new ClassHierarchyRow(final, roots);
     }
 
-    internal static async Task<bool> TypeExistsAsync(CozoOmRuntime runtime, string typeName, CancellationToken cancellationToken)
+    internal static async Task<bool> ClassExistsAsync(CozoOmRuntime runtime, string className, CancellationToken cancellationToken)
     {
-        var name = await ResolveTypeAsync(runtime, typeName, cancellationToken);
-        return await LogicSupport.ExistsAsync(runtime, "om_type", "name", name, cancellationToken);
+        var name = await ResolveClassAsync(runtime, className, cancellationToken);
+        return await LogicSupport.ExistsAsync(runtime, "om_class_def", "class_name", name, cancellationToken);
     }
 
     internal static async Task<bool> MixinExistsAsync(CozoOmRuntime runtime, string mixinName, CancellationToken cancellationToken)
     {
-        return await LogicSupport.ExistsAsync(runtime, "om_mixin", "name", mixinName, cancellationToken);
+        return await LogicSupport.ExistsAsync(runtime, "om_mixin_def", "name", mixinName, cancellationToken);
     }
 
-    internal static async Task<string?> GetParentTypeAsync(CozoOmRuntime runtime, string typeName, CancellationToken cancellationToken)
+    internal static async Task<string?> GetParentClassAsync(CozoOmRuntime runtime, string className, CancellationToken cancellationToken)
     {
         var result = await runtime.Store.RunAsync(
             """
-            ?[parent_type] :=
-              *om_type{ name: $name, description: _d, parent_type }
+            ?[parent_class] :=
+              *om_class_def{ class_name: $class_name, description: _d, parent_class }
             :limit 1
             """,
-            LogicSupport.Params(("name", typeName)),
+            LogicSupport.Params(("class_name", className)),
             cancellationToken: cancellationToken);
         return result.Rows.Count == 0 ? null : JsonRows.StringAt(result.Rows[0], 0);
     }
 
-    internal static async Task<IReadOnlyList<string>> GetTypeMixinsAsync(CozoOmRuntime runtime, string typeName, CancellationToken cancellationToken)
+    internal static async Task<IReadOnlyList<string>> GetClassMixinsAsync(CozoOmRuntime runtime, string className, CancellationToken cancellationToken)
     {
         var result = await runtime.Store.RunAsync(
             """
             ?[mixin_name] :=
-              *om_type_mixin{ type_name: $type_name, mixin_name }
+              *om_class_mixin{ class_name: $class_name, mixin_name }
             :sort mixin_name
             """,
-            LogicSupport.Params(("type_name", typeName)),
+            LogicSupport.Params(("class_name", className)),
             cancellationToken: cancellationToken);
         return result.Rows.Select(row => JsonRows.StringAt(row, 0) ?? "").Where(x => x.Length > 0).ToArray();
     }
 
-    public static async Task<IReadOnlyDictionary<string, OmAttribute>> GetAttributeDefinitionsAsync(CozoOmRuntime runtime, string typeName, CancellationToken cancellationToken)
+    public static async Task<IReadOnlyDictionary<string, OmFieldDefinition>> GetFieldDefinitionsAsync(CozoOmRuntime runtime, string className, CancellationToken cancellationToken)
     {
-        var canonical = await ResolveTypeAsync(runtime, typeName, cancellationToken);
-        var definitions = new Dictionary<string, OmAttribute>(await GetInheritedAttributeDefinitionsAsync(runtime, canonical, cancellationToken), StringComparer.Ordinal);
-        foreach (var (attrName, attribute) in await GetOwnAttributeDefinitionsAsync(runtime, canonical, cancellationToken))
+        var canonical = await ResolveClassAsync(runtime, className, cancellationToken);
+        var definitions = new Dictionary<string, OmFieldDefinition>(await GetInheritedFieldDefinitionsAsync(runtime, canonical, cancellationToken), StringComparer.Ordinal);
+        foreach (var (fieldName, attribute) in await GetOwnFieldDefinitionsAsync(runtime, canonical, cancellationToken))
         {
-            definitions[attrName] = attribute;
+            definitions[fieldName] = attribute;
         }
 
         return definitions;
     }
 
-    internal static async Task<IReadOnlyDictionary<string, OmAttribute>> GetInheritedAttributeDefinitionsAsync(CozoOmRuntime runtime, string typeName, CancellationToken cancellationToken)
+    internal static async Task<IReadOnlyDictionary<string, OmFieldDefinition>> GetInheritedFieldDefinitionsAsync(CozoOmRuntime runtime, string className, CancellationToken cancellationToken)
     {
-        var canonical = await ResolveTypeAsync(runtime, typeName, cancellationToken);
+        var canonical = await ResolveClassAsync(runtime, className, cancellationToken);
         var ancestors = await GetAncestorsAsync(runtime, canonical, cancellationToken);
-        var definitions = new Dictionary<string, OmAttribute>(StringComparer.Ordinal);
+        var definitions = new Dictionary<string, OmFieldDefinition>(StringComparer.Ordinal);
 
         var mixins = new List<string>();
-        foreach (var mixin in await GetTypeMixinsAsync(runtime, canonical, cancellationToken))
+        foreach (var mixin in await GetClassMixinsAsync(runtime, canonical, cancellationToken))
         {
             if (!mixins.Contains(mixin, StringComparer.Ordinal)) mixins.Add(mixin);
         }
 
         foreach (var ancestor in ancestors)
         {
-            foreach (var mixin in await GetTypeMixinsAsync(runtime, ancestor, cancellationToken))
+            foreach (var mixin in await GetClassMixinsAsync(runtime, ancestor, cancellationToken))
             {
                 if (!mixins.Contains(mixin, StringComparer.Ordinal)) mixins.Add(mixin);
             }
@@ -458,32 +458,32 @@ public static class TypeLogic
 
         foreach (var mixin in mixins)
         {
-            foreach (var (attrName, attribute) in await GetOwnAttributeDefinitionsAsync(runtime, mixin, cancellationToken))
+            foreach (var (fieldName, attribute) in await GetOwnFieldDefinitionsAsync(runtime, mixin, cancellationToken))
             {
-                definitions[attrName] = attribute;
+                definitions[fieldName] = attribute;
             }
         }
 
         foreach (var currentType in ancestors.Reverse())
         {
-            foreach (var (attrName, attribute) in await GetOwnAttributeDefinitionsAsync(runtime, currentType, cancellationToken))
+            foreach (var (fieldName, attribute) in await GetOwnFieldDefinitionsAsync(runtime, currentType, cancellationToken))
             {
-                definitions[attrName] = attribute;
+                definitions[fieldName] = attribute;
             }
         }
 
         return definitions;
     }
 
-    internal static async Task<IReadOnlyDictionary<string, OmAttribute>> GetOwnAttributeDefinitionsAsync(CozoOmRuntime runtime, string typeName, CancellationToken cancellationToken)
+    internal static async Task<IReadOnlyDictionary<string, OmFieldDefinition>> GetOwnFieldDefinitionsAsync(CozoOmRuntime runtime, string className, CancellationToken cancellationToken)
     {
-        var definitions = new Dictionary<string, OmAttribute>(StringComparer.Ordinal);
+        var definitions = new Dictionary<string, OmFieldDefinition>(StringComparer.Ordinal);
         var descRows = await runtime.Store.RunAsync(
             """
-            ?[attr_name, description] :=
-              *om_attr_desc{ type_name: $type_name, attr_name, description }
+            ?[field_name, description] :=
+              *om_field_desc{ class_name: $class_name, field_name, description }
             """,
-            LogicSupport.Params(("type_name", typeName)),
+            LogicSupport.Params(("class_name", className)),
             cancellationToken: cancellationToken);
         var descriptions = descRows.Rows.ToDictionary(
             row => JsonRows.StringAt(row, 0) ?? "",
@@ -492,18 +492,18 @@ public static class TypeLogic
 
         var rows = await runtime.Store.RunAsync(
             """
-            ?[attr_name, value_type, required] :=
-              *om_attr_def{ type_name: $type_name, attr_name, value_type, required }
+            ?[field_name, value_kind, required] :=
+              *om_field_def{ class_name: $class_name, field_name, value_kind, required }
             """,
-            LogicSupport.Params(("type_name", typeName)),
+            LogicSupport.Params(("class_name", className)),
             cancellationToken: cancellationToken);
         foreach (var row in rows.Rows)
         {
-            var attrName = JsonRows.StringAt(row, 0) ?? "";
-            descriptions.TryGetValue(attrName, out var description);
-            definitions[attrName] = new OmAttribute(
-                typeName,
-                attrName,
+            var fieldName = JsonRows.StringAt(row, 0) ?? "";
+            descriptions.TryGetValue(fieldName, out var description);
+            definitions[fieldName] = new OmFieldDefinition(
+                className,
+                fieldName,
                 OmConvert.StoredToValueType(JsonRows.StringAt(row, 1) ?? ""),
                 JsonRows.BoolAt(row, 2),
                 string.IsNullOrWhiteSpace(description) ? null : description);
@@ -512,25 +512,25 @@ public static class TypeLogic
         return definitions;
     }
 
-    internal static async Task<IReadOnlyList<string>> GetAttributeAliasesForCanonicalAsync(
+    internal static async Task<IReadOnlyList<string>> GetFieldAliasesForCanonicalAsync(
         CozoOmRuntime runtime,
-        string typeName,
+        string className,
         string canonicalAttr,
         CancellationToken cancellationToken)
     {
-        var canonicalType = await ResolveTypeAsync(runtime, typeName, cancellationToken);
-        var canonical = await ResolveAttrAsync(runtime, canonicalType, canonicalAttr, cancellationToken);
+        var canonicalType = await ResolveClassAsync(runtime, className, cancellationToken);
+        var canonical = await ResolveFieldAsync(runtime, canonicalType, canonicalAttr, cancellationToken);
         var scopes = new[] { canonicalType }.Concat(await GetAncestorsAsync(runtime, canonicalType, cancellationToken)).ToArray();
         var aliases = new List<string>();
         foreach (var scope in scopes)
         {
             var rows = await runtime.Store.RunAsync(
                 """
-                ?[alias_attr] :=
-                  *om_alias_attr{ type_name: $type_name, alias_attr, canonical_attr: _canonical_attr }
-                :sort alias_attr
+                ?[alias_field] :=
+                  *om_alias_field{ class_name: $class_name, alias_field, canonical_field: _canonical_field }
+                :sort alias_field
                 """,
-                LogicSupport.Params(("type_name", scope)),
+                LogicSupport.Params(("class_name", scope)),
                 cancellationToken: cancellationToken);
             foreach (var row in rows.Rows)
             {
@@ -538,7 +538,7 @@ public static class TypeLogic
                 if (string.IsNullOrWhiteSpace(alias) || aliases.Contains(alias, StringComparer.Ordinal)) continue;
                 try
                 {
-                    if (await ResolveAttrAsync(runtime, scope, alias!, cancellationToken) == canonical)
+                    if (await ResolveFieldAsync(runtime, scope, alias!, cancellationToken) == canonical)
                     {
                         aliases.Add(alias!);
                     }
@@ -555,16 +555,16 @@ public static class TypeLogic
         return aliases;
     }
 
-    internal static async Task<OmRelation> GetRelationDefinitionAsync(CozoOmRuntime runtime, string relName, CancellationToken cancellationToken)
+    internal static async Task<OmRelationDef> GetRelationDefinitionAsync(CozoOmRuntime runtime, string relationName, CancellationToken cancellationToken)
     {
-        var canonical = await ResolveRelAsync(runtime, relName, cancellationToken);
+        var canonical = await ResolveRelationAsync(runtime, relationName, cancellationToken);
         var rows = await runtime.Store.RunAsync(
             """
-            ?[from_type, to_type, directed] :=
-              *om_rel_def{ rel_name: $rel_name, from_type, to_type, directed }
+            ?[from_class, to_class, directed] :=
+              *om_relation_def{ relation_name: $relation_name, from_class, to_class, directed }
             :limit 1
             """,
-            LogicSupport.Params(("rel_name", canonical)),
+            LogicSupport.Params(("relation_name", canonical)),
             cancellationToken: cancellationToken);
         if (rows.Rows.Count == 0)
         {
@@ -572,8 +572,8 @@ public static class TypeLogic
         }
 
         var row = rows.Rows[0];
-        return new OmRelation(canonical, JsonRows.StringAt(row, 0) ?? "", JsonRows.StringAt(row, 1) ?? "", JsonRows.BoolAt(row, 2));
+        return new OmRelationDef(canonical, JsonRows.StringAt(row, 0) ?? "", JsonRows.StringAt(row, 1) ?? "", JsonRows.BoolAt(row, 2));
     }
 
-    private sealed record MutableTypeNode(string Name, string Description, string? ParentType, IReadOnlyList<string> Mixins, List<string> Children);
+    private sealed record MutableTypeNode(string Name, string Description, string? ParentClass, IReadOnlyList<string> Mixins, List<string> Children);
 }

@@ -1,6 +1,6 @@
 <behaviors capability="dotnet-example-server" version="1">
   <requirement id="browser-compatible-demo-api">
-    <statement>系统 SHALL 提供与当前 example-browser 兼容的 GET /health、GET /api/demos 与 POST /api/run API，并返回浏览器可消费的 demo、table、tree 或 graph JSON shape。</statement>
+    <statement>系统 SHALL 提供与匹配版本 example-browser 兼容的 GET /health、GET /api/demos 与 POST /api/run API，并返回使用 Class/Object/Field/FieldValue demo table contract 的 table、tree 或 graph JSON shape。</statement>
     <suite name="demo-api">
       <case name="list-and-run-default-demo">
         <given>server 已启动且 Cozo native runtime 可用</given>

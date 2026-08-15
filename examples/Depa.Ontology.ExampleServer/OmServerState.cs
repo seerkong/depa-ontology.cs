@@ -25,10 +25,10 @@ public sealed class StatefulOmDomain : IDisposable
     private readonly SemaphoreSlim _gate = new(1, 1);
     private CozoDb _db = NewDb();
 
-    public async Task<T> UseAsync<T>(Func<CozoOm, Task<T>> action)
+    public async Task<T> UseAsync<T>(Func<CozoOm, Task<T>> work)
     {
         await _gate.WaitAsync();
-        try { return await action(new CozoOm(_db)); }
+        try { return await work(new CozoOm(_db)); }
         finally { _gate.Release(); }
     }
 
@@ -66,7 +66,7 @@ public sealed class StatefulOmDomain : IDisposable
 public sealed record SchemaDiffRequest(int FromVersion, int ToVersion);
 public sealed record SchemaApplyRequest(JsonElement Spec);
 public sealed record SchemaRollbackRequest(int TargetVersion, bool Strict = true);
-public sealed record GovernanceAccessRequest(string SubjectId, string Action, string ResourceId, string? FieldName = null);
+public sealed record GovernanceAccessRequest(string SubjectId, string Operation, string ResourceId, string? FieldName = null);
 
 public static class OmServerEndpoints
 {
@@ -108,18 +108,18 @@ public static class OmServerEndpoints
         return (object)new { ok = true, result = new { ok = true, targetVersion = request.TargetVersion }, state = await om.GetSchemaStateAsync() };
     });
 
-    public static object GovernanceSeedTemplate() => new { ok = true, tables = GovernanceTables(), subjectId = "u:1", resourceId = "r:1", action = "read" };
+    public static object GovernanceSeedTemplate() => new { ok = true, tables = GovernanceTables(), subjectId = "u:1", resourceId = "r:1", operation = "read" };
 
     public static Task<object> GovernanceSeedAsync(OmServerState state) => state.Governance.ResetAsync(async om =>
     {
         await SeedGovernanceAsync(om);
-        return (object)new { ok = true, subjectId = "u:1", resourceId = "r:1", action = "read" };
+        return (object)new { ok = true, subjectId = "u:1", resourceId = "r:1", operation = "read" };
     });
 
     public static Task<object> GovernanceCheckAsync(OmServerState state, GovernanceAccessRequest request) => state.Governance.UseAsync(async om =>
     {
         await EnsureGovernanceAsync(om);
-        return (object)new { result = await om.CheckAccessAsync(new CheckAccessInput(request.SubjectId, request.Action, request.ResourceId, FieldName: request.FieldName)) };
+        return (object)new { result = await om.CheckAccessAsync(new CheckAccessInput(request.SubjectId, request.Operation, request.ResourceId, FieldName: request.FieldName)) };
     });
 
     public static Task<object> IntegritySeedAsync(OmServerState state) => state.Integrity.ResetAsync(async om =>
@@ -149,23 +149,23 @@ public static class OmServerEndpoints
     private static async Task EnsureGovernanceAsync(CozoOm om)
     {
         await om.InitSchemaAsync();
-        try { await om.GetEntityTypeAsync("u:1"); }
+        try { await om.GetObjectClassAsync("u:1"); }
         catch { await SeedGovernanceAsync(om); }
     }
 
     private static async Task SeedGovernanceAsync(CozoOm om)
     {
         await om.InitSchemaAsync();
-        await om.DefineTypeAsync("User", "User");
-        await om.DefineTypeAsync("Resource", "Resource");
-        await om.DefineAttributeAsync("User", "role", OmValueType.String);
-        await om.DefineRelationAsync("owns", "User", "Resource");
-        await om.CreateEntityAsync("u:1", "User", "User 1");
-        await om.CreateEntityAsync("r:1", "Resource", "Resource 1");
-        await om.SetPropertyAsync("u:1", "role", "admin");
-        await om.LinkEntitiesAsync("u:1", "owns", "r:1");
+        await om.DefineClassAsync("User", "User");
+        await om.DefineClassAsync("Resource", "Resource");
+        await om.DefineFieldAsync("User", "role", OmValueType.String);
+        await om.DefineRelationDefAsync("owns", "User", "Resource");
+        await om.CreateObjectAsync("u:1", "User", "User 1");
+        await om.CreateObjectAsync("r:1", "Resource", "Resource 1");
+        await om.SetFieldValueAsync("u:1", "role", "admin");
+        await om.CreateRelationLinkAsync("u:1", "owns", "r:1");
         await om.SeedPermissionMetadataAsync(new PermissionSeedInput(
-            Actions: [new PermissionActionSeed("read", "Read")],
+            Operations: [new PermissionOperationSeed("read", "Read")],
             Policies: [new PermissionPolicySeed("allow-admin-owner", "allow", "read", "Resource")],
             AbacRules: [new PermissionAbacRuleSeed("allow-admin-owner", "subject.role", "=", "admin")],
             PathRules: [new PermissionPathRuleSeed("allow-admin-owner", "owns")]));
@@ -180,23 +180,23 @@ public static class OmServerEndpoints
     private static async Task SeedIntegrityAsync(CozoOm om)
     {
         await om.InitSchemaAsync();
-        await om.DefineTypeAsync("User", "User");
-        await om.DefineTypeAsync("Resource", "Resource");
-        await om.DefineRelationAsync("owns", "User", "Resource");
+        await om.DefineClassAsync("User", "User");
+        await om.DefineClassAsync("Resource", "Resource");
+        await om.DefineRelationDefAsync("owns", "User", "Resource");
         await om.DefineExistentialRuleAsync(IntegrityRuleName, new ExistentialRuleSpec(
             new ExistentialForEachSpec("Resource"),
             new ExistentialExistsSpec("owns", ExistentialDirection.In, "User"),
             new ExistentialMaterializeSpec("auto owner for {fromId}"),
             ExistentialRuleMode.Materialize,
             "每个资源必须有归属用户"));
-        await om.CreateEntityAsync("r:unowned-1", "Resource", "Unowned Resource 1");
-        await om.CreateEntityAsync("r:unowned-2", "Resource", "Unowned Resource 2");
+        await om.CreateObjectAsync("r:unowned-1", "Resource", "Unowned Resource 1");
+        await om.CreateObjectAsync("r:unowned-2", "Resource", "Unowned Resource 2");
     }
 
     private static IReadOnlyList<DemoTable> GovernanceTables() =>
     [
-        new("类型定义", ["typeName", "description"], [Row(("typeName", "User"), ("description", "User")), Row(("typeName", "Resource"), ("description", "Resource"))]),
-        new("实体数据", ["id", "typeName", "label"], [Row(("id", "u:1"), ("typeName", "User"), ("label", "User 1")), Row(("id", "r:1"), ("typeName", "Resource"), ("label", "Resource 1"))])
+        new("Class 定义", ["className", "description"], [Row(("className", "User"), ("description", "User")), Row(("className", "Resource"), ("description", "Resource"))]),
+        new("Object 数据", ["id", "className", "label"], [Row(("id", "u:1"), ("className", "User"), ("label", "User 1")), Row(("id", "r:1"), ("className", "Resource"), ("label", "Resource 1"))])
     ];
 
     private static IReadOnlyDictionary<string, object?> Row(params (string Key, object? Value)[] values) => values.ToDictionary(value => value.Key, value => value.Value);

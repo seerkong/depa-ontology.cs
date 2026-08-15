@@ -146,14 +146,14 @@ public static class BehaviorManifestJsonCodec
 
         var kindValue = ReadRequiredString(element, "kind", path, diagnostics);
         var kind = ParseKind(kindValue, $"{path}.kind", diagnostics);
-        var ownerType = ReadRequiredString(element, "ownerType", path, diagnostics);
+        var ownerClass = ReadRequiredString(element, "ownerClass", path, diagnostics);
         var name = ReadRequiredString(element, "name", path, diagnostics);
-        if (string.IsNullOrWhiteSpace(ownerType) || string.IsNullOrWhiteSpace(name))
+        if (string.IsNullOrWhiteSpace(ownerClass) || string.IsNullOrWhiteSpace(name))
         {
-            diagnostics.Add(new("OMM1201", path, "Behavior ownerType and name must be non-empty strings."));
+            diagnostics.Add(new("OMM1201", path, "Behavior ownerClass and name must be non-empty strings."));
         }
 
-        var constraintType = ReadOptionalString(element, "constraintType", path, diagnostics);
+        var constraintKind = ReadOptionalString(element, "constraintKind", path, diagnostics);
         var message = ReadOptionalString(element, "message", path, diagnostics);
         var description = ReadOptionalString(element, "description", path, diagnostics);
         var phase = ReadOptionalString(element, "interceptorPhase", path, diagnostics);
@@ -163,7 +163,7 @@ public static class BehaviorManifestJsonCodec
         {
             ValidateMetadata(
                 kind.Value,
-                constraintType,
+                constraintKind,
                 message,
                 description,
                 phase,
@@ -188,13 +188,13 @@ public static class BehaviorManifestJsonCodec
                 if (callback is not null && kind is not null)
                 {
                     ValidateSlot(kind.Value, callback.Slot, callbackPath, diagnostics);
-                    var bindingKey = $"{KindWire(kind.Value)}\u001f{ownerType}\u001f{name}\u001f{phase}\u001f{seq}\u001f{SlotWire(callback.Slot)}";
+                    var bindingKey = $"{KindWire(kind.Value)}\u001f{ownerClass}\u001f{name}\u001f{phase}\u001f{seq}\u001f{SlotWire(callback.Slot)}";
                     if (!bindingKeys.Add(bindingKey))
                     {
                         diagnostics.Add(new(
                             "OMM1301",
                             callbackPath,
-                            $"Callback binding key '{DisplayBehaviorKey(kind.Value, ownerType, name, phase, seq)}/{SlotWire(callback.Slot)}' is duplicated or conflicting."));
+                            $"Callback binding key '{DisplayBehaviorKey(kind.Value, ownerClass, name, phase, seq)}/{SlotWire(callback.Slot)}' is duplicated or conflicting."));
                     }
 
                     callbacks.Add(callback);
@@ -211,9 +211,9 @@ public static class BehaviorManifestJsonCodec
 
         return new BehaviorCatalogEntry(
             kind.Value,
-            ownerType ?? "",
+            ownerClass ?? "",
             name ?? "",
-            constraintType,
+            constraintKind,
             message,
             description,
             phase,
@@ -319,8 +319,8 @@ public static class BehaviorManifestJsonCodec
         var kind = value switch
         {
             "constraint" => BehaviorCatalogKind.Constraint,
-            "computed" => BehaviorCatalogKind.Computed,
-            "action" => BehaviorCatalogKind.Action,
+            "computedProp" => BehaviorCatalogKind.ComputedProp,
+            "operation" => BehaviorCatalogKind.Operation,
             "mutation" => BehaviorCatalogKind.Mutation,
             "interceptor" => BehaviorCatalogKind.Interceptor,
             _ => (BehaviorCatalogKind?)null,
@@ -378,7 +378,7 @@ public static class BehaviorManifestJsonCodec
 
     private static void ValidateMetadata(
         BehaviorCatalogKind kind,
-        string? constraintType,
+        string? constraintKind,
         string? message,
         string? description,
         string? phase,
@@ -389,21 +389,21 @@ public static class BehaviorManifestJsonCodec
         switch (kind)
         {
             case BehaviorCatalogKind.Constraint:
-                RequireString(kind, "constraintType", constraintType, path, diagnostics);
+                RequireString(kind, "constraintKind", constraintKind, path, diagnostics);
                 RequireNull(kind, "description", description, path, diagnostics);
                 RequireNull(kind, "interceptorPhase", phase, path, diagnostics);
                 RequireNull(kind, "interceptorSeq", seq, path, diagnostics);
                 break;
-            case BehaviorCatalogKind.Computed:
-            case BehaviorCatalogKind.Action:
+            case BehaviorCatalogKind.ComputedProp:
+            case BehaviorCatalogKind.Operation:
             case BehaviorCatalogKind.Mutation:
-                RequireNull(kind, "constraintType", constraintType, path, diagnostics);
+                RequireNull(kind, "constraintKind", constraintKind, path, diagnostics);
                 RequireNull(kind, "message", message, path, diagnostics);
                 RequireNull(kind, "interceptorPhase", phase, path, diagnostics);
                 RequireNull(kind, "interceptorSeq", seq, path, diagnostics);
                 break;
             case BehaviorCatalogKind.Interceptor:
-                RequireNull(kind, "constraintType", constraintType, path, diagnostics);
+                RequireNull(kind, "constraintKind", constraintKind, path, diagnostics);
                 RequireNull(kind, "message", message, path, diagnostics);
                 if (phase is not ("before" or "after") || seq is null or < 0)
                 {
@@ -460,8 +460,8 @@ public static class BehaviorManifestJsonCodec
         var valid = kind switch
         {
             BehaviorCatalogKind.Constraint => slot is BehaviorCatalogCallbackSlot.When or BehaviorCatalogCallbackSlot.Then or BehaviorCatalogCallbackSlot.Validator,
-            BehaviorCatalogKind.Computed => slot == BehaviorCatalogCallbackSlot.Compute,
-            BehaviorCatalogKind.Action => slot == BehaviorCatalogCallbackSlot.Handler,
+            BehaviorCatalogKind.ComputedProp => slot == BehaviorCatalogCallbackSlot.Compute,
+            BehaviorCatalogKind.Operation => slot == BehaviorCatalogCallbackSlot.Handler,
             BehaviorCatalogKind.Mutation => slot == BehaviorCatalogCallbackSlot.Executor,
             BehaviorCatalogKind.Interceptor => slot == BehaviorCatalogCallbackSlot.Handler,
             _ => false,
@@ -483,7 +483,7 @@ public static class BehaviorManifestJsonCodec
                     .ToImmutableArray(),
             })
             .OrderBy(entry => entry.Kind)
-            .ThenBy(entry => entry.OwnerType, StringComparer.Ordinal)
+            .ThenBy(entry => entry.OwnerClass, StringComparer.Ordinal)
             .ThenBy(entry => entry.Name, StringComparer.Ordinal)
             .ThenBy(entry => entry.InterceptorPhase ?? "", StringComparer.Ordinal)
             .ThenBy(entry => entry.InterceptorSeq ?? -1)
@@ -493,9 +493,9 @@ public static class BehaviorManifestJsonCodec
     {
         writer.WriteStartObject();
         writer.WriteString("kind", KindWire(behavior.Kind));
-        writer.WriteString("ownerType", behavior.OwnerType);
+        writer.WriteString("ownerClass", behavior.OwnerClass);
         writer.WriteString("name", behavior.Name);
-        WriteNullableString(writer, "constraintType", behavior.ConstraintType);
+        WriteNullableString(writer, "constraintKind", behavior.ConstraintKind);
         WriteNullableString(writer, "message", behavior.Message);
         WriteNullableString(writer, "description", behavior.Description);
         WriteNullableString(writer, "interceptorPhase", behavior.InterceptorPhase);
@@ -536,10 +536,10 @@ public static class BehaviorManifestJsonCodec
     }
 
     private static string BehaviorKey(BehaviorCatalogEntry entry) =>
-        $"{KindWire(entry.Kind)}\u001f{entry.OwnerType}\u001f{entry.Name}\u001f{entry.InterceptorPhase}\u001f{entry.InterceptorSeq}";
+        $"{KindWire(entry.Kind)}\u001f{entry.OwnerClass}\u001f{entry.Name}\u001f{entry.InterceptorPhase}\u001f{entry.InterceptorSeq}";
 
     private static string DisplayBehaviorKey(BehaviorCatalogEntry entry) =>
-        DisplayBehaviorKey(entry.Kind, entry.OwnerType, entry.Name, entry.InterceptorPhase, entry.InterceptorSeq);
+        DisplayBehaviorKey(entry.Kind, entry.OwnerClass, entry.Name, entry.InterceptorPhase, entry.InterceptorSeq);
 
     private static string DisplayBehaviorKey(BehaviorCatalogKind kind, string? owner, string? name, string? phase, int? seq) =>
         kind == BehaviorCatalogKind.Interceptor
@@ -549,8 +549,8 @@ public static class BehaviorManifestJsonCodec
     private static string KindWire(BehaviorCatalogKind kind) => kind switch
     {
         BehaviorCatalogKind.Constraint => "constraint",
-        BehaviorCatalogKind.Computed => "computed",
-        BehaviorCatalogKind.Action => "action",
+        BehaviorCatalogKind.ComputedProp => "computedProp",
+        BehaviorCatalogKind.Operation => "operation",
         BehaviorCatalogKind.Mutation => "mutation",
         BehaviorCatalogKind.Interceptor => "interceptor",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown behavior kind."),

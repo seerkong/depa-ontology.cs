@@ -17,40 +17,48 @@ public static class CozoOmBatchExtensions
         ArgumentNullException.ThrowIfNull(om);
         ArgumentNullException.ThrowIfNull(batch);
 
-        var entities = batch.Entities ?? [];
-        var properties = batch.Properties ?? [];
-        var edges = batch.Edges ?? [];
-        var touchedEntityIds = new HashSet<string>(StringComparer.Ordinal);
+        var objects = batch.Objects ?? [];
+        var fieldValues = batch.FieldValues ?? [];
+        var relationLinks = batch.RelationLinks ?? [];
+        var touchedObjectIds = new HashSet<string>(StringComparer.Ordinal);
         var writeOptions = new WriteOptions(SkipConstraints: true);
 
         await using var tx = await om.Runtime.Store.BeginTransactionAsync(write: true, cancellationToken);
         var txRuntime = om.Runtime with { Store = tx };
 
-        foreach (var entity in entities)
+        foreach (var omObject in objects)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await EntityLogic.CreateEntityAsync(txRuntime, new EntityInput(entity.Id, entity.TypeName, entity.Label), cancellationToken);
-            touchedEntityIds.Add(entity.Id);
+            await ObjectLogic.CreateObjectAsync(txRuntime, new ObjectInput(omObject.Id, omObject.ClassName, omObject.Label), cancellationToken);
+            touchedObjectIds.Add(omObject.Id);
         }
 
-        foreach (var property in properties)
+        foreach (var fieldValue in fieldValues)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await EntityLogic.SetPropertyAsync(txRuntime, new SetPropertyInput(property.EntityId, property.AttrName, property.Value, writeOptions), cancellationToken);
-            touchedEntityIds.Add(property.EntityId);
+            await ObjectLogic.SetFieldValueAsync(txRuntime, new SetFieldValueInput(fieldValue.ObjectId, fieldValue.FieldName, fieldValue.Value, writeOptions), cancellationToken);
+            touchedObjectIds.Add(fieldValue.ObjectId);
         }
 
-        foreach (var edge in edges)
+        foreach (var relationLink in relationLinks)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await RelationLogic.LinkEntitiesAsync(txRuntime, new LinkEntitiesInput(edge.FromId, edge.RelName, edge.ToId, edge.Props ?? new Dictionary<string, object?>(), writeOptions), cancellationToken);
+            await RelationLogic.CreateRelationLinkAsync(
+                txRuntime,
+                new CreateRelationLinkInput(
+                    relationLink.FromObjectId,
+                    relationLink.RelationName,
+                    relationLink.ToObjectId,
+                    relationLink.Payload ?? new Dictionary<string, object?>(),
+                    writeOptions),
+                cancellationToken);
         }
 
         if (options?.ValidateRequired != false)
         {
-            foreach (var entityId in touchedEntityIds)
+            foreach (var objectId in touchedObjectIds)
             {
-                var validation = await ConstraintLogic.ValidateEntityAsync(txRuntime, entityId, cancellationToken);
+                var validation = await ConstraintLogic.ValidateObjectAsync(txRuntime, objectId, cancellationToken);
                 if (!validation.Valid)
                 {
                     throw new CozoException(string.Join("; ", validation.Errors));
@@ -59,6 +67,6 @@ public static class CozoOmBatchExtensions
         }
 
         await tx.CommitAsync(cancellationToken);
-        return new OmBatchResult(entities.Count, properties.Count, edges.Count, touchedEntityIds.Count);
+        return new OmBatchResult(objects.Count, fieldValues.Count, relationLinks.Count, touchedObjectIds.Count);
     }
 }

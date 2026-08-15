@@ -19,10 +19,10 @@ internal static class ExistentialGovernanceParityFixtures
         using var db = new CozoDb(engine: "mem", path: "");
         var om2 = new CozoOm(db);
         await om2.InitSchemaAsync();
-        await om2.DefineTypeAsync("ExistentialSource", "source");
-        await om2.DefineTypeAsync("ExistentialTarget", "target");
-        await om2.DefineAttributeAsync("ExistentialSource", "tier", OmValueType.Number);
-        await om2.DefineRelationAsync("existential_rel", "ExistentialSource", "ExistentialTarget");
+        await om2.DefineClassAsync("ExistentialSource", "source");
+        await om2.DefineClassAsync("ExistentialTarget", "target");
+        await om2.DefineFieldAsync("ExistentialSource", "tier", OmValueType.Number);
+        await om2.DefineRelationDefAsync("existential_rel", "ExistentialSource", "ExistentialTarget");
 
         await ExpectFailureAsync(() => om2.DefineExistentialRuleAsync(
             "invalid_where_operator",
@@ -40,44 +40,44 @@ internal static class ExistentialGovernanceParityFixtures
                 new ExistentialForEachSpec("ExistentialSource",
                 [new ExistentialWhereCondition("tier", ">=", JsonSerializer.SerializeToElement(2))]),
                 new ExistentialExistsSpec("existential_rel", ExistentialDirection.Out, "ExistentialTarget")));
-        await om2.DefineTypeAliasAsync("ExistentialSourceLegacy", "ExistentialSource");
-        await om2.DefineRelationAliasAsync("existential_rel_legacy", "existential_rel");
-        await om2.DefineAttributeAliasAsync("ExistentialSource", "tier_legacy", "tier");
+        await om2.DefineClassAliasAsync("ExistentialSourceLegacy", "ExistentialSource");
+        await om2.DefineRelationDefAliasAsync("existential_rel_legacy", "existential_rel");
+        await om2.DefineFieldAliasAsync("ExistentialSource", "tier_legacy", "tier");
         db.Run(
             """
             ?[rule_name, spec_json, mode, message, enabled] <- [[
               "alias_runtime_rule",
-              "{\"forEach\":{\"type\":\"ExistentialSourceLegacy\",\"where\":[{\"attr\":\"tier_legacy\",\"op\":\">=\",\"value\":2}]},\"exists\":{\"rel\":\"existential_rel_legacy\",\"direction\":\"out\",\"toType\":\"ExistentialTarget\"}}",
+              "{\"forEach\":{\"type\":\"ExistentialSourceLegacy\",\"where\":[{\"attr\":\"tier_legacy\",\"op\":\">=\",\"value\":2}]},\"exists\":{\"rel\":\"existential_rel_legacy\",\"direction\":\"out\",\"toClass\":\"ExistentialTarget\"}}",
               "check", "", true
             ]]
             :put om_existential_rule_def {rule_name => spec_json, mode, message, enabled}
             """);
-        await om2.CreateEntityAsync("existential:source", "ExistentialSource", "source");
-        await om2.SetPropertyAsync("existential:source", "tier", 2);
+        await om2.CreateObjectAsync("existential:source", "ExistentialSource", "source");
+        await om2.SetFieldValueAsync("existential:source", "tier", 2);
 
         var violations = await om2.CheckExistentialRulesAsync();
-        Require(violations.Count == 1 && violations[0].EntityId == "existential:source",
+        Require(violations.Count == 1 && violations[0].ObjectId == "existential:source",
             "stored existential rules must re-resolve aliases at evaluation time");
 
-        await om2.DefineTypeAsync("ExistentialHistoricalSourceLegacy", "legacy source");
-        await om2.DefineTypeAsync("ExistentialHistoricalTargetLegacy", "legacy target");
-        await om2.DefineAttributeAsync("ExistentialHistoricalSourceLegacy", "tier_legacy", OmValueType.Number);
-        await om2.DefineRelationAsync("existential_historical_rel_legacy", "ExistentialHistoricalSourceLegacy", "ExistentialHistoricalTargetLegacy");
-        await om2.CreateEntityAsync("historical:source", "ExistentialHistoricalSourceLegacy", "legacy source");
-        await om2.CreateEntityAsync("historical:target", "ExistentialHistoricalTargetLegacy", "legacy target");
-        await om2.SetPropertyAsync("historical:source", "tier_legacy", 2);
-        await om2.LinkEntitiesAsync("historical:source", "existential_historical_rel_legacy", "historical:target");
-        await om2.CreateEntityAsync("historical:missing", "ExistentialHistoricalSourceLegacy", "legacy missing");
-        await om2.SetPropertyAsync("historical:missing", "tier_legacy", 2);
+        await om2.DefineClassAsync("ExistentialHistoricalSourceLegacy", "legacy source");
+        await om2.DefineClassAsync("ExistentialHistoricalTargetLegacy", "legacy target");
+        await om2.DefineFieldAsync("ExistentialHistoricalSourceLegacy", "tier_legacy", OmValueType.Number);
+        await om2.DefineRelationDefAsync("existential_historical_rel_legacy", "ExistentialHistoricalSourceLegacy", "ExistentialHistoricalTargetLegacy");
+        await om2.CreateObjectAsync("historical:source", "ExistentialHistoricalSourceLegacy", "legacy source");
+        await om2.CreateObjectAsync("historical:target", "ExistentialHistoricalTargetLegacy", "legacy target");
+        await om2.SetFieldValueAsync("historical:source", "tier_legacy", 2);
+        await om2.CreateRelationLinkAsync("historical:source", "existential_historical_rel_legacy", "historical:target");
+        await om2.CreateObjectAsync("historical:missing", "ExistentialHistoricalSourceLegacy", "legacy missing");
+        await om2.SetFieldValueAsync("historical:missing", "tier_legacy", 2);
 
-        await om2.DefineTypeAsync("ExistentialHistoricalSource", "current source");
-        await om2.DefineTypeAsync("ExistentialHistoricalTarget", "current target");
-        await om2.DefineAttributeAsync("ExistentialHistoricalSource", "tier", OmValueType.Number);
-        await om2.DefineRelationAsync("existential_historical_rel", "ExistentialHistoricalSource", "ExistentialHistoricalTarget");
-        await om2.DefineTypeAliasAsync("ExistentialHistoricalSourceLegacy", "ExistentialHistoricalSource");
-        await om2.DefineTypeAliasAsync("ExistentialHistoricalTargetLegacy", "ExistentialHistoricalTarget");
-        await om2.DefineRelationAliasAsync("existential_historical_rel_legacy", "existential_historical_rel");
-        await om2.DefineAttributeAliasAsync("ExistentialHistoricalSource", "tier_legacy", "tier");
+        await om2.DefineClassAsync("ExistentialHistoricalSource", "current source");
+        await om2.DefineClassAsync("ExistentialHistoricalTarget", "current target");
+        await om2.DefineFieldAsync("ExistentialHistoricalSource", "tier", OmValueType.Number);
+        await om2.DefineRelationDefAsync("existential_historical_rel", "ExistentialHistoricalSource", "ExistentialHistoricalTarget");
+        await om2.DefineClassAliasAsync("ExistentialHistoricalSourceLegacy", "ExistentialHistoricalSource");
+        await om2.DefineClassAliasAsync("ExistentialHistoricalTargetLegacy", "ExistentialHistoricalTarget");
+        await om2.DefineRelationDefAliasAsync("existential_historical_rel_legacy", "existential_historical_rel");
+        await om2.DefineFieldAliasAsync("ExistentialHistoricalSource", "tier_legacy", "tier");
         await om2.DefineExistentialRuleAsync(
             "historical_storage_rule",
             new ExistentialRuleSpec(
@@ -88,13 +88,13 @@ internal static class ExistentialGovernanceParityFixtures
         var historicalViolations = (await om2.CheckExistentialRulesAsync())
             .Where(v => v.Rule == "historical_storage_rule")
             .ToArray();
-        Require(historicalViolations.Length == 1 && historicalViolations[0].EntityId == "historical:missing",
-            "post-rename existential rules must read legacy entity, edge, target type, and property aliases deterministically");
+        Require(historicalViolations.Length == 1 && historicalViolations[0].ObjectId == "historical:missing",
+            "post-rename existential rules must read legacy entity, link, target type, and property aliases deterministically");
     }
 
-    private static async Task ExpectFailureAsync(Func<Task> action, string message)
+    private static async Task ExpectFailureAsync(Func<Task> operation, string message)
     {
-        try { await action(); }
+        try { await operation(); }
         catch (CozoException) { return; }
         throw new InvalidOperationException(message);
     }

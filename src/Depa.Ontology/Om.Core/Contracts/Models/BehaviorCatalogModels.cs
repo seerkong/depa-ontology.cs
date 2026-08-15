@@ -5,8 +5,8 @@ namespace Depa.Ontology.Contracts.Models;
 public enum BehaviorCatalogKind
 {
     Constraint,
-    Computed,
-    Action,
+    ComputedProp,
+    Operation,
     Mutation,
     Interceptor,
 }
@@ -37,9 +37,9 @@ public sealed record BehaviorCatalogEntry
 {
     public BehaviorCatalogEntry(
         BehaviorCatalogKind kind,
-        string ownerType,
+        string ownerClass,
         string name,
-        string? constraintType,
+        string? constraintKind,
         string? message,
         string? description,
         string? interceptorPhase,
@@ -47,9 +47,9 @@ public sealed record BehaviorCatalogEntry
         IEnumerable<BehaviorCallbackBinding> callbacks)
     {
         Kind = kind;
-        OwnerType = ownerType;
+        OwnerClass = ownerClass;
         Name = name;
-        ConstraintType = constraintType;
+        ConstraintKind = constraintKind;
         Message = message;
         Description = description;
         InterceptorPhase = interceptorPhase;
@@ -58,9 +58,9 @@ public sealed record BehaviorCatalogEntry
     }
 
     public BehaviorCatalogKind Kind { get; init; }
-    public string OwnerType { get; init; }
+    public string OwnerClass { get; init; }
     public string Name { get; init; }
-    public string? ConstraintType { get; init; }
+    public string? ConstraintKind { get; init; }
     public string? Message { get; init; }
     public string? Description { get; init; }
     public string? InterceptorPhase { get; init; }

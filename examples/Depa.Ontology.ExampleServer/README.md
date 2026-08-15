@@ -2,6 +2,16 @@
 
 Private ASP.NET Core example API for `depa-ontology.ts/packages/example-browser`; it is not a NuGet package.
 
+The demo table contract follows the renamed OM language: `Class 定义`,
+`Field 定义`, `RelationDef 定义`, `ComputedProp 定义`, `Operation 定义`,
+`Object 数据`, `FieldValue 数据`, and `RelationLink 数据` use `className`,
+`fieldName`, `valueKind`, `relationName`, `fromClass`, `toClass`,
+`computedPropName`, `operationName`, `objectId`, `fromObjectId`, `toObjectId`,
+and `payload` columns. Operation-oriented examples and governance endpoints use
+permission `operation` language. Use it with an example-browser version that
+speaks the same Class/Object/Field/FieldValue, RelationDef/RelationLink,
+ComputedProp, and Operation contract.
+
 ## Run with `example-browser`
 
 The browser defaults to `http://127.0.0.1:4175`, so start this server on that

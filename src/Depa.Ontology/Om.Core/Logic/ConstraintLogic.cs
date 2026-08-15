@@ -14,49 +14,49 @@ public static class ConstraintLogic
 {
     public static async Task DefineConstraintAsync(CozoOmRuntime runtime, DefineConstraintInput input, CancellationToken cancellationToken = default)
     {
-        var typeName = await ResolveExistingOwnerTypeAsync(runtime, input.TypeName, cancellationToken);
-        var constraintType = ValidateConstraintType(input.ConstraintType);
+        var className = await ResolveExistingOwnerClassAsync(runtime, input.ClassName, cancellationToken);
+        var constraintKind = ValidateConstraintKind(input.ConstraintKind);
         await runtime.Store.RunAsync(
-            CozoScriptBuilder.InputPut("om_constraint_def", ["type_name", "constraint_name"], ["constraint_type", "message"]),
+            CozoScriptBuilder.InputPut("om_constraint_def", ["class_name", "constraint_name"], ["constraint_kind", "message"]),
             LogicSupport.Params(
-                ("type_name", typeName),
+                ("class_name", className),
                 ("constraint_name", OmConvert.RequireName(input.ConstraintName, nameof(input.ConstraintName))),
-                ("constraint_type", constraintType),
+                ("constraint_kind", constraintKind),
                 ("message", input.Message)),
             cancellationToken: cancellationToken);
     }
 
-    public static async Task DefineComputedAsync(CozoOmRuntime runtime, DefineComputedInput input, CancellationToken cancellationToken = default)
+    public static async Task DefineComputedPropAsync(CozoOmRuntime runtime, DefineComputedPropInput input, CancellationToken cancellationToken = default)
     {
-        var typeName = await ResolveExistingOwnerTypeAsync(runtime, input.TypeName, cancellationToken);
+        var className = await ResolveExistingOwnerClassAsync(runtime, input.ClassName, cancellationToken);
         await runtime.Store.RunAsync(
-            CozoScriptBuilder.InputPut("om_computed_def", ["type_name", "attr_name"], ["description"]),
+            CozoScriptBuilder.InputPut("om_computed_prop_def", ["class_name", "computed_prop_name"], ["description"]),
             LogicSupport.Params(
-                ("type_name", typeName),
-                ("attr_name", OmConvert.RequireName(input.AttrName, nameof(input.AttrName))),
+                ("class_name", className),
+                ("computed_prop_name", OmConvert.RequireName(input.ComputedPropName, nameof(input.ComputedPropName))),
                 ("description", input.Description)),
             cancellationToken: cancellationToken);
     }
 
-    public static async Task DefineActionAsync(CozoOmRuntime runtime, DefineActionInput input, CancellationToken cancellationToken = default)
+    public static async Task DefineOperationAsync(CozoOmRuntime runtime, DefineOperationInput input, CancellationToken cancellationToken = default)
     {
-        var typeName = await ResolveExistingOwnerTypeAsync(runtime, input.TypeName, cancellationToken);
+        var className = await ResolveExistingOwnerClassAsync(runtime, input.ClassName, cancellationToken);
         await runtime.Store.RunAsync(
-            CozoScriptBuilder.InputPut("om_action_def", ["type_name", "action_name"], ["description"]),
+            CozoScriptBuilder.InputPut("om_operation_def", ["class_name", "operation_name"], ["description"]),
             LogicSupport.Params(
-                ("type_name", typeName),
-                ("action_name", OmConvert.RequireName(input.ActionName, nameof(input.ActionName))),
+                ("class_name", className),
+                ("operation_name", OmConvert.RequireName(input.OperationName, nameof(input.OperationName))),
                 ("description", input.Description)),
             cancellationToken: cancellationToken);
     }
 
     public static async Task DefineMutationAsync(CozoOmRuntime runtime, DefineMutationInput input, CancellationToken cancellationToken = default)
     {
-        var typeName = await ResolveExistingOwnerTypeAsync(runtime, input.TypeName, cancellationToken);
+        var className = await ResolveExistingOwnerClassAsync(runtime, input.ClassName, cancellationToken);
         await runtime.Store.RunAsync(
-            CozoScriptBuilder.InputPut("om_mutation_def", ["type_name", "mutation_name"], ["description"]),
+            CozoScriptBuilder.InputPut("om_mutation_def", ["class_name", "mutation_name"], ["description"]),
             LogicSupport.Params(
-                ("type_name", typeName),
+                ("class_name", className),
                 ("mutation_name", OmConvert.RequireName(input.MutationName, nameof(input.MutationName))),
                 ("description", input.Description)),
             cancellationToken: cancellationToken);
@@ -64,13 +64,13 @@ public static class ConstraintLogic
 
     public static async Task AddInterceptorAsync(CozoOmRuntime runtime, AddInterceptorInput input, CancellationToken cancellationToken = default)
     {
-        var typeName = await ResolveExistingOwnerTypeAsync(runtime, input.TypeName, cancellationToken);
+        var className = await ResolveExistingOwnerClassAsync(runtime, input.ClassName, cancellationToken);
         var phase = NormalizeInterceptorPhase(input.Phase);
         await runtime.Store.RunAsync(
-            CozoScriptBuilder.InputPut("om_interceptor_def", ["type_name", "action_name", "phase", "seq"], ["description"]),
+            CozoScriptBuilder.InputPut("om_interceptor_def", ["class_name", "operation_name", "phase", "seq"], ["description"]),
             LogicSupport.Params(
-                ("type_name", typeName),
-                ("action_name", OmConvert.RequireName(input.ActionName, nameof(input.ActionName))),
+                ("class_name", className),
+                ("operation_name", OmConvert.RequireName(input.OperationName, nameof(input.OperationName))),
                 ("phase", phase),
                 ("seq", input.Seq),
                 ("description", input.Description)),
@@ -87,14 +87,14 @@ public static class ConstraintLogic
     {
         ArgumentNullException.ThrowIfNull(when);
         ArgumentNullException.ThrowIfNull(then);
-        var typeName = await ResolveExistingOwnerTypeAsync(runtime, input.TypeName, cancellationToken);
+        var className = await ResolveExistingOwnerClassAsync(runtime, input.ClassName, cancellationToken);
         var constraintName = OmConvert.RequireName(input.ConstraintName, nameof(input.ConstraintName));
-        var previousMetadata = await ReadConstraintMetadataAsync(runtime, typeName, constraintName, cancellationToken);
-        var hadRegistration = runtime.Registry.TryGetConstraint(typeName, constraintName, out var previousRegistration);
-        await DefineConstraintAsync(runtime, input with { TypeName = typeName, ConstraintName = constraintName }, cancellationToken);
+        var previousMetadata = await ReadConstraintMetadataAsync(runtime, className, constraintName, cancellationToken);
+        var hadRegistration = runtime.Registry.TryGetConstraint(className, constraintName, out var previousRegistration);
+        await DefineConstraintAsync(runtime, input with { ClassName = className, ConstraintName = constraintName }, cancellationToken);
         try
         {
-            runtime.Registry.RegisterConstraint(typeName, constraintName, when, then);
+            runtime.Registry.RegisterConstraint(className, constraintName, when, then);
             afterRegistration?.Invoke();
         }
         catch (Exception registrationFailure)
@@ -103,32 +103,32 @@ public static class ConstraintLogic
                 registrationFailure,
                 () =>
                 {
-                    runtime.Registry.UnregisterConstraint(typeName, constraintName);
+                    runtime.Registry.UnregisterConstraint(className, constraintName);
                     if (hadRegistration)
                     {
-                        runtime.Registry.RestoreConstraintRegistration(typeName, constraintName, previousRegistration);
+                        runtime.Registry.RestoreConstraintRegistration(className, constraintName, previousRegistration);
                     }
                 },
-                () => RestoreConstraintMetadataAsync(runtime, typeName, constraintName, previousMetadata, cancellationToken));
+                () => RestoreConstraintMetadataAsync(runtime, className, constraintName, previousMetadata, cancellationToken));
         }
     }
 
-    internal static async Task DefineActionCallbackAsync(
+    internal static async Task DefineOperationCallbackAsync(
         CozoOmRuntime runtime,
-        DefineActionInput input,
-        Func<OmActionContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>>? handler,
+        DefineOperationInput input,
+        Func<OmOperationContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>>? handler,
         Action? afterRegistration = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(handler);
-        var typeName = await ResolveExistingOwnerTypeAsync(runtime, input.TypeName, cancellationToken);
-        var actionName = OmConvert.RequireName(input.ActionName, nameof(input.ActionName));
-        var previousMetadata = await ReadActionMetadataAsync(runtime, typeName, actionName, cancellationToken);
-        var hadRegistration = runtime.Registry.TryGetActionRegistration(typeName, actionName, out var previousRegistration);
-        await DefineActionAsync(runtime, input with { TypeName = typeName, ActionName = actionName }, cancellationToken);
+        var className = await ResolveExistingOwnerClassAsync(runtime, input.ClassName, cancellationToken);
+        var operationName = OmConvert.RequireName(input.OperationName, nameof(input.OperationName));
+        var previousMetadata = await ReadOperationMetadataAsync(runtime, className, operationName, cancellationToken);
+        var hadRegistration = runtime.Registry.TryGetOperationRegistration(className, operationName, out var previousRegistration);
+        await DefineOperationAsync(runtime, input with { ClassName = className, OperationName = operationName }, cancellationToken);
         try
         {
-            runtime.Registry.RegisterAction(typeName, actionName, handler);
+            runtime.Registry.RegisterOperation(className, operationName, handler);
             afterRegistration?.Invoke();
         }
         catch (Exception registrationFailure)
@@ -137,13 +137,13 @@ public static class ConstraintLogic
                 registrationFailure,
                 () =>
                 {
-                    runtime.Registry.UnregisterAction(typeName, actionName);
+                    runtime.Registry.UnregisterOperation(className, operationName);
                     if (hadRegistration)
                     {
-                        runtime.Registry.RestoreActionRegistration(typeName, actionName, previousRegistration);
+                        runtime.Registry.RestoreOperationRegistration(className, operationName, previousRegistration);
                     }
                 },
-                () => RestoreActionMetadataAsync(runtime, typeName, actionName, previousMetadata, cancellationToken));
+                () => RestoreOperationMetadataAsync(runtime, className, operationName, previousMetadata, cancellationToken));
         }
     }
 
@@ -155,14 +155,14 @@ public static class ConstraintLogic
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(executor);
-        var typeName = await ResolveExistingOwnerTypeAsync(runtime, input.TypeName, cancellationToken);
+        var className = await ResolveExistingOwnerClassAsync(runtime, input.ClassName, cancellationToken);
         var mutationName = OmConvert.RequireName(input.MutationName, nameof(input.MutationName));
-        var previousMetadata = await ReadMutationMetadataAsync(runtime, typeName, mutationName, cancellationToken);
-        var hadRegistration = runtime.Registry.TryGetMutationRegistration(typeName, mutationName, out var previousRegistration);
-        await DefineMutationAsync(runtime, input with { TypeName = typeName, MutationName = mutationName }, cancellationToken);
+        var previousMetadata = await ReadMutationMetadataAsync(runtime, className, mutationName, cancellationToken);
+        var hadRegistration = runtime.Registry.TryGetMutationRegistration(className, mutationName, out var previousRegistration);
+        await DefineMutationAsync(runtime, input with { ClassName = className, MutationName = mutationName }, cancellationToken);
         try
         {
-            runtime.Registry.RegisterMutation(typeName, mutationName, executor);
+            runtime.Registry.RegisterMutation(className, mutationName, executor);
             afterRegistration?.Invoke();
         }
         catch (Exception registrationFailure)
@@ -171,34 +171,34 @@ public static class ConstraintLogic
                 registrationFailure,
                 () =>
                 {
-                    runtime.Registry.UnregisterMutation(typeName, mutationName);
+                    runtime.Registry.UnregisterMutation(className, mutationName);
                     if (hadRegistration)
                     {
-                        runtime.Registry.RestoreMutationRegistration(typeName, mutationName, previousRegistration);
+                        runtime.Registry.RestoreMutationRegistration(className, mutationName, previousRegistration);
                     }
                 },
-                () => RestoreMutationMetadataAsync(runtime, typeName, mutationName, previousMetadata, cancellationToken));
+                () => RestoreMutationMetadataAsync(runtime, className, mutationName, previousMetadata, cancellationToken));
         }
     }
 
     internal static async Task AddInterceptorCallbackAsync(
         CozoOmRuntime runtime,
         AddInterceptorInput input,
-        Func<OmActionContext, ValueTask>? handler,
+        Func<OmOperationContext, ValueTask>? handler,
         Action? afterRegistration = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(handler);
-        var typeName = await ResolveExistingOwnerTypeAsync(runtime, input.TypeName, cancellationToken);
-        var actionName = OmConvert.RequireName(input.ActionName, nameof(input.ActionName));
+        var className = await ResolveExistingOwnerClassAsync(runtime, input.ClassName, cancellationToken);
+        var operationName = OmConvert.RequireName(input.OperationName, nameof(input.OperationName));
         var phase = NormalizeInterceptorPhase(input.Phase);
-        var seq = await NextInterceptorSeqAsync(runtime, typeName, actionName, phase, cancellationToken);
-        var previousMetadata = await ReadInterceptorMetadataAsync(runtime, typeName, actionName, phase, seq, cancellationToken);
-        var hadRegistration = runtime.Registry.TryGetInterceptor(typeName, actionName, phase, seq, out var previousRegistration);
-        await AddInterceptorAsync(runtime, input with { TypeName = typeName, ActionName = actionName, Phase = phase, Seq = seq }, cancellationToken);
+        var seq = await NextInterceptorSeqAsync(runtime, className, operationName, phase, cancellationToken);
+        var previousMetadata = await ReadInterceptorMetadataAsync(runtime, className, operationName, phase, seq, cancellationToken);
+        var hadRegistration = runtime.Registry.TryGetInterceptor(className, operationName, phase, seq, out var previousRegistration);
+        await AddInterceptorAsync(runtime, input with { ClassName = className, OperationName = operationName, Phase = phase, Seq = seq }, cancellationToken);
         try
         {
-            runtime.Registry.RegisterInterceptor(typeName, actionName, phase, seq, handler, input.Description);
+            runtime.Registry.RegisterInterceptor(className, operationName, phase, seq, handler, input.Description);
             afterRegistration?.Invoke();
         }
         catch (Exception registrationFailure)
@@ -207,16 +207,16 @@ public static class ConstraintLogic
                 registrationFailure,
                 () =>
                 {
-                    runtime.Registry.UnregisterInterceptor(typeName, actionName, phase, seq);
+                    runtime.Registry.UnregisterInterceptor(className, operationName, phase, seq);
                     if (hadRegistration)
                     {
-                        runtime.Registry.RestoreInterceptorRegistration(typeName, actionName, phase, previousRegistration);
+                        runtime.Registry.RestoreInterceptorRegistration(className, operationName, phase, previousRegistration);
                     }
                 },
                 () => RestoreInterceptorMetadataAsync(
                     runtime,
-                    typeName,
-                    actionName,
+                    className,
+                    operationName,
                     phase,
                     seq,
                     previousMetadata,
@@ -224,114 +224,114 @@ public static class ConstraintLogic
         }
     }
 
-    internal static async Task<IReadOnlyList<MutationSpec>> CallParentActionAsync(
+    internal static async Task<IReadOnlyList<MutationSpec>> CallParentOperationAsync(
         CozoOmRuntime runtime,
-        string entityId,
-        string typeName,
-        string actionOwnerType,
-        string actionName,
+        string objectId,
+        string className,
+        string operationOwnerClass,
+        string operationName,
         IReadOnlyDictionary<string, object?>? parameters = null,
         BehaviorResolutionScope? outerResolution = null,
         CancellationToken cancellationToken = default)
     {
-        var action = OmConvert.RequireName(actionName, nameof(actionName));
+        var operation = OmConvert.RequireName(operationName, nameof(operationName));
         var parentResolution = outerResolution is null
             ? await runtime.BehaviorGate.ResolveAsync(
                 runtime,
-                async (resolution, token) => new ParentActionResolution(
+                async (resolution, token) => new ParentOperationResolution(
                     resolution,
-                    await ResolveParentActionAsync(runtime, resolution, actionOwnerType, action, token)),
+                    await ResolveParentOperationAsync(runtime, resolution, operationOwnerClass, operation, token)),
                 cancellationToken)
             : await runtime.BehaviorGate.ResolveAsync(
                 outerResolution,
-                async (resolution, token) => new ParentActionResolution(
+                async (resolution, token) => new ParentOperationResolution(
                     resolution,
-                    await ResolveParentActionAsync(runtime, resolution, actionOwnerType, action, token)),
+                    await ResolveParentOperationAsync(runtime, resolution, operationOwnerClass, operation, token)),
                 cancellationToken);
-        if (parentResolution.Action is null)
+        if (parentResolution.Operation is null)
         {
             throw new InvalidOperationException(
-                $"Parent action '{action}' not defined above current owner '{actionOwnerType}'");
+                $"Parent operation '{operation}' not defined above current owner '{operationOwnerClass}'");
         }
 
-        var context = new OmActionContext(
+        var context = new OmOperationContext(
             runtime,
-            entityId,
-            typeName,
-            parentResolution.Action.OwnerType,
+            objectId,
+            className,
+            parentResolution.Operation.OwnerClass,
             parameters ?? new Dictionary<string, object?>())
         {
             BehaviorResolution = parentResolution.Resolution,
         };
-        return await parentResolution.Action.Handler(context, context.Params) ?? [];
+        return await parentResolution.Operation.Handler(context, context.Params) ?? [];
     }
 
-    public static async Task ExecuteActionAsync(
+    public static async Task ExecuteOperationAsync(
         CozoOmRuntime runtime,
-        string entityId,
-        string actionName,
+        string objectId,
+        string operationName,
         IReadOnlyDictionary<string, object?>? parameters = null,
         CancellationToken cancellationToken = default)
     {
         await using var tx = await runtime.Store.BeginTransactionAsync(write: true, cancellationToken);
         var txRuntime = runtime with { Store = tx };
 
-        await ExecuteActionCoreAsync(txRuntime, entityId, actionName, parameters, cancellationToken);
+        await ExecuteOperationCoreAsync(txRuntime, objectId, operationName, parameters, cancellationToken);
         await tx.CommitAsync(cancellationToken);
     }
 
-    private static async Task ExecuteActionCoreAsync(
+    private static async Task ExecuteOperationCoreAsync(
         CozoOmRuntime runtime,
-        string entityId,
-        string actionName,
+        string objectId,
+        string operationName,
         IReadOnlyDictionary<string, object?>? parameters = null,
         CancellationToken cancellationToken = default)
     {
-        var id = OmConvert.RequireName(entityId, nameof(entityId));
-        var action = OmConvert.RequireName(actionName, nameof(actionName));
+        var id = OmConvert.RequireName(objectId, nameof(objectId));
+        var operation = OmConvert.RequireName(operationName, nameof(operationName));
         var pipeline = await runtime.BehaviorGate.ResolveAsync(
             runtime,
             async (resolution, token) =>
             {
-                var typeName = await EntityLogic.GetEntityTypeAsync(runtime, id, token);
-                var actionRegistration = await ResolveActionAsync(runtime, resolution, typeName, action, token);
-                if (actionRegistration is null)
+                var className = await ObjectLogic.GetObjectClassAsync(runtime, id, token);
+                var operationRegistration = await ResolveOperationAsync(runtime, resolution, className, operation, token);
+                if (operationRegistration is null)
                 {
-                    return new ResolvedActionPipeline(resolution, typeName, null, [], []);
+                    return new ResolvedOperationPipeline(resolution, className, null, [], []);
                 }
 
                 var beforeInterceptors = await CollectInterceptorsAsync(
                     runtime,
                     resolution,
-                    typeName,
-                    action,
+                    className,
+                    operation,
                     "before",
                     token);
                 var afterInterceptors = await CollectInterceptorsAsync(
                     runtime,
                     resolution,
-                    typeName,
-                    action,
+                    className,
+                    operation,
                     "after",
                     token);
-                return new ResolvedActionPipeline(
+                return new ResolvedOperationPipeline(
                     resolution,
-                    typeName,
-                    actionRegistration,
+                    className,
+                    operationRegistration,
                     beforeInterceptors,
                     afterInterceptors);
             },
             cancellationToken);
-        if (pipeline.Action is null)
+        if (pipeline.Operation is null)
         {
-            throw new InvalidOperationException($"Action '{action}' not defined for type '{pipeline.TypeName}'");
+            throw new InvalidOperationException($"Operation '{operation}' not defined for type '{pipeline.ClassName}'");
         }
 
-        var ctx = new OmActionContext(
+        var ctx = new OmOperationContext(
             runtime,
             id,
-            pipeline.TypeName,
-            pipeline.Action.OwnerType,
+            pipeline.ClassName,
+            pipeline.Operation.OwnerClass,
             parameters ?? new Dictionary<string, object?>())
         {
             BehaviorResolution = pipeline.Resolution,
@@ -341,7 +341,7 @@ public static class ConstraintLogic
             await interceptor.Handler(ctx);
         }
 
-        var mutations = await pipeline.Action.Handler(ctx, ctx.Params);
+        var mutations = await pipeline.Operation.Handler(ctx, ctx.Params);
         await ExecuteMutationsCoreAsync(runtime, id, mutations, pipeline.Resolution, cancellationToken);
 
         foreach (var interceptor in pipeline.AfterInterceptors)
@@ -352,28 +352,28 @@ public static class ConstraintLogic
 
     public static async Task ExecuteMutationsAsync(
         CozoOmRuntime runtime,
-        string entityId,
+        string objectId,
         IReadOnlyList<MutationSpec>? mutations,
         CancellationToken cancellationToken = default)
     {
         await using var tx = await runtime.Store.BeginTransactionAsync(write: true, cancellationToken);
         var txRuntime = runtime with { Store = tx };
 
-        await ExecuteMutationsCoreAsync(txRuntime, entityId, mutations, null, cancellationToken);
+        await ExecuteMutationsCoreAsync(txRuntime, objectId, mutations, null, cancellationToken);
         await tx.CommitAsync(cancellationToken);
     }
 
     private static async Task ExecuteMutationsCoreAsync(
         CozoOmRuntime runtime,
-        string entityId,
+        string objectId,
         IReadOnlyList<MutationSpec>? mutations,
         BehaviorResolutionScope? outerResolution,
         CancellationToken cancellationToken = default)
     {
-        var id = OmConvert.RequireName(entityId, nameof(entityId));
+        var id = OmConvert.RequireName(objectId, nameof(objectId));
         async Task<ResolvedMutationBatch> ResolveAsync(BehaviorResolutionScope resolution, CancellationToken token)
         {
-            var typeName = await EntityLogic.GetEntityTypeAsync(runtime, id, token);
+            var className = await ObjectLogic.GetObjectClassAsync(runtime, id, token);
             var resolved = new List<ResolvedMutation>();
             foreach (var item in mutations ?? [])
             {
@@ -381,12 +381,12 @@ public static class ConstraintLogic
                 var registration = await ResolveMutationAsync(
                     runtime,
                     resolution,
-                    typeName,
+                    className,
                     mutationName,
                     token);
                 if (registration is null)
                 {
-                    throw new InvalidOperationException($"Mutation '{mutationName}' not defined for type '{typeName}'");
+                    throw new InvalidOperationException($"Mutation '{mutationName}' not defined for type '{className}'");
                 }
 
                 resolved.Add(new ResolvedMutation(
@@ -394,36 +394,36 @@ public static class ConstraintLogic
                     item.Params ?? new Dictionary<string, object?>()));
             }
 
-            return new ResolvedMutationBatch(typeName, resolved);
+            return new ResolvedMutationBatch(className, resolved);
         }
 
         var batch = outerResolution is null
             ? await runtime.BehaviorGate.ResolveAsync(runtime, ResolveAsync, cancellationToken)
             : await runtime.BehaviorGate.ResolveAsync(outerResolution, ResolveAsync, cancellationToken);
-        var ctx = new OmMutationContext(runtime, id, batch.TypeName);
+        var ctx = new OmMutationContext(runtime, id, batch.ClassName);
         foreach (var mutation in batch.Mutations)
         {
             await mutation.Executor(ctx, mutation.Parameters);
         }
     }
 
-    public static async Task<ValidationResult> ValidateEntityAsync(CozoOmRuntime runtime, string entityId, CancellationToken cancellationToken = default)
+    public static async Task<ValidationResult> ValidateObjectAsync(CozoOmRuntime runtime, string objectId, CancellationToken cancellationToken = default)
     {
         var errors = new List<string>();
-        var typeName = await EntityLogic.GetEntityTypeAsync(runtime, entityId, cancellationToken);
-        var definitions = await TypeLogic.GetAttributeDefinitionsAsync(runtime, typeName, cancellationToken);
-        var properties = await EntityLogic.GetAllPropertiesAsync(runtime, entityId, cancellationToken);
+        var className = await ObjectLogic.GetObjectClassAsync(runtime, objectId, cancellationToken);
+        var definitions = await ClassLogic.GetFieldDefinitionsAsync(runtime, className, cancellationToken);
+        var fieldValues = await ObjectLogic.GetAllFieldValuesAsync(runtime, objectId, cancellationToken);
 
-        foreach (var attrName in await ValidateRequiredPropertiesAsync(runtime, entityId, cancellationToken))
+        foreach (var fieldName in await ValidateRequiredFieldValuesAsync(runtime, objectId, cancellationToken))
         {
-            errors.Add($"Missing required property '{attrName}'");
+            errors.Add($"Missing required property '{fieldName}'");
         }
 
-        foreach (var (attrName, value) in properties)
+        foreach (var (fieldName, value) in fieldValues)
         {
-            if (!definitions.TryGetValue(attrName, out var definition))
+            if (!definitions.TryGetValue(fieldName, out var definition))
             {
-                errors.Add($"Undefined property '{attrName}' for type '{typeName}'");
+                errors.Add($"Undefined property '{fieldName}' for type '{className}'");
                 continue;
             }
 
@@ -435,7 +435,7 @@ public static class ConstraintLogic
             var actual = OmConvert.InferValueType(value);
             if (definition.ValueType != OmValueType.Json && definition.ValueType != actual)
             {
-                errors.Add($"Property '{attrName}' expects {definition.ValueType}, got {actual}");
+                errors.Add($"Property '{fieldName}' expects {definition.ValueType}, got {actual}");
             }
         }
 
@@ -444,7 +444,7 @@ public static class ConstraintLogic
             async (resolution, token) =>
             {
                 var resolved = new List<ResolvedConstraint>();
-                foreach (var constraint in await ListEffectiveConstraintsAsync(runtime, typeName, token))
+                foreach (var constraint in await ListEffectiveConstraintsAsync(runtime, className, token))
                 {
                     resolved.Add(await ResolveConstraintDefinitionAsync(runtime, resolution, constraint, token));
                 }
@@ -456,7 +456,7 @@ public static class ConstraintLogic
         {
             await EvaluateResolvedConstraintAsync(
                 constraint,
-                new OmValidationContext(runtime, entityId, typeName),
+                new OmValidationContext(runtime, objectId, className),
                 errors);
         }
 
@@ -465,22 +465,22 @@ public static class ConstraintLogic
 
     public static async Task<ValidationResult> ValidateConstraintsAsync(
         CozoOmRuntime runtime,
-        string entityId,
+        string objectId,
         IReadOnlyList<string>? types = null,
         CancellationToken cancellationToken = default)
     {
         var errors = new List<string>();
-        var typeName = await EntityLogic.GetEntityTypeAsync(runtime, entityId, cancellationToken);
+        var className = await ObjectLogic.GetObjectClassAsync(runtime, objectId, cancellationToken);
         var wanted = types is null
             ? null
-            : new HashSet<string>(types.Select(NormalizeConstraintType), StringComparer.Ordinal);
-        var ctx = new OmValidationContext(runtime, entityId, typeName);
+            : new HashSet<string>(types.Select(NormalizeConstraintKind), StringComparer.Ordinal);
+        var ctx = new OmValidationContext(runtime, objectId, className);
         var resolvedConstraints = await runtime.BehaviorGate.ResolveAsync(
             runtime,
             async (resolution, token) =>
             {
                 var resolved = new List<ResolvedConstraint>();
-                foreach (var constraint in await ListEffectiveConstraintsAsync(runtime, typeName, token))
+                foreach (var constraint in await ListEffectiveConstraintsAsync(runtime, className, token))
                 {
                     if (wanted is not null && !wanted.Contains(constraint.Type)) continue;
                     resolved.Add(await ResolveConstraintDefinitionAsync(runtime, resolution, constraint, token));
@@ -497,49 +497,49 @@ public static class ConstraintLogic
         return new ValidationResult(errors.Count == 0, errors);
     }
 
-    public static async Task<IReadOnlyList<string>> ValidateRequiredPropertiesAsync(
+    public static async Task<IReadOnlyList<string>> ValidateRequiredFieldValuesAsync(
         CozoOmRuntime runtime,
-        string entityId,
+        string objectId,
         CancellationToken cancellationToken = default)
     {
-        var typeName = await EntityLogic.GetEntityTypeAsync(runtime, entityId, cancellationToken);
-        var definitions = await TypeLogic.GetAttributeDefinitionsAsync(runtime, typeName, cancellationToken);
-        var properties = await EntityLogic.GetAllPropertiesAsync(runtime, entityId, cancellationToken);
+        var className = await ObjectLogic.GetObjectClassAsync(runtime, objectId, cancellationToken);
+        var definitions = await ClassLogic.GetFieldDefinitionsAsync(runtime, className, cancellationToken);
+        var fieldValues = await ObjectLogic.GetAllFieldValuesAsync(runtime, objectId, cancellationToken);
         return definitions
-            .Where(item => item.Value.Required && !properties.ContainsKey(item.Key))
+            .Where(item => item.Value.Required && !fieldValues.ContainsKey(item.Key))
             .Select(item => item.Key)
             .ToArray();
     }
 
-    public static async Task FinalizeEntityAsync(CozoOmRuntime runtime, string entityId, CancellationToken cancellationToken = default)
+    public static async Task FinalizeObjectAsync(CozoOmRuntime runtime, string objectId, CancellationToken cancellationToken = default)
     {
-        var validation = await ValidateEntityAsync(runtime, entityId, cancellationToken);
+        var validation = await ValidateObjectAsync(runtime, objectId, cancellationToken);
         if (!validation.Valid)
         {
             throw new CozoException(string.Join("; ", validation.Errors));
         }
     }
 
-    public static async Task<IReadOnlyList<string>> ListComputedAttrsAsync(CozoOmRuntime runtime, string typeName, CancellationToken cancellationToken = default)
+    public static async Task<IReadOnlyList<string>> ListComputedPropNamesAsync(CozoOmRuntime runtime, string className, CancellationToken cancellationToken = default)
     {
         var result = await runtime.Store.RunAsync(
             """
-            ?[attr_name] :=
-              *om_computed_def{ type_name: $type_name, attr_name, description: _description }
-            :sort attr_name
+            ?[computed_prop_name] :=
+              *om_computed_prop_def{ class_name: $class_name, computed_prop_name, description: _description }
+            :sort computed_prop_name
             """,
-            LogicSupport.Params(("type_name", typeName)),
+            LogicSupport.Params(("class_name", className)),
             cancellationToken: cancellationToken);
         return result.Rows.Select(row => JsonRows.StringAt(row, 0) ?? "").Where(x => x.Length > 0).ToArray();
     }
 
     public static async Task SeedPermissionMetadataAsync(CozoOmRuntime runtime, CancellationToken cancellationToken = default)
     {
-        foreach (var (action, description) in new[] { ("read", "Read resource"), ("write", "Write resource"), ("admin", "Administer resource") })
+        foreach (var (operation, description) in new[] { ("read", "Read resource"), ("write", "Write resource"), ("admin", "Administer resource") })
         {
             await runtime.Store.RunAsync(
-                CozoScriptBuilder.InputPut("om_perm_action", ["action"], ["description"]),
-                LogicSupport.Params(("action", action), ("description", description)),
+                CozoScriptBuilder.InputPut("om_perm_operation", ["operation"], ["description"]),
+                LogicSupport.Params(("operation", operation), ("description", description)),
                 cancellationToken: cancellationToken);
         }
     }
@@ -549,13 +549,13 @@ public static class ConstraintLogic
         PermissionSeedInput input,
         CancellationToken cancellationToken = default)
     {
-        foreach (var item in input.Actions ?? [])
+        foreach (var item in input.Operations ?? [])
         {
-            if (string.IsNullOrWhiteSpace(item.Action)) continue;
+            if (string.IsNullOrWhiteSpace(item.Operation)) continue;
             await runtime.Store.RunAsync(
-                CozoScriptBuilder.InputPut("om_perm_action", ["action"], ["description"]),
+                CozoScriptBuilder.InputPut("om_perm_operation", ["operation"], ["description"]),
                 LogicSupport.Params(
-                    ("action", item.Action.Trim()),
+                    ("operation", item.Operation.Trim()),
                     ("description", item.Description ?? "")),
                 cancellationToken: cancellationToken);
         }
@@ -568,8 +568,8 @@ public static class ConstraintLogic
                 new DefinePermissionPolicyInput(
                     item.PolicyId,
                     item.Effect,
-                    item.Action,
-                    item.ResourceType,
+                    item.Operation,
+                    item.ResourceClass,
                     item.Enabled,
                     item.Description),
                 cancellationToken);
@@ -608,12 +608,12 @@ public static class ConstraintLogic
     public static Task DefinePermissionPolicyAsync(CozoOmRuntime runtime, DefinePermissionPolicyInput input, CancellationToken cancellationToken = default)
     {
         return runtime.Store.RunAsync(
-            CozoScriptBuilder.InputPut("om_perm_policy", ["policy_id"], ["effect", "action", "resource_type", "enabled", "description"]),
+            CozoScriptBuilder.InputPut("om_perm_policy", ["policy_id"], ["effect", "operation", "resource_class", "enabled", "description"]),
             LogicSupport.Params(
                 ("policy_id", OmConvert.RequireName(input.PolicyId, nameof(input.PolicyId))),
                 ("effect", OmConvert.RequireName(input.Effect, nameof(input.Effect)).ToLowerInvariant()),
-                ("action", OmConvert.RequireName(input.Action, nameof(input.Action))),
-                ("resource_type", OmConvert.RequireName(input.ResourceType, nameof(input.ResourceType))),
+                ("operation", OmConvert.RequireName(input.Operation, nameof(input.Operation))),
+                ("resource_class", OmConvert.RequireName(input.ResourceClass, nameof(input.ResourceClass))),
                 ("enabled", input.Enabled),
                 ("description", input.Description)),
             cancellationToken: cancellationToken);
@@ -649,20 +649,20 @@ public static class ConstraintLogic
         var asOf = string.IsNullOrWhiteSpace(input.AsOf)
             ? null
             : OmConvert.NormalizeTimestamp(input.AsOf, nameof(input.AsOf));
-        string subjectType;
+        string subjectClass;
         try
         {
-            subjectType = await EntityLogic.GetEntityTypeAsync(runtime, input.SubjectId, cancellationToken);
+            subjectClass = await ObjectLogic.GetObjectClassAsync(runtime, input.SubjectId, cancellationToken);
         }
         catch (CozoException)
         {
             return CreateFailClosedAccessResult(input, asOf, "missing_subject");
         }
 
-        string resourceType;
+        string resourceClass;
         try
         {
-            resourceType = await EntityLogic.GetEntityTypeAsync(runtime, input.ResourceId, cancellationToken);
+            resourceClass = await ObjectLogic.GetObjectClassAsync(runtime, input.ResourceId, cancellationToken);
         }
         catch (CozoException)
         {
@@ -671,9 +671,9 @@ public static class ConstraintLogic
 
         var resourceScopes = new HashSet<string>(StringComparer.Ordinal)
         {
-            resourceType
+            resourceClass
         };
-        foreach (var ancestor in await TypeLogic.GetAncestorsAsync(runtime, resourceType, cancellationToken))
+        foreach (var ancestor in await ClassLogic.GetAncestorsAsync(runtime, resourceClass, cancellationToken))
         {
             resourceScopes.Add(ancestor);
         }
@@ -688,8 +688,8 @@ public static class ConstraintLogic
 
         var policyRows = await runtime.Store.RunAsync(
             """
-            ?[policy_id, effect, action, resource_type, enabled, description] :=
-              *om_perm_policy{ policy_id, effect, action, resource_type, enabled, description },
+            ?[policy_id, effect, operation, resource_class, enabled, description] :=
+              *om_perm_policy{ policy_id, effect, operation, resource_class, enabled, description },
               enabled = true
             :sort policy_id
             """,
@@ -709,8 +709,8 @@ public static class ConstraintLogic
                 JsonRows.StringAt(row, 3) ?? "",
                 JsonRows.StringAt(row, 5) ?? "");
             if (policy.PolicyId.Length == 0) continue;
-            if (!string.Equals(policy.Action, input.Action, StringComparison.Ordinal)) continue;
-            if (!resourceScopes.Contains(policy.ResourceType)) continue;
+            if (!string.Equals(policy.Operation, input.Operation, StringComparison.Ordinal)) continue;
+            if (!resourceScopes.Contains(policy.ResourceClass)) continue;
 
             var paths = await PermissionPathsAsync(runtime, policy.PolicyId, cancellationToken);
             var witness = await DescribePermissionWitnessAsync(
@@ -724,8 +724,8 @@ public static class ConstraintLogic
                 runtime,
                 policy.PolicyId,
                 input,
-                subjectType,
-                resourceType,
+                subjectClass,
+                resourceClass,
                 asOf,
                 cancellationToken);
             var status = witness.Status == PermissionEvaluationStatus.Invalid || abac.HasInvalid
@@ -741,8 +741,8 @@ public static class ConstraintLogic
             evaluations.Add(new PermissionPolicyEvaluation(
                 policy.PolicyId,
                 policy.Effect,
-                policy.Action,
-                policy.ResourceType,
+                policy.Operation,
+                policy.ResourceClass,
                 status,
                 witness,
                 abac.Diagnostics,
@@ -760,8 +760,8 @@ public static class ConstraintLogic
             {
                 policyId = policy.PolicyId,
                 effect = policy.Effect,
-                action = policy.Action,
-                resourceType = policy.ResourceType,
+                operation = policy.Operation,
+                resourceClass = policy.ResourceClass,
                 declaredPaths = witness.DeclaredPaths,
                 witness = witness.Hops,
             });
@@ -773,11 +773,11 @@ public static class ConstraintLogic
         var explanation = JsonSerializer.SerializeToElement(new
         {
             subjectId = input.SubjectId,
-            action = input.Action,
+            operation = input.Operation,
             resourceId = input.ResourceId,
             fieldName = input.FieldName,
             asOf,
-            resourceType,
+            resourceClass = resourceClass,
             matchedPolicies = matched,
             evaluatedPolicies = evaluations.Select(ToExplanationPolicyEvaluation),
             fieldVisibility = fieldVisibility.ToDictionary(
@@ -803,11 +803,11 @@ public static class ConstraintLogic
         var explanation = JsonSerializer.SerializeToElement(new
         {
             subjectId = input.SubjectId,
-            action = input.Action,
+            operation = input.Operation,
             resourceId = input.ResourceId,
             fieldName = input.FieldName,
             asOf,
-            resourceType = (string?)null,
+            resourceClass = (string?)null,
             matchedPolicies = Array.Empty<object>(),
             evaluatedPolicies = Array.Empty<object>(),
             fieldVisibility = new Dictionary<string, string>(StringComparer.Ordinal),
@@ -826,8 +826,8 @@ public static class ConstraintLogic
     {
         policyId = evaluation.PolicyId,
         effect = evaluation.Effect,
-        action = evaluation.Action,
-        resourceType = evaluation.ResourceType,
+        operation = evaluation.Operation,
+        resourceClass = evaluation.ResourceClass,
         status = ToExplanationStatus(evaluation.Status),
         path = new
         {
@@ -881,10 +881,10 @@ public static class ConstraintLogic
             await BehaviorReadinessLogic.EnsureReadyIfBoundAsync(runtime, resolution, whenKey, cancellationToken);
             await BehaviorReadinessLogic.EnsureReadyIfBoundAsync(runtime, resolution, thenKey, cancellationToken);
             resolution.RegistrySnapshot.Validators.TryGetValue(
-                (constraint.OwnerType, constraint.Name),
+                (constraint.OwnerClass, constraint.Name),
                 out var validatorRegistration);
             resolution.RegistrySnapshot.Constraints.TryGetValue(
-                (constraint.OwnerType, constraint.Name),
+                (constraint.OwnerClass, constraint.Name),
                 out var customConstraint);
             return new ResolvedConstraint(
                 constraint,
@@ -895,7 +895,7 @@ public static class ConstraintLogic
         await BehaviorReadinessLogic.EnsureReadyIfBoundAsync(runtime, resolution, whenKey, cancellationToken);
         await BehaviorReadinessLogic.EnsureReadyIfBoundAsync(runtime, resolution, thenKey, cancellationToken);
         resolution.RegistrySnapshot.Constraints.TryGetValue(
-            (constraint.OwnerType, constraint.Name),
+            (constraint.OwnerClass, constraint.Name),
             out var scopedConstraint);
         return new ResolvedConstraint(constraint, null, scopedConstraint);
     }
@@ -925,7 +925,7 @@ public static class ConstraintLogic
         BehaviorCallbackSlot slot) =>
         new(
             BehaviorKind.Constraint,
-            constraint.OwnerType,
+            constraint.OwnerClass,
             constraint.Name,
             slot,
             BehaviorBindingLogic.NonInterceptorPhase,
@@ -970,15 +970,15 @@ public static class ConstraintLogic
 
     private static async Task<IReadOnlyList<ConstraintDefinition>> ListEffectiveConstraintsAsync(
         CozoOmRuntime runtime,
-        string typeName,
+        string className,
         CancellationToken cancellationToken)
     {
-        var canonical = await TypeLogic.ResolveTypeAsync(runtime, typeName, cancellationToken);
-        var chain = (await TypeLogic.GetAncestorsAsync(runtime, canonical, cancellationToken)).Reverse().Concat([canonical]);
+        var canonical = await ClassLogic.ResolveClassAsync(runtime, className, cancellationToken);
+        var chain = (await ClassLogic.GetAncestorsAsync(runtime, canonical, cancellationToken)).Reverse().Concat([canonical]);
         var constraints = new Dictionary<string, ConstraintDefinition>(StringComparer.Ordinal);
-        foreach (var currentType in chain)
+        foreach (var currentClass in chain)
         {
-            foreach (var constraint in await ListConstraintsAsync(runtime, currentType, cancellationToken))
+            foreach (var constraint in await ListConstraintsAsync(runtime, currentClass, cancellationToken))
             {
                 constraints[constraint.Name] = constraint;
             }
@@ -989,65 +989,67 @@ public static class ConstraintLogic
 
     private static async Task<IReadOnlyList<ConstraintDefinition>> ListConstraintsAsync(
         CozoOmRuntime runtime,
-        string typeName,
+        string className,
         CancellationToken cancellationToken)
     {
         var result = await runtime.Store.RunAsync(
             """
-            ?[constraint_name, constraint_type, message] :=
-              *om_constraint_def{ type_name: $type_name, constraint_name, constraint_type, message }
+            ?[constraint_name, constraint_kind, message] :=
+              *om_constraint_def{ class_name: $class_name, constraint_name, constraint_kind, message }
             :sort constraint_name
             """,
-            LogicSupport.Params(("type_name", typeName)),
+            LogicSupport.Params(("class_name", className)),
             cancellationToken: cancellationToken);
         return result.Rows
             .Select(row => new ConstraintDefinition(
-                typeName,
+                className,
                 JsonRows.StringAt(row, 0) ?? "",
-                NormalizeConstraintType(JsonRows.StringAt(row, 1) ?? ""),
+                NormalizeConstraintKind(JsonRows.StringAt(row, 1) ?? ""),
                 JsonRows.StringAt(row, 2) ?? ""))
             .Where(row => row.Name.Length > 0)
             .ToArray();
     }
 
-    private static string NormalizeConstraintType(string constraintType)
+    private static string NormalizeConstraintKind(string constraintKind)
     {
-        var normalized = (constraintType ?? "").Trim().ToLowerInvariant();
+        var normalized = (constraintKind ?? "").Trim().ToLowerInvariant();
         return normalized switch
         {
             "" => "conditional",
             "conditional" => "conditional",
             "cross_entity" => "cross-entity",
             "cross-entity" => "cross-entity",
-            "computed_dep" => "computed-dep",
-            "computed-dep" => "computed-dep",
+            "computed_dep" => "computedProp-dep",
+            "computed-dep" => "computedProp-dep",
+            "computedprop-dep" => "computedProp-dep",
+            "computedProp-dep" => "computedProp-dep",
             "custom" => "custom",
             _ => normalized,
         };
     }
 
-    private static string ValidateConstraintType(string constraintType)
+    private static string ValidateConstraintKind(string constraintKind)
     {
-        var normalized = NormalizeConstraintType(constraintType);
-        if (normalized is not ("conditional" or "cross-entity" or "computed-dep" or "custom"))
+        var normalized = NormalizeConstraintKind(constraintKind);
+        if (normalized is not ("conditional" or "cross-entity" or "computedProp-dep" or "custom"))
         {
             throw new ArgumentException(
-                "Constraint type must be one of 'conditional', 'cross-entity', 'computed-dep', or 'custom'",
-                nameof(constraintType));
+                "Constraint kind must be one of 'conditional', 'cross-entity', 'computedProp-dep', or 'custom'",
+                nameof(constraintKind));
         }
 
         return normalized;
     }
 
-    private static async Task<string> ResolveExistingOwnerTypeAsync(
+    private static async Task<string> ResolveExistingOwnerClassAsync(
         CozoOmRuntime runtime,
-        string typeName,
+        string className,
         CancellationToken cancellationToken)
     {
-        var resolved = await TypeLogic.ResolveTypeAsync(runtime, typeName, cancellationToken);
-        if (!await TypeLogic.TypeExistsAsync(runtime, resolved, cancellationToken))
+        var resolved = await ClassLogic.ResolveClassAsync(runtime, className, cancellationToken);
+        if (!await ClassLogic.ClassExistsAsync(runtime, resolved, cancellationToken))
         {
-            throw new CozoException($"Owner type '{resolved}' does not exist");
+            throw new CozoException($"Owner class '{resolved}' does not exist");
         }
 
         return resolved;
@@ -1055,17 +1057,17 @@ public static class ConstraintLogic
 
     private static async Task<ConstraintMetadataSnapshot?> ReadConstraintMetadataAsync(
         CozoOmRuntime runtime,
-        string typeName,
+        string className,
         string constraintName,
         CancellationToken cancellationToken)
     {
         var result = await runtime.Store.RunAsync(
             """
-            ?[constraint_type, message] :=
-              *om_constraint_def{ type_name: $type_name, constraint_name: $constraint_name, constraint_type, message }
+            ?[constraint_kind, message] :=
+              *om_constraint_def{ class_name: $class_name, constraint_name: $constraint_name, constraint_kind, message }
             :limit 1
             """,
-            LogicSupport.Params(("type_name", typeName), ("constraint_name", constraintName)),
+            LogicSupport.Params(("class_name", className), ("constraint_name", constraintName)),
             cancellationToken: cancellationToken);
         return result.Rows.Count == 0
             ? null
@@ -1074,38 +1076,38 @@ public static class ConstraintLogic
                 JsonRows.StringAt(result.Rows[0], 1) ?? "");
     }
 
-    private static async Task<ActionMetadataSnapshot?> ReadActionMetadataAsync(
+    private static async Task<OperationMetadataSnapshot?> ReadOperationMetadataAsync(
         CozoOmRuntime runtime,
-        string typeName,
-        string actionName,
+        string className,
+        string operationName,
         CancellationToken cancellationToken)
     {
         var result = await runtime.Store.RunAsync(
             """
             ?[description] :=
-              *om_action_def{ type_name: $type_name, action_name: $action_name, description }
+              *om_operation_def{ class_name: $class_name, operation_name: $operation_name, description }
             :limit 1
             """,
-            LogicSupport.Params(("type_name", typeName), ("action_name", actionName)),
+            LogicSupport.Params(("class_name", className), ("operation_name", operationName)),
             cancellationToken: cancellationToken);
         return result.Rows.Count == 0
             ? null
-            : new ActionMetadataSnapshot(JsonRows.StringAt(result.Rows[0], 0) ?? "");
+            : new OperationMetadataSnapshot(JsonRows.StringAt(result.Rows[0], 0) ?? "");
     }
 
     private static async Task<MutationMetadataSnapshot?> ReadMutationMetadataAsync(
         CozoOmRuntime runtime,
-        string typeName,
+        string className,
         string mutationName,
         CancellationToken cancellationToken)
     {
         var result = await runtime.Store.RunAsync(
             """
             ?[description] :=
-              *om_mutation_def{ type_name: $type_name, mutation_name: $mutation_name, description }
+              *om_mutation_def{ class_name: $class_name, mutation_name: $mutation_name, description }
             :limit 1
             """,
-            LogicSupport.Params(("type_name", typeName), ("mutation_name", mutationName)),
+            LogicSupport.Params(("class_name", className), ("mutation_name", mutationName)),
             cancellationToken: cancellationToken);
         return result.Rows.Count == 0
             ? null
@@ -1114,8 +1116,8 @@ public static class ConstraintLogic
 
     private static async Task<InterceptorMetadataSnapshot?> ReadInterceptorMetadataAsync(
         CozoOmRuntime runtime,
-        string typeName,
-        string actionName,
+        string className,
+        string operationName,
         string phase,
         int seq,
         CancellationToken cancellationToken)
@@ -1124,15 +1126,15 @@ public static class ConstraintLogic
             """
             ?[description] :=
               *om_interceptor_def{
-                type_name: $type_name,
-                action_name: $action_name,
+                class_name: $class_name,
+                operation_name: $operation_name,
                 phase: $phase,
                 seq: $seq,
                 description
               }
             :limit 1
             """,
-            LogicSupport.Params(("type_name", typeName), ("action_name", actionName), ("phase", phase), ("seq", seq)),
+            LogicSupport.Params(("class_name", className), ("operation_name", operationName), ("phase", phase), ("seq", seq)),
             cancellationToken: cancellationToken);
         return result.Rows.Count == 0
             ? null
@@ -1141,74 +1143,74 @@ public static class ConstraintLogic
 
     private static Task RestoreConstraintMetadataAsync(
         CozoOmRuntime runtime,
-        string typeName,
+        string className,
         string constraintName,
         ConstraintMetadataSnapshot? snapshot,
         CancellationToken cancellationToken) =>
         snapshot is null
-            ? RemoveConstraintMetadataAsync(runtime, typeName, constraintName, cancellationToken)
+            ? RemoveConstraintMetadataAsync(runtime, className, constraintName, cancellationToken)
             : runtime.Store.RunAsync(
                 CozoScriptBuilder.InputPut(
                     "om_constraint_def",
-                    ["type_name", "constraint_name"],
-                    ["constraint_type", "message"]),
+                    ["class_name", "constraint_name"],
+                    ["constraint_kind", "message"]),
                 LogicSupport.Params(
-                    ("type_name", typeName),
+                    ("class_name", className),
                     ("constraint_name", constraintName),
-                    ("constraint_type", snapshot.ConstraintType),
+                    ("constraint_kind", snapshot.ConstraintKind),
                     ("message", snapshot.Message)),
                 cancellationToken: cancellationToken);
 
-    private static Task RestoreActionMetadataAsync(
+    private static Task RestoreOperationMetadataAsync(
         CozoOmRuntime runtime,
-        string typeName,
-        string actionName,
-        ActionMetadataSnapshot? snapshot,
+        string className,
+        string operationName,
+        OperationMetadataSnapshot? snapshot,
         CancellationToken cancellationToken) =>
         snapshot is null
-            ? RemoveActionMetadataAsync(runtime, typeName, actionName, cancellationToken)
+            ? RemoveOperationMetadataAsync(runtime, className, operationName, cancellationToken)
             : runtime.Store.RunAsync(
-                CozoScriptBuilder.InputPut("om_action_def", ["type_name", "action_name"], ["description"]),
+                CozoScriptBuilder.InputPut("om_operation_def", ["class_name", "operation_name"], ["description"]),
                 LogicSupport.Params(
-                    ("type_name", typeName),
-                    ("action_name", actionName),
+                    ("class_name", className),
+                    ("operation_name", operationName),
                     ("description", snapshot.Description)),
                 cancellationToken: cancellationToken);
 
     private static Task RestoreMutationMetadataAsync(
         CozoOmRuntime runtime,
-        string typeName,
+        string className,
         string mutationName,
         MutationMetadataSnapshot? snapshot,
         CancellationToken cancellationToken) =>
         snapshot is null
-            ? RemoveMutationMetadataAsync(runtime, typeName, mutationName, cancellationToken)
+            ? RemoveMutationMetadataAsync(runtime, className, mutationName, cancellationToken)
             : runtime.Store.RunAsync(
-                CozoScriptBuilder.InputPut("om_mutation_def", ["type_name", "mutation_name"], ["description"]),
+                CozoScriptBuilder.InputPut("om_mutation_def", ["class_name", "mutation_name"], ["description"]),
                 LogicSupport.Params(
-                    ("type_name", typeName),
+                    ("class_name", className),
                     ("mutation_name", mutationName),
                     ("description", snapshot.Description)),
                 cancellationToken: cancellationToken);
 
     private static Task RestoreInterceptorMetadataAsync(
         CozoOmRuntime runtime,
-        string typeName,
-        string actionName,
+        string className,
+        string operationName,
         string phase,
         int seq,
         InterceptorMetadataSnapshot? snapshot,
         CancellationToken cancellationToken) =>
         snapshot is null
-            ? RemoveInterceptorMetadataAsync(runtime, typeName, actionName, phase, seq, cancellationToken)
+            ? RemoveInterceptorMetadataAsync(runtime, className, operationName, phase, seq, cancellationToken)
             : runtime.Store.RunAsync(
                 CozoScriptBuilder.InputPut(
                     "om_interceptor_def",
-                    ["type_name", "action_name", "phase", "seq"],
+                    ["class_name", "operation_name", "phase", "seq"],
                     ["description"]),
                 LogicSupport.Params(
-                    ("type_name", typeName),
-                    ("action_name", actionName),
+                    ("class_name", className),
+                    ("operation_name", operationName),
                     ("phase", phase),
                     ("seq", seq),
                     ("description", snapshot.Description)),
@@ -1250,74 +1252,74 @@ public static class ConstraintLogic
 
     private static Task RemoveConstraintMetadataAsync(
         CozoOmRuntime runtime,
-        string typeName,
+        string className,
         string constraintName,
         CancellationToken cancellationToken) =>
         runtime.Store.RunAsync(
             """
-            ?[type_name, constraint_name] <- [[$type_name, $constraint_name]]
-            :rm om_constraint_def {type_name, constraint_name}
+            ?[class_name, constraint_name] <- [[$class_name, $constraint_name]]
+            :rm om_constraint_def {class_name, constraint_name}
             """,
-            LogicSupport.Params(("type_name", typeName), ("constraint_name", constraintName)),
+            LogicSupport.Params(("class_name", className), ("constraint_name", constraintName)),
             cancellationToken: cancellationToken);
 
-    private static Task RemoveActionMetadataAsync(
+    private static Task RemoveOperationMetadataAsync(
         CozoOmRuntime runtime,
-        string typeName,
-        string actionName,
+        string className,
+        string operationName,
         CancellationToken cancellationToken) =>
         runtime.Store.RunAsync(
             """
-            ?[type_name, action_name] <- [[$type_name, $action_name]]
-            :rm om_action_def {type_name, action_name}
+            ?[class_name, operation_name] <- [[$class_name, $operation_name]]
+            :rm om_operation_def {class_name, operation_name}
             """,
-            LogicSupport.Params(("type_name", typeName), ("action_name", actionName)),
+            LogicSupport.Params(("class_name", className), ("operation_name", operationName)),
             cancellationToken: cancellationToken);
 
     private static Task RemoveMutationMetadataAsync(
         CozoOmRuntime runtime,
-        string typeName,
+        string className,
         string mutationName,
         CancellationToken cancellationToken) =>
         runtime.Store.RunAsync(
             """
-            ?[type_name, mutation_name] <- [[$type_name, $mutation_name]]
-            :rm om_mutation_def {type_name, mutation_name}
+            ?[class_name, mutation_name] <- [[$class_name, $mutation_name]]
+            :rm om_mutation_def {class_name, mutation_name}
             """,
-            LogicSupport.Params(("type_name", typeName), ("mutation_name", mutationName)),
+            LogicSupport.Params(("class_name", className), ("mutation_name", mutationName)),
             cancellationToken: cancellationToken);
 
     private static Task RemoveInterceptorMetadataAsync(
         CozoOmRuntime runtime,
-        string typeName,
-        string actionName,
+        string className,
+        string operationName,
         string phase,
         int seq,
         CancellationToken cancellationToken) =>
         runtime.Store.RunAsync(
             """
-            ?[type_name, action_name, phase, seq] <- [[$type_name, $action_name, $phase, $seq]]
-            :rm om_interceptor_def {type_name, action_name, phase, seq}
+            ?[class_name, operation_name, phase, seq] <- [[$class_name, $operation_name, $phase, $seq]]
+            :rm om_interceptor_def {class_name, operation_name, phase, seq}
             """,
-            LogicSupport.Params(("type_name", typeName), ("action_name", actionName), ("phase", phase), ("seq", seq)),
+            LogicSupport.Params(("class_name", className), ("operation_name", operationName), ("phase", phase), ("seq", seq)),
             cancellationToken: cancellationToken);
 
-    private static async Task<ActionRegistration?> ResolveActionAsync(
+    private static async Task<OperationRegistration?> ResolveOperationAsync(
         CozoOmRuntime runtime,
         BehaviorResolutionScope resolution,
-        string typeName,
-        string actionName,
+        string className,
+        string operationName,
         CancellationToken cancellationToken)
     {
-        foreach (var candidateType in new[] { typeName }.Concat(await TypeLogic.GetAncestorsAsync(runtime, typeName, cancellationToken)))
+        foreach (var candidateClass in new[] { className }.Concat(await ClassLogic.GetAncestorsAsync(runtime, className, cancellationToken)))
         {
             var hasDefinition = await BehaviorDefinitionExistsAsync(
                 runtime,
-                "om_action_def",
-                "type_name",
-                candidateType,
-                "action_name",
-                actionName,
+                "om_operation_def",
+                "class_name",
+                candidateClass,
+                "operation_name",
+                operationName,
                 cancellationToken);
             if (hasDefinition)
             {
@@ -1325,51 +1327,51 @@ public static class ConstraintLogic
                     runtime,
                     resolution,
                     new BehaviorBindingKey(
-                        BehaviorKind.Action,
-                        candidateType,
-                        actionName,
+                        BehaviorKind.Operation,
+                        candidateClass,
+                        operationName,
                         BehaviorCallbackSlot.Handler,
                         BehaviorBindingLogic.NonInterceptorPhase,
                         BehaviorBindingLogic.NonInterceptorSeq),
                     cancellationToken);
             }
 
-            if (resolution.RegistrySnapshot.Actions.TryGetValue((candidateType, actionName), out var registration))
+            if (resolution.RegistrySnapshot.Operations.TryGetValue((candidateClass, operationName), out var registration))
             {
-                return new ActionRegistration(candidateType, registration.Callback);
+                return new OperationRegistration(candidateClass, registration.Callback);
             }
         }
 
         return null;
     }
 
-    private static async Task<ActionRegistration?> ResolveParentActionAsync(
+    private static async Task<OperationRegistration?> ResolveParentOperationAsync(
         CozoOmRuntime runtime,
         BehaviorResolutionScope resolution,
-        string actionOwnerType,
-        string actionName,
+        string operationOwnerClass,
+        string operationName,
         CancellationToken cancellationToken)
     {
-        var parentType = await TypeLogic.GetParentTypeAsync(runtime, actionOwnerType, cancellationToken);
-        return string.IsNullOrWhiteSpace(parentType)
+        var parentClass = await ClassLogic.GetParentClassAsync(runtime, operationOwnerClass, cancellationToken);
+        return string.IsNullOrWhiteSpace(parentClass)
             ? null
-            : await ResolveActionAsync(runtime, resolution, parentType, actionName, cancellationToken);
+            : await ResolveOperationAsync(runtime, resolution, parentClass, operationName, cancellationToken);
     }
 
     private static async Task<MutationRegistration?> ResolveMutationAsync(
         CozoOmRuntime runtime,
         BehaviorResolutionScope resolution,
-        string typeName,
+        string className,
         string mutationName,
         CancellationToken cancellationToken)
     {
-        foreach (var candidateType in new[] { typeName }.Concat(await TypeLogic.GetAncestorsAsync(runtime, typeName, cancellationToken)))
+        foreach (var candidateClass in new[] { className }.Concat(await ClassLogic.GetAncestorsAsync(runtime, className, cancellationToken)))
         {
             var hasDefinition = await BehaviorDefinitionExistsAsync(
                 runtime,
                 "om_mutation_def",
-                "type_name",
-                candidateType,
+                "class_name",
+                candidateClass,
                 "mutation_name",
                 mutationName,
                 cancellationToken);
@@ -1380,7 +1382,7 @@ public static class ConstraintLogic
                     resolution,
                     new BehaviorBindingKey(
                         BehaviorKind.Mutation,
-                        candidateType,
+                        candidateClass,
                         mutationName,
                         BehaviorCallbackSlot.Executor,
                         BehaviorBindingLogic.NonInterceptorPhase,
@@ -1388,9 +1390,9 @@ public static class ConstraintLogic
                     cancellationToken);
             }
 
-            if (resolution.RegistrySnapshot.Mutations.TryGetValue((candidateType, mutationName), out var registration))
+            if (resolution.RegistrySnapshot.Mutations.TryGetValue((candidateClass, mutationName), out var registration))
             {
-                return new MutationRegistration(candidateType, registration.Callback);
+                return new MutationRegistration(candidateClass, registration.Callback);
             }
         }
 
@@ -1400,26 +1402,26 @@ public static class ConstraintLogic
     private static async Task<IReadOnlyList<OmInterceptorRegistration>> CollectInterceptorsAsync(
         CozoOmRuntime runtime,
         BehaviorResolutionScope resolution,
-        string typeName,
-        string actionName,
+        string className,
+        string operationName,
         string phase,
         CancellationToken cancellationToken)
     {
-        var chain = new[] { typeName }.Concat(await TypeLogic.GetAncestorsAsync(runtime, typeName, cancellationToken)).Reverse();
+        var chain = new[] { className }.Concat(await ClassLogic.GetAncestorsAsync(runtime, className, cancellationToken)).Reverse();
         var resolved = new List<OmInterceptorRegistration>();
         var source = phase == "before"
             ? resolution.RegistrySnapshot.BeforeInterceptors
             : resolution.RegistrySnapshot.AfterInterceptors;
 
-        foreach (var ownerType in chain)
+        foreach (var ownerClass in chain)
         {
             var metadataSequences = await ListInterceptorSequencesAsync(
                 runtime,
-                ownerType,
-                actionName,
+                ownerClass,
+                operationName,
                 phase,
                 cancellationToken);
-            var registrations = source.TryGetValue((ownerType, actionName), out var existing)
+            var registrations = source.TryGetValue((ownerClass, operationName), out var existing)
                 ? existing.OrderBy(item => item.Seq).ToArray()
                 : [];
 
@@ -1430,8 +1432,8 @@ public static class ConstraintLogic
                     resolution,
                     new BehaviorBindingKey(
                         BehaviorKind.Interceptor,
-                        ownerType,
-                        actionName,
+                        ownerClass,
+                        operationName,
                         BehaviorCallbackSlot.Handler,
                         phase,
                         seq),
@@ -1454,47 +1456,47 @@ public static class ConstraintLogic
         CozoOmRuntime runtime,
         string relation,
         string ownerField,
-        string ownerType,
+        string ownerClass,
         string nameField,
         string behaviorName,
         CancellationToken cancellationToken)
     {
         var result = await runtime.Store.RunAsync(
             $"?[name] := *{relation}{{{ownerField}: $owner, {nameField}: name}}, name = $name\n:limit 1",
-            LogicSupport.Params(("owner", ownerType), ("name", behaviorName)),
+            LogicSupport.Params(("owner", ownerClass), ("name", behaviorName)),
             cancellationToken: cancellationToken);
         return result.Rows.Count > 0;
     }
 
     private static async Task<IReadOnlyList<int>> ListInterceptorSequencesAsync(
         CozoOmRuntime runtime,
-        string ownerType,
-        string actionName,
+        string ownerClass,
+        string operationName,
         string phase,
         CancellationToken cancellationToken)
     {
         var result = await runtime.Store.RunAsync(
-            "?[seq] := *om_interceptor_def{type_name: $owner, action_name: $action, phase: $phase, seq}\n:sort seq",
-            LogicSupport.Params(("owner", ownerType), ("action", actionName), ("phase", phase)),
+            "?[seq] := *om_interceptor_def{class_name: $owner, operation_name: $operation, phase: $phase, seq}\n:sort seq",
+            LogicSupport.Params(("owner", ownerClass), ("operation", operationName), ("phase", phase)),
             cancellationToken: cancellationToken);
         return result.Rows.Select(row => JsonRows.IntAt(row, 0)).ToArray();
     }
 
     private static async Task<int> NextInterceptorSeqAsync(
         CozoOmRuntime runtime,
-        string ownerType,
-        string actionName,
+        string ownerClass,
+        string operationName,
         string phase,
         CancellationToken cancellationToken)
     {
         var metadataSequences = await ListInterceptorSequencesAsync(
             runtime,
-            ownerType,
-            actionName,
+            ownerClass,
+            operationName,
             phase,
             cancellationToken);
         var metadataNext = metadataSequences.Count == 0 ? 0 : metadataSequences.Max() + 1;
-        return Math.Max(metadataNext, runtime.Registry.NextInterceptorSeq(ownerType, actionName, phase));
+        return Math.Max(metadataNext, runtime.Registry.NextInterceptorSeq(ownerClass, operationName, phase));
     }
 
     private static string NormalizeInterceptorPhase(string phase)
@@ -1512,8 +1514,8 @@ public static class ConstraintLogic
         CozoOmRuntime runtime,
         string policyId,
         CheckAccessInput input,
-        string subjectType,
-        string resourceType,
+        string subjectClass,
+        string resourceClass,
         string? asOf,
         CancellationToken cancellationToken)
     {
@@ -1539,9 +1541,9 @@ public static class ConstraintLogic
             }
 
             var left = await ResolvePermissionValueAsync(
-                runtime, leftRef, input, subjectType, resourceType, asOf, cancellationToken);
+                runtime, leftRef, input, subjectClass, resourceClass, asOf, cancellationToken);
             var right = await ResolvePermissionValueAsync(
-                runtime, rightRef, input, subjectType, resourceType, asOf, cancellationToken);
+                runtime, rightRef, input, subjectClass, resourceClass, asOf, cancellationToken);
             if (left.Value is null || right.Value is null)
             {
                 diagnostics.Add(new PermissionAbacDiagnostic(
@@ -1620,7 +1622,7 @@ public static class ConstraintLogic
             {
                 try
                 {
-                    canonicalRelations.Add((await TypeLogic.GetRelationDefinitionAsync(runtime, relation, cancellationToken)).RelName);
+                    canonicalRelations.Add((await ClassLogic.GetRelationDefinitionAsync(runtime, relation, cancellationToken)).RelationName);
                 }
                 catch (CozoException)
                 {
@@ -1744,11 +1746,11 @@ public static class ConstraintLogic
                     ? await RelationLogic.GetNeighborsAsync(runtime, fromId, relation, OmDirection.Outgoing, cancellationToken)
                     : await RelationLogic.GetNeighborsAtNormalizedAsOfAsync(runtime, fromId, relation, asOf, OmDirection.Outgoing, cancellationToken);
                 foreach (var neighbor in neighbors.Outgoing
-                             .OrderBy(candidate => candidate.EntityId, StringComparer.Ordinal)
-                             .ThenBy(candidate => candidate.RelName, StringComparer.Ordinal))
+                             .OrderBy(candidate => candidate.ObjectId, StringComparer.Ordinal)
+                             .ThenBy(candidate => candidate.RelationName, StringComparer.Ordinal))
                 {
-                    if (string.IsNullOrWhiteSpace(neighbor.EntityId) || next.ContainsKey(neighbor.EntityId)) continue;
-                    next[neighbor.EntityId] = hops.Add(new PermissionWitnessHop(fromId, relation, neighbor.EntityId));
+                    if (string.IsNullOrWhiteSpace(neighbor.ObjectId) || next.ContainsKey(neighbor.ObjectId)) continue;
+                    next[neighbor.ObjectId] = hops.Add(new PermissionWitnessHop(fromId, relation, neighbor.ObjectId));
                 }
             }
 
@@ -1807,7 +1809,7 @@ public static class ConstraintLogic
         var value = reference.Trim();
         if (value.Length == 0) return false;
         if (value is "subject.type" or "resource.type") return true;
-        if (value is "subject.id" or "action" or "resource.id" or "resource.field") return false;
+        if (value is "subject.id" or "operation" or "resource.id" or "resource.field") return false;
         if (value.StartsWith("subject.", StringComparison.Ordinal)) return value.Length > "subject.".Length;
         if (value.StartsWith("resource.", StringComparison.Ordinal)) return value.Length > "resource.".Length;
         if (value.StartsWith("field.", StringComparison.Ordinal)) return value.Length > "field.".Length;
@@ -1818,28 +1820,28 @@ public static class ConstraintLogic
         CozoOmRuntime runtime,
         string reference,
         CheckAccessInput input,
-        string subjectType,
-        string resourceType,
+        string subjectClass,
+        string resourceClass,
         string? asOf,
         CancellationToken cancellationToken)
     {
         var value = reference.Trim();
         switch (value)
         {
-            case "subject.type": return PermissionValueResolution.From(subjectType);
-            case "resource.type": return PermissionValueResolution.From(resourceType);
+            case "subject.type": return PermissionValueResolution.From(subjectClass);
+            case "resource.type": return PermissionValueResolution.From(resourceClass);
         }
 
         if (value.StartsWith("subject.", StringComparison.Ordinal) || value.StartsWith("resource.", StringComparison.Ordinal))
         {
             var isSubject = value.StartsWith("subject.", StringComparison.Ordinal);
             var attribute = value[(isSubject ? "subject." : "resource.").Length..].Trim();
-            var entityId = isSubject ? input.SubjectId : input.ResourceId;
+            var objectId = isSubject ? input.SubjectId : input.ResourceId;
             try
             {
                 var property = asOf is null
-                    ? await EntityLogic.GetPropertyAsync(runtime, entityId, attribute, cancellationToken)
-                    : await EntityLogic.GetPropertyAtNormalizedAsOfAsync(runtime, entityId, attribute, asOf, cancellationToken);
+                    ? await ObjectLogic.GetFieldValueAsync(runtime, objectId, attribute, cancellationToken)
+                    : await ObjectLogic.GetFieldValueAtNormalizedAsOfAsync(runtime, objectId, attribute, asOf, cancellationToken);
                 return property is null
                     ? new PermissionValueResolution(null, "missing_value")
                     : new PermissionValueResolution(property.Value, null);
@@ -1937,7 +1939,7 @@ public static class ConstraintLogic
         return rows.Rows.Select(row => JsonRows.StringAt(row, 0) ?? "").Where(x => x.Length > 0).ToArray();
     }
 
-    private sealed record PermissionPolicyRow(string PolicyId, string Effect, string Action, string ResourceType, string Description);
+    private sealed record PermissionPolicyRow(string PolicyId, string Effect, string Operation, string ResourceClass, string Description);
 
     private sealed record ParsedPermissionPath(string Raw, ImmutableArray<string> Relations);
 
@@ -1971,30 +1973,30 @@ public static class ConstraintLogic
         }
     }
 
-    private sealed record ConstraintMetadataSnapshot(string ConstraintType, string Message);
+    private sealed record ConstraintMetadataSnapshot(string ConstraintKind, string Message);
 
-    private sealed record ActionMetadataSnapshot(string Description);
+    private sealed record OperationMetadataSnapshot(string Description);
 
     private sealed record MutationMetadataSnapshot(string Description);
 
     private sealed record InterceptorMetadataSnapshot(string Description);
 
-    private sealed record ActionRegistration(
-        string OwnerType,
-        Func<OmActionContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>> Handler);
+    private sealed record OperationRegistration(
+        string OwnerClass,
+        Func<OmOperationContext, IReadOnlyDictionary<string, object?>, ValueTask<IReadOnlyList<MutationSpec>>> Handler);
 
     private sealed record MutationRegistration(
-        string OwnerType,
+        string OwnerClass,
         Func<OmMutationContext, IReadOnlyDictionary<string, object?>, ValueTask> Executor);
 
-    private sealed record ParentActionResolution(
+    private sealed record ParentOperationResolution(
         BehaviorResolutionScope Resolution,
-        ActionRegistration? Action);
+        OperationRegistration? Operation);
 
-    private sealed record ResolvedActionPipeline(
+    private sealed record ResolvedOperationPipeline(
         BehaviorResolutionScope Resolution,
-        string TypeName,
-        ActionRegistration? Action,
+        string ClassName,
+        OperationRegistration? Operation,
         IReadOnlyList<OmInterceptorRegistration> BeforeInterceptors,
         IReadOnlyList<OmInterceptorRegistration> AfterInterceptors);
 
@@ -2003,11 +2005,11 @@ public static class ConstraintLogic
         IReadOnlyDictionary<string, object?> Parameters);
 
     private sealed record ResolvedMutationBatch(
-        string TypeName,
+        string ClassName,
         IReadOnlyList<ResolvedMutation> Mutations);
 
     private sealed record ConstraintDefinition(
-        string OwnerType,
+        string OwnerClass,
         string Name,
         string Type,
         string Message);

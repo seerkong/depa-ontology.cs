@@ -21,10 +21,10 @@ public static class CozoOmAnalyticsExtensions
 
         var normalized = input with
         {
-            RelNames = input.RelNames?.Where(r => !string.IsNullOrWhiteSpace(r)).ToArray() ?? [],
+            RelationNames = input.RelationNames?.Where(r => !string.IsNullOrWhiteSpace(r)).ToArray() ?? [],
             MaxDepth = Math.Max(0, input.MaxDepth),
         };
-        var graph = await WalkImpactGraphAsync(om, normalized.RootId, normalized.RelNames, normalized.MaxDepth, normalized.Direction, cancellationToken);
+        var graph = await WalkImpactGraphAsync(om, normalized.RootId, normalized.RelationNames, normalized.MaxDepth, normalized.Direction, cancellationToken);
         var byType = CountByType(graph.Nodes);
         var visualGraph = BuildGraphVisual(graph.Nodes, graph.Edges, normalized.RootId);
         var data = new ImpactAnalysisData(
@@ -61,10 +61,10 @@ public static class CozoOmAnalyticsExtensions
 
         var normalized = input with
         {
-            OwnerRelNames = input.OwnerRelNames?.Where(r => !string.IsNullOrWhiteSpace(r)).ToArray() ?? ["owns", "contains"],
+            OwnerRelationNames = input.OwnerRelationNames?.Where(r => !string.IsNullOrWhiteSpace(r)).ToArray() ?? ["owns", "contains"],
             MaxDepth = Math.Max(0, input.MaxDepth),
         };
-        var graph = await WalkImpactGraphAsync(om, normalized.RootId, normalized.OwnerRelNames, normalized.MaxDepth, OmAnalyticsDirection.Outgoing, cancellationToken);
+        var graph = await WalkImpactGraphAsync(om, normalized.RootId, normalized.OwnerRelationNames, normalized.MaxDepth, OmAnalyticsDirection.Outgoing, cancellationToken);
         var visualGraph = BuildGraphVisual(graph.Nodes, graph.Edges, normalized.RootId);
         var visualTree = BuildTreeVisual(normalized.RootId, graph.Edges);
         var data = new OwnershipTreeData(
@@ -96,12 +96,12 @@ public static class CozoOmAnalyticsExtensions
         ArgumentNullException.ThrowIfNull(om);
         var normalized = input ?? new RiskHotspotInput();
         var topK = normalized.TopK > 0 ? normalized.TopK : 5;
-        var entities = await om.FindByTypeAsync(normalized.TypeName, cancellationToken: cancellationToken);
+        var entities = await om.FindByClassAsync(normalized.ClassName, cancellationToken: cancellationToken);
         var scored = new List<RiskHotspotEntry>();
 
         foreach (var entity in entities)
         {
-            var value = await om.GetPropertyAsync(entity.Id, normalized.RiskAttr, cancellationToken);
+            var value = await om.GetFieldValueAsync(entity.Id, normalized.RiskAttr, cancellationToken);
             if (!TryGetNumber(value, out var baseScore))
             {
                 continue;
@@ -117,7 +117,7 @@ public static class CozoOmAnalyticsExtensions
 
             scored.Add(new RiskHotspotEntry(
                 0,
-                new RiskHotspotEntity(entity.Id, entity.Label, normalized.TypeName),
+                new RiskHotspotEntity(entity.Id, entity.Label, normalized.ClassName),
                 score,
                 new RiskHotspotFactors(baseScore, degree, normalized.DegreeWeight)));
         }
@@ -149,16 +149,16 @@ public static class CozoOmAnalyticsExtensions
         OmAnalyticsDirection direction,
         CancellationToken cancellationToken)
     {
-        var rootView = await om.GetEntityViewAsync(rootId, cancellationToken) ??
+        var rootView = await om.GetObjectViewAsync(rootId, cancellationToken) ??
             throw new CozoException($"Root entity '{rootId}' does not exist");
         var relationFilters = relNames ?? [];
         var queue = new Queue<(string Id, int Depth)>();
         var visited = new HashSet<string>(StringComparer.Ordinal) { rootId };
         var nodes = new Dictionary<string, AnalyticsNode>(StringComparer.Ordinal)
         {
-            [rootId] = new(rootId, rootView.TypeName, rootView.Label, 0)
+            [rootId] = new(rootId, rootView.ClassName, rootView.Label, 0)
         };
-        var edges = new Dictionary<string, AnalyticsEdge>(StringComparer.Ordinal);
+        var edges = new Dictionary<string, AnalyticsRelationLink>(StringComparer.Ordinal);
         var maxDepthReached = 0;
         var cycleDetected = false;
         queue.Enqueue((rootId, 0));
@@ -174,9 +174,9 @@ public static class CozoOmAnalyticsExtensions
 
             if (relationFilters.Count > 0)
             {
-                foreach (var relName in relationFilters)
+                foreach (var relationName in relationFilters)
                 {
-                    await AddNeighborsAsync(relName);
+                    await AddNeighborsAsync(relationName);
                 }
             }
             else
@@ -184,17 +184,17 @@ public static class CozoOmAnalyticsExtensions
                 await AddNeighborsAsync(null);
             }
 
-            async Task AddNeighborsAsync(string? relName)
+            async Task AddNeighborsAsync(string? relationName)
             {
-                var neighbors = await om.GetNeighborsAsync(current.Id, relName, ToOmDirection(direction), cancellationToken);
+                var neighbors = await om.GetNeighborsAsync(current.Id, relationName, ToOmDirection(direction), cancellationToken);
                 if (direction is OmAnalyticsDirection.Outgoing or OmAnalyticsDirection.Both)
                 {
                     foreach (var entry in neighbors.Outgoing)
                     {
                         AddEdgeAndMaybeNode(
                             current.Id,
-                            entry.EntityId,
-                            entry.RelName,
+                            entry.ObjectId,
+                            entry.RelationName,
                             "outgoing",
                             entry,
                             current.Depth);
@@ -206,9 +206,9 @@ public static class CozoOmAnalyticsExtensions
                     foreach (var entry in neighbors.Incoming)
                     {
                         AddEdgeAndMaybeNode(
-                            entry.EntityId,
+                            entry.ObjectId,
                             current.Id,
-                            entry.RelName,
+                            entry.RelationName,
                             "incoming",
                             entry,
                             current.Depth);
@@ -216,13 +216,13 @@ public static class CozoOmAnalyticsExtensions
                 }
             }
 
-            void AddEdgeAndMaybeNode(string fromId, string toId, string relName, string edgeDirection, NeighborEntry entry, int currentDepth)
+            void AddEdgeAndMaybeNode(string fromId, string toId, string relationName, string edgeDirection, NeighborEntry entry, int currentDepth)
             {
-                var neighborId = entry.EntityId;
-                edges[$"{fromId}|{relName}|{toId}"] = new AnalyticsEdge(fromId, toId, relName, edgeDirection);
+                var neighborId = entry.ObjectId;
+                edges[$"{fromId}|{relationName}|{toId}"] = new AnalyticsRelationLink(fromId, toId, relationName, edgeDirection);
                 if (!nodes.ContainsKey(neighborId))
                 {
-                    nodes[neighborId] = new AnalyticsNode(neighborId, entry.TypeName, entry.Label, currentDepth + 1);
+                    nodes[neighborId] = new AnalyticsNode(neighborId, entry.ClassName, entry.Label, currentDepth + 1);
                 }
 
                 if (visited.Contains(neighborId))
@@ -250,11 +250,11 @@ public static class CozoOmAnalyticsExtensions
     private static IReadOnlyDictionary<string, int> CountByType(IReadOnlyList<AnalyticsNode> nodes)
     {
         return nodes
-            .GroupBy(node => node.TypeName, StringComparer.Ordinal)
+            .GroupBy(node => node.ClassName, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
     }
 
-    private static GraphVisual BuildGraphVisual(IReadOnlyList<AnalyticsNode> nodes, IReadOnlyList<AnalyticsEdge> edges, string rootId)
+    private static GraphVisual BuildGraphVisual(IReadOnlyList<AnalyticsNode> nodes, IReadOnlyList<AnalyticsRelationLink> edges, string rootId)
     {
         var nodeMap = new Dictionary<string, GraphVisualNode>(StringComparer.Ordinal);
         var adjacency = nodes.ToDictionary(
@@ -271,8 +271,8 @@ public static class CozoOmAnalyticsExtensions
             var visual = new GraphVisualNode(
                 node.Id,
                 node.Label,
-                node.TypeName,
-                node.TypeName,
+                node.ClassName,
+                node.ClassName,
                 node.Depth,
                 new Dictionary<string, double>(),
                 new GraphNodeFlags(node.Id == rootId));
@@ -288,13 +288,13 @@ public static class CozoOmAnalyticsExtensions
                 adjacencyMutable[edge.FromId] = list;
             }
 
-            list.Add(new GraphAdjacencyEntry(edge.ToId, edge.RelName, edge.Direction));
+            list.Add(new GraphAdjacencyEntry(edge.ToId, edge.RelationName, edge.Direction));
             return new GraphVisualEdge(
-                $"e:{index}:{edge.FromId}:{edge.RelName}:{edge.ToId}",
+                $"e:{index}:{edge.FromId}:{edge.RelationName}:{edge.ToId}",
                 edge.FromId,
                 edge.ToId,
-                edge.RelName,
-                edge.RelName,
+                edge.RelationName,
+                edge.RelationName,
                 edge.Direction,
                 1,
                 new Dictionary<string, bool>());
@@ -308,7 +308,7 @@ public static class CozoOmAnalyticsExtensions
         return new GraphVisual(visualNodes, visualEdges, nodeMap, adjacency);
     }
 
-    private static TreeVisual BuildTreeVisual(string rootId, IReadOnlyList<AnalyticsEdge> edges)
+    private static TreeVisual BuildTreeVisual(string rootId, IReadOnlyList<AnalyticsRelationLink> edges)
     {
         var childrenById = new Dictionary<string, List<TreeChildEntry>>(StringComparer.Ordinal);
         foreach (var edge in edges)
@@ -319,7 +319,7 @@ public static class CozoOmAnalyticsExtensions
                 childrenById[edge.FromId] = children;
             }
 
-            children.Add(new TreeChildEntry(edge.ToId, edge.RelName, edge.Direction));
+            children.Add(new TreeChildEntry(edge.ToId, edge.RelationName, edge.Direction));
         }
 
         return new TreeVisual(
@@ -350,7 +350,7 @@ public static class CozoOmAnalyticsExtensions
 
     private sealed record WalkGraphResult(
         IReadOnlyList<AnalyticsNode> Nodes,
-        IReadOnlyList<AnalyticsEdge> Edges,
+        IReadOnlyList<AnalyticsRelationLink> Edges,
         bool CycleDetected,
         int MaxDepthReached);
 }
