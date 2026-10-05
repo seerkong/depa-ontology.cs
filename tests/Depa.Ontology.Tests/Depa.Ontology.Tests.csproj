@@ -9,6 +9,6 @@
     <ProjectReference Include="../../src/Depa.Ontology/Depa.Ontology.csproj" />
     <ProjectReference Include="../../src/Depa.Ontology.Portability.Yaml/Depa.Ontology.Portability.Yaml.csproj" />
     <ProjectReference Include="../../src/Depa.Ontology.Scripting.Jint/Depa.Ontology.Scripting.Jint.csproj" />
-    <ProjectReference Include="../../../cozo/depa-cozo-csharp/Depa.Cozo.csproj" />
+    <PackageReference Include="Depa.Cozo" Version="0.1.0" />
   </ItemGroup>
 </Project>
